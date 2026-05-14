@@ -1,5 +1,5 @@
 import { serverSupabaseClient } from "#supabase/server";
-import OpenAI from "openai";
+import OpenAI, { toFile } from "openai";
 
 // OpenRouter image generation response shape
 interface OpenRouterImageMessage {
@@ -20,18 +20,93 @@ type MessageContent =
 
 // Map OpenRouter aspect ratios to OpenAI sizes (closest match)
 const ASPECT_RATIO_TO_OPENAI_SIZE: Record<string, string> = {
-  "1:1":  "1024x1024",
-  "4:3":  "1365x1024",
-  "3:4":  "1024x1365",
+  "1:1": "1024x1024",
+  "4:3": "1365x1024",
+  "3:4": "1024x1365",
   "16:9": "1792x1024",
   "9:16": "1024x1792",
-  "3:2":  "1536x1024",
-  "2:3":  "1024x1536",
+  "3:2": "1536x1024",
+  "2:3": "1024x1536",
 };
+
+const OPENAI_GPT_IMAGE_MODELS = new Set([
+  "gpt-image-2",
+  "gpt-image-1",
+  "gpt-image-1-mini",
+]);
+
+const AVAILABLE_TAGS = [
+  "portrait",
+  "landscape",
+  "abstract",
+  "anime",
+  "photorealistic",
+  "concept art",
+  "illustration",
+  "logo",
+  "architecture",
+  "nature",
+  "fantasy",
+  "sci-fi",
+  "vintage",
+  "minimalist",
+  "surreal",
+  "product",
+  "food",
+  "fashion",
+  "interior",
+  "dark art",
+];
+
+/**
+ * Use a cheap OpenRouter model to automatically pick relevant tags for a prompt.
+ * Returns an empty array on any error — never throws.
+ */
+async function inferTagsFromPrompt(
+  apiKey: string,
+  prompt: string,
+): Promise<string[]> {
+  try {
+    const tagList = AVAILABLE_TAGS.join(", ");
+    const systemMessage = `You are a tagging assistant for an AI image gallery. Given an image generation prompt, pick 1-4 tags that best describe the image. You MUST choose ONLY from these exact tags (copy them exactly as written): ${tagList}. Return ONLY a JSON array of strings, e.g. ["portrait", "fantasy"]. No markdown, no explanation.`;
+    const res = await $fetch<{
+      choices: Array<{ message: { content: string } }>;
+    }>("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: {
+        model: "google/gemini-2.5-flash-lite",
+        messages: [
+          { role: "system", content: systemMessage },
+          { role: "user", content: `Prompt: ${prompt}` },
+        ],
+      },
+    });
+    const raw = (res.choices[0]?.message?.content?.trim() ?? "[]")
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/\s*```$/, "");
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    // Case-insensitive match so capitalised responses still work
+    const tags = parsed
+      .map((t: unknown) =>
+        typeof t === "string" ? t.toLowerCase().trim() : "",
+      )
+      .filter((t): t is string => AVAILABLE_TAGS.includes(t));
+    console.log("[Tags] Raw response:", raw, "=> Tags:", tags);
+    return tags;
+  } catch (err) {
+    console.warn("[Tags] Tag inference failed:", err);
+    return [];
+  }
+}
 
 /**
  * Generate an image using the OpenAI Images API.
- * Uses /edits when an input image is provided, /generations otherwise.
+ * Uses Responses API tool for GPT image edits, /generations for text-to-image.
  */
 async function generateWithOpenAI(
   apiKey: string,
@@ -40,35 +115,39 @@ async function generateWithOpenAI(
   aspectRatio: string,
   inputImageBase64: string | null,
 ): Promise<string> {
+  console.log("[OpenAI] Model:", modelId);
   const client = new OpenAI({ apiKey });
-  const size = (ASPECT_RATIO_TO_OPENAI_SIZE[aspectRatio] ?? "1024x1024") as Parameters<typeof client.images.generate>[0]["size"];
+  const size = (ASPECT_RATIO_TO_OPENAI_SIZE[aspectRatio] ??
+    "1024x1024") as Parameters<typeof client.images.generate>[0]["size"];
 
   if (inputImageBase64) {
-    // Strip the data URL prefix to get raw base64, then convert to a File
-    const base64Data = inputImageBase64.replace(/^data:image\/[a-z]+;base64,/, "");
-    const mimeMatch = inputImageBase64.match(/^data:(image\/[a-z]+);base64,/);
-    const mimeType = mimeMatch?.[1] ?? "image/png";
-    const ext = mimeType.split("/")[1] ?? "png";
-    const imageBuffer = Buffer.from(base64Data, "base64");
-    const imageFile = new File([imageBuffer], `input.${ext}`, { type: mimeType });
+    console.log("[OpenAI] Using Images API edit endpoint");
+    const rawBase64 = inputImageBase64.replace(
+      /^data:image\/[a-z]+;base64,/,
+      "",
+    );
+    const imageBuffer = Buffer.from(rawBase64, "base64");
+    const imageFile = await toFile(imageBuffer, "image.png", {
+      type: "image/png",
+    });
 
     const res = await client.images.edit({
       model: modelId,
       image: imageFile,
       prompt,
-      size: size as Parameters<typeof client.images.edit>[0]["size"],
-      response_format: "b64_json",
+      size,
     });
+
     const b64 = res.data?.[0]?.b64_json;
     if (!b64) throw new Error("No image returned by OpenAI");
     return `data:image/png;base64,${b64}`;
   }
 
+  console.log("[OpenAI] Using Images API (generate)");
   const res = await client.images.generate({
     model: modelId,
     prompt,
     size,
-    response_format: "b64_json",
   });
   const b64 = res.data?.[0]?.b64_json;
   if (!b64) throw new Error("No image returned by OpenAI");
@@ -99,24 +178,24 @@ async function generateWithOpenRouter(
   const isGemini = modelId.startsWith("google/");
   const modalities = isGemini ? ["image", "text"] : ["image"];
 
-  const result = await $fetch<OpenRouterResponse>(
-    "https://openrouter.ai/api/v1/chat/completions",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://lumiar.app",
-        "X-Title": "Lumiar",
-      },
-      body: {
-        model: modelId,
-        messages: [{ role: "user", content: userContent }],
-        modalities,
-        image_config: { aspect_ratio: aspectRatio },
-      },
+  const openRouterUrl = "https://openrouter.ai/api/v1/chat/completions";
+  console.log("[OpenRouter] Model:", modelId);
+  console.log("[OpenRouter] URL:", openRouterUrl);
+  const result = await $fetch<OpenRouterResponse>(openRouterUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": "https://lumiar.app",
+      "X-Title": "Lumiar",
     },
-  );
+    body: {
+      model: modelId,
+      messages: [{ role: "user", content: userContent }],
+      modalities,
+      image_config: { aspect_ratio: aspectRatio },
+    },
+  });
 
   const imageBase64 =
     result.choices[0]?.message?.images?.[0]?.image_url?.url ?? null;
@@ -138,7 +217,6 @@ export default defineEventHandler(async (event) => {
     tokensUsed,
     aspectRatio,
     parentId,
-    tags,
   } = body;
 
   if (
@@ -170,8 +248,22 @@ export default defineEventHandler(async (event) => {
   const isOpenAI = modelId.startsWith("openai/");
   const actualModelId = isOpenAI ? modelId.replace("openai/", "") : modelId;
 
+  if (isOpenAI && !OPENAI_GPT_IMAGE_MODELS.has(actualModelId)) {
+    throw createError({
+      statusCode: 400,
+      message: `Unsupported OpenAI model '${actualModelId}'.`,
+    });
+  }
+
   let imageBase64: string;
   try {
+    console.log(
+      "[Handler] Requested model:",
+      modelId,
+      "(isOpenAI:",
+      isOpenAI,
+      ")",
+    );
     imageBase64 = isOpenAI
       ? await generateWithOpenAI(
           config.openaiApiKey as string,
@@ -221,6 +313,12 @@ export default defineEventHandler(async (event) => {
     });
   }
 
+  // Auto-generate tags from the prompt using a cheap model (best-effort, non-blocking)
+  const autoTags = await inferTagsFromPrompt(
+    config.openrouterApiKey as string,
+    trimmedPrompt,
+  );
+
   // Insert the generation record server-side using the user's authenticated client
   // so RLS policy (auth.uid() = user_id) is satisfied.
   const supabase = await serverSupabaseClient(event);
@@ -236,7 +334,7 @@ export default defineEventHandler(async (event) => {
       tokens_used: typeof tokensUsed === "number" ? tokensUsed : 0,
       aspect_ratio: aspectRatio ?? "1:1",
       parent_id: parentId ?? null,
-      metadata: { tags: Array.isArray(tags) ? tags : [] },
+      metadata: { tags: autoTags },
     } as never)
     .select("id")
     .single();

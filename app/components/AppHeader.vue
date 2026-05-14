@@ -2,12 +2,11 @@
 import { useAuthService } from "~/services/auth.service";
 import { useProfile } from "~/composables/useProfile";
 
-const { profile, fetchProfile, loading: profileLoading } = useProfile();
+const { profile } = useProfile();
+const { user, ready, isAuthenticated } = useAuthState();
 const colorMode = useColorMode();
 const router = useRouter();
 const authService = useAuthService();
-
-const isAuthenticated = computed(() => Boolean(profile.value?.id));
 
 const isDark = computed({
   get: () => colorMode.value === "dark",
@@ -17,14 +16,14 @@ const isDark = computed({
 });
 
 const avatarLabel = computed(() => {
-  const name = profile.value?.username ?? "";
+  const name = profile.value?.username ?? user.value?.email ?? "";
   return name.slice(0, 2).toUpperCase();
 });
 
 const profileItems = computed(() => [
   [
     {
-      label: profile.value?.username ?? "",
+      label: profile.value?.username ?? user.value?.email ?? "",
       disabled: true,
     },
   ],
@@ -52,12 +51,6 @@ async function handleSignOut() {
   await authService.signOut();
   router.push("/auth/login");
 }
-
-onMounted(() => {
-  if (isAuthenticated.value) {
-    fetchProfile();
-  }
-});
 </script>
 
 <template>
@@ -71,7 +64,7 @@ onMounted(() => {
         to="/"
         class="flex items-center gap-2 font-semibold text-lg tracking-tight"
       >
-        <UIcon name="i-lucide-sparkles" class="text-primary size-5" />
+        <img src="/logo.svg" alt="Lumiar logo" class="size-6 object-contain" />
         <span>Lumiar</span>
       </NuxtLink>
 
@@ -113,7 +106,7 @@ onMounted(() => {
           </UDropdownMenu>
         </template>
 
-        <template v-else>
+        <template v-else-if="ready">
           <UButton to="/auth/login" variant="ghost" size="sm" color="neutral"
             >Sign in</UButton
           >

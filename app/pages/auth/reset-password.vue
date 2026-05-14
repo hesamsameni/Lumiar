@@ -42,7 +42,7 @@ async function updatePassword() {
           to="/"
           class="inline-flex items-center gap-2 font-semibold text-xl mb-6"
         >
-          <UIcon name="i-lucide-sparkles" class="text-primary size-6" />
+          <img src="/logo.svg" alt="Lumiar logo" class="text-primary size-6" />
           <span>Lumiar</span>
         </NuxtLink>
         <h1 class="text-2xl font-bold">Set new password</h1>

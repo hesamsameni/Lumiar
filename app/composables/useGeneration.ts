@@ -1,7 +1,7 @@
 import type { AIModel } from "~/utils/models";
 
 export function useGeneration() {
-  const user = useSupabaseUser();
+  const { profile } = useProfile();
   const supabase = useSupabaseClient();
   const toast = useToast();
   const { deductTokens, fetchBalance } = useTokens();
@@ -15,14 +15,23 @@ export function useGeneration() {
     inputImageFile?: File | null;
     inputImageUrl?: string | null;
     aspectRatio?: string;
-    tags?: string[];
     parentId?: string | null;
   }) {
-    if (!user.value) {
+    if (!profile.value?.id) {
       toast.add({
         title: "Sign in required",
         description: "Please sign in to generate images.",
         color: "error",
+      });
+      return null;
+    }
+
+    const balance = profile.value.token_balance ?? 0;
+    if (!profile.value.is_admin && balance < opts.model.tokensPerGeneration) {
+      toast.add({
+        title: "Insufficient tokens",
+        description: `This model requires ${opts.model.tokensPerGeneration} tokens but you only have ${balance}. Purchase more tokens to continue.`,
+        color: "warning",
       });
       return null;
     }
@@ -77,7 +86,6 @@ export function useGeneration() {
           tokensUsed: opts.model.tokensPerGeneration,
           aspectRatio: opts.aspectRatio ?? "1:1",
           parentId: opts.parentId ?? null,
-          tags: opts.tags ?? [],
         },
         headers: authHeaders,
       });

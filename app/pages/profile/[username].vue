@@ -4,14 +4,14 @@ import { useProfileService } from "~/services/profile.service";
 import { useSocialService } from "~/services/social.service";
 
 const route = useRoute();
-const user = useSupabaseUser();
+const { user: authUser } = useAuthState();
 const toast = useToast();
 const generationService = useGenerationService();
 const profileService = useProfileService();
 const socialService = useSocialService();
 
 const username = computed(() => route.params.username as string);
-const isOwnProfile = computed(() => profile.value?.id === user.value?.id);
+const isOwnProfile = computed(() => profile.value?.id === authUser.value?.id);
 
 const profile = ref<Record<string, unknown> | null>(null);
 const generations = ref<Record<string, unknown>[]>([]);
@@ -34,7 +34,7 @@ async function fetchProfile() {
 
 async function fetchGenerations() {
   if (!profile.value) return;
-  const isOwn = profile.value.id === user.value?.id;
+  const isOwn = profile.value.id === authUser.value?.id;
   const { data } = await generationService.getGenerationsByUser(
     profile.value.id as string,
     !isOwn,
@@ -53,19 +53,19 @@ async function fetchFollowCounts() {
 }
 
 async function checkFollowing() {
-  if (!user.value?.id || !profile.value?.id || isOwnProfile.value) {
+  if (!authUser.value?.id || !profile.value?.id || isOwnProfile.value) {
     isFollowing.value = false;
     return;
   }
   const { data } = await socialService.getFollowByUser(
-    user.value.id,
+    authUser.value.id,
     profile.value.id as string,
   );
   isFollowing.value = !!data;
 }
 
 async function toggleFollow() {
-  if (!user.value?.id) {
+  if (!authUser.value?.id) {
     toast.add({ title: "Sign in to follow", color: "warning" });
     return;
   }
@@ -75,12 +75,15 @@ async function toggleFollow() {
   try {
     if (isFollowing.value) {
       await socialService.unfollowUser(
-        user.value.id,
+        authUser.value.id,
         profile.value.id as string,
       );
       followersCount.value--;
     } else {
-      await socialService.followUser(user.value.id, profile.value.id as string);
+      await socialService.followUser(
+        authUser.value.id,
+        profile.value.id as string,
+      );
       followersCount.value++;
     }
     isFollowing.value = !isFollowing.value;
@@ -109,7 +112,7 @@ onMounted(async () => {
 });
 
 watch(
-  [() => user.value?.id, () => profile.value?.id],
+  [() => authUser.value?.id, () => profile.value?.id],
   () => {
     checkFollowing();
   },

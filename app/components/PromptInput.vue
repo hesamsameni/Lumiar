@@ -49,29 +49,31 @@ async function polishPrompt() {
 </script>
 
 <template>
-  <div class="relative">
+  <div class="space-y-2">
     <UTextarea
       :value="modelValue"
       placeholder="Describe the image you want to generate or edit…"
-      :rows="4"
+      :rows="6"
       autoresize
-      class="w-full pr-12"
+      class="w-full"
       :disabled="disabled"
       @input="
         emit('update:modelValue', ($event.target as HTMLTextAreaElement).value)
       "
     />
-    <div class="absolute bottom-2 right-2">
+    <div class="flex justify-end">
       <UTooltip text="Polish prompt with AI">
         <UButton
           icon="i-lucide-wand-sparkles"
-          size="xs"
-          variant="ghost"
-          color="neutral"
+          size="sm"
+          variant="soft"
+          color="primary"
           :loading="isPolishing"
           :disabled="disabled || !modelValue.trim()"
           @click="polishPrompt"
-        />
+        >
+          Polish with AI
+        </UButton>
       </UTooltip>
     </div>
   </div>

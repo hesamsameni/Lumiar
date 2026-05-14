@@ -1,18 +1,18 @@
 <script setup lang="ts">
 import { AI_MODELS, type AIModel } from "~/utils/models";
-import { ASPECT_RATIOS, GENERATION_TAGS } from "~/utils/constants";
+import { ASPECT_RATIOS } from "~/utils/constants";
 import { useGenerationService } from "~/services/generation.service";
 
 const route = useRoute();
 const { generate, isGenerating, result } = useGeneration();
 const generationService = useGenerationService();
+const toast = useToast();
 
 const prompt = ref("");
 const selectedModel = ref<AIModel>(AI_MODELS[0]!);
 const inputFile = ref<File | null>(null);
 const inputPreviewUrl = ref<string | null>(null);
 const selectedAspectRatio = ref(ASPECT_RATIOS[0]!);
-const selectedTags = ref<string[]>([]);
 const editingImageUrl = ref<string | null>(null);
 
 onMounted(async () => {
@@ -29,13 +29,25 @@ onMounted(async () => {
 });
 
 async function handleGenerate() {
+  if (
+    !selectedModel.value.supportsImageInput &&
+    (inputFile.value || editingImageUrl.value)
+  ) {
+    toast.add({
+      title: "Selected model does not support image input",
+      description:
+        "Remove the input image or choose a model that supports image input.",
+      color: "warning",
+    });
+    return;
+  }
+
   await generate({
     prompt: prompt.value,
     model: selectedModel.value,
     inputImageFile: inputFile.value,
     inputImageUrl: editingImageUrl.value,
     aspectRatio: selectedAspectRatio.value.value,
-    tags: selectedTags.value,
   });
 }
 
@@ -47,17 +59,28 @@ function handleEditResult(imageUrl: string) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-function toggleTag(tag: string) {
-  const idx = selectedTags.value.indexOf(tag);
-  if (idx >= 0) selectedTags.value.splice(idx, 1);
-  else selectedTags.value.push(tag);
+function getRatioStyle(value: string): Record<string, string> {
+  const [w, h] = value.split(":").map(Number);
+  const maxSize = 36;
+  const aspect = (w ?? 1) / (h ?? 1);
+  let width: number, height: number;
+  if (aspect >= 1) {
+    width = maxSize;
+    height = Math.round(maxSize / aspect);
+  } else {
+    height = maxSize;
+    width = Math.round(maxSize * aspect);
+  }
+  return { width: `${width}px`, height: `${height}px` };
 }
 </script>
 
 <template>
   <div class="max-w-5xl mx-auto px-4 py-10">
     <div class="mb-10 text-center">
-      <h1 class="text-4xl font-bold tracking-tight mb-2">Create with AI</h1>
+      <h1 class="text-4xl font-bold tracking-tight mb-2">
+        Create with <span class="text-primary">Lumiar</span>
+      </h1>
       <p class="text-zinc-500 dark:text-zinc-400 text-lg">
         Generate and edit images using state-of-the-art models
       </p>
@@ -80,7 +103,11 @@ function toggleTag(tag: string) {
           <ImageUploader
             v-model="inputFile"
             v-model:previewUrl="inputPreviewUrl"
-            @update:model-value="editingImageUrl = null"
+            @update:model-value="
+              () => {
+                editingImageUrl = null;
+              }
+            "
           />
         </UCard>
 
@@ -89,44 +116,48 @@ function toggleTag(tag: string) {
             <span class="font-medium text-sm">Prompt</span>
           </template>
           <PromptInput v-model="prompt" :disabled="isGenerating" />
-
-          <div class="mt-3">
-            <p class="text-xs text-zinc-400 dark:text-zinc-500 mb-2">Tags</p>
-            <div class="flex flex-wrap gap-1.5">
-              <button
-                v-for="tag in GENERATION_TAGS"
-                :key="tag"
-                class="text-xs px-2 py-1 rounded-full border transition-all"
-                :class="
-                  selectedTags.includes(tag)
-                    ? 'border-primary bg-primary/10 text-primary'
-                    : 'border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-600'
-                "
-                @click="toggleTag(tag)"
-              >
-                {{ tag }}
-              </button>
-            </div>
-          </div>
         </UCard>
 
         <UCard>
           <template #header>
             <span class="font-medium text-sm">Aspect Ratio</span>
           </template>
-          <div class="flex flex-wrap gap-2">
+          <div class="flex gap-3 flex-wrap">
             <button
               v-for="ratio in ASPECT_RATIOS"
               :key="ratio.value"
-              class="px-3 py-1.5 rounded-lg border text-sm transition-all"
+              class="flex flex-col items-center gap-1.5 p-2 rounded-xl border transition-all"
               :class="
                 selectedAspectRatio.value === ratio.value
-                  ? 'border-primary bg-primary/10 text-primary font-medium'
-                  : 'border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-zinc-300'
+                  ? 'border-primary bg-primary/8 dark:bg-primary/12'
+                  : 'border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'
               "
               @click="selectedAspectRatio = ratio"
             >
-              {{ ratio.label }}
+              <!-- Visual frame preview -->
+              <div
+                class="flex items-center justify-center"
+                style="width: 44px; height: 44px"
+              >
+                <div
+                  class="rounded-sm border-2 transition-all"
+                  :class="
+                    selectedAspectRatio.value === ratio.value
+                      ? 'border-primary bg-primary/20'
+                      : 'border-zinc-400 dark:border-zinc-500'
+                  "
+                  :style="getRatioStyle(ratio.value)"
+                />
+              </div>
+              <span
+                class="text-[11px] font-medium leading-none"
+                :class="
+                  selectedAspectRatio.value === ratio.value
+                    ? 'text-primary'
+                    : 'text-zinc-500 dark:text-zinc-400'
+                "
+                >{{ ratio.value }}</span
+              >
             </button>
           </div>
         </UCard>
@@ -159,7 +190,9 @@ function toggleTag(tag: string) {
         <div>
           <div class="flex items-center justify-between mb-3">
             <span class="font-medium text-sm">Model</span>
-            <span class="text-xs text-zinc-400">{{ selectedModel.name }}</span>
+            <span class="text-xs text-primary-400">{{
+              selectedModel.name
+            }}</span>
           </div>
           <ModelSelector v-model="selectedModel" />
         </div>

@@ -5,7 +5,7 @@ import { useProfileService } from "~/services/profile.service";
 import { useSocialService } from "~/services/social.service";
 
 const route = useRoute();
-const user = useSupabaseUser();
+const { user: authUser } = useAuthState();
 const toast = useToast();
 const router = useRouter();
 const generationService = useGenerationService();
@@ -63,10 +63,10 @@ async function fetchGeneration() {
   const { count } = await socialService.getLikesCount(id.value);
   likesCount.value = count ?? 0;
 
-  if (user.value?.id) {
+  if (authUser.value?.id) {
     const { data: likeData } = await socialService.getLikeByUser(
       id.value,
-      user.value.id,
+      authUser.value.id,
     );
     isLiked.value = !!likeData;
   }
@@ -92,7 +92,7 @@ async function fetchComments() {
 }
 
 async function postComment() {
-  if (!user.value?.id) {
+  if (!authUser.value?.id) {
     toast.add({ title: "Sign in to comment", color: "warning" });
     return;
   }
@@ -100,15 +100,15 @@ async function postComment() {
   isPostingComment.value = true;
   const { data, error } = await socialService.addComment(
     id.value,
-    user.value.id,
+    authUser.value.id,
     commentText.value.trim(),
   );
   isPostingComment.value = false;
   if (error) {
     toast.add({ title: "Failed to post comment", color: "error" });
   } else {
-    const profilesById = await fetchProfilesMap([user.value.id]);
-    const author = profilesById[user.value.id];
+    const profilesById = await fetchProfilesMap([authUser.value.id]);
+    const author = profilesById[authUser.value.id];
     comments.value.push({
       ...(data as Record<string, unknown>),
       profiles: author
@@ -127,16 +127,16 @@ async function deleteComment(commentId: string) {
 }
 
 async function toggleLike() {
-  if (!user.value?.id) {
+  if (!authUser.value?.id) {
     toast.add({ title: "Sign in to like", color: "warning" });
     return;
   }
   isTogglingLike.value = true;
   if (isLiked.value) {
-    await socialService.unlikeGeneration(id.value, user.value.id);
+    await socialService.unlikeGeneration(id.value, authUser.value.id);
     likesCount.value--;
   } else {
-    await socialService.likeGeneration(id.value, user.value.id);
+    await socialService.likeGeneration(id.value, authUser.value.id);
     likesCount.value++;
   }
   isLiked.value = !isLiked.value;

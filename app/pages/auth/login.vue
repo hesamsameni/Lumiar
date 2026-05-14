@@ -4,6 +4,8 @@ import { useAuthService } from "~/services/auth.service";
 definePageMeta({ layout: false });
 
 const authService = useAuthService();
+const supabase = useSupabaseClient();
+const { session } = useAuthState();
 const toast = useToast();
 
 const email = ref("");
@@ -26,6 +28,14 @@ async function signInWithPassword() {
       color: "error",
     });
   } else {
+    const {
+      data: { session: nextSession },
+    } = await supabase.auth.getSession();
+    session.value = nextSession ?? null;
+
+    // Populate profile before navigating so the header renders authenticated
+    const { fetchProfile } = useProfile();
+    await fetchProfile();
     await navigateTo("/", { replace: true });
   }
 }
@@ -76,7 +86,7 @@ async function signInWithGoogle() {
           to="/"
           class="inline-flex items-center gap-2 font-semibold text-xl mb-6"
         >
-          <UIcon name="i-lucide-sparkles" class="text-primary size-6" />
+          <img src="/logo.svg" alt="Lumiar logo" class="text-primary size-6" />
           <span>Lumiar</span>
         </NuxtLink>
         <h1 class="text-2xl font-bold">Welcome back</h1>

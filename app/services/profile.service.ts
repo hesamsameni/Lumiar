@@ -5,6 +5,7 @@ export interface ProfileRow {
   avatar_url: string | null;
   bio: string | null;
   token_balance: number;
+  is_admin: boolean;
 }
 
 export function useProfileService() {
@@ -25,7 +26,9 @@ export function useProfileService() {
   async function getProfileById(id: string) {
     return supabase
       .from("profiles")
-      .select("id, username, full_name, avatar_url, bio, token_balance")
+      .select(
+        "id, username, full_name, avatar_url, bio, token_balance, is_admin",
+      )
       .eq("id", id)
       .maybeSingle();
   }
@@ -33,7 +36,9 @@ export function useProfileService() {
   async function getProfileByUsername(username: string) {
     return supabase
       .from("profiles")
-      .select("id, username, full_name, avatar_url, bio, token_balance")
+      .select(
+        "id, username, full_name, avatar_url, bio, token_balance, is_admin",
+      )
       .eq("username", username)
       .maybeSingle();
   }
@@ -75,7 +80,9 @@ export function useProfileService() {
         } as never,
         { onConflict: "id" },
       )
-      .select("id, username, full_name, avatar_url, bio, token_balance")
+      .select(
+        "id, username, full_name, avatar_url, bio, token_balance, is_admin",
+      )
       .single();
   }
 

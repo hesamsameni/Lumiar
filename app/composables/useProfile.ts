@@ -8,22 +8,28 @@ export interface UserProfile {
   avatar_url: string | null;
   bio: string | null;
   token_balance: number;
+  is_admin: boolean;
 }
 
+/**
+ * Global profile state composable.
+ *
+ * State is shared across all components via `useState` (Nuxt SSR-safe global
+ * state). Auth lifecycle (initial load + sign-in/out events) is handled by
+ * `plugins/auth.server.ts` and `plugins/auth.client.ts` — this composable
+ * only owns state and the fetch logic.
+ */
 export function useProfile() {
-  const user = useSupabaseUser();
-  const session = useSupabaseSession();
+  const { user } = useAuthState();
   const authService = useAuthService();
   const profileService = useProfileService();
 
   const profile = useState<UserProfile | null>("current-profile", () => null);
   const loading = useState<boolean>("profile-loading", () => false);
-  const initialized = useState<boolean>("profile-initialized", () => false);
 
   async function fetchProfile() {
-    const authUser = user.value?.id
-      ? user.value
-      : await authService.getCurrentUser();
+    // Prefer the reactive ref; fall back to a live getUser() call if needed
+    const authUser = user.value ?? (await authService.getCurrentUser());
 
     if (!authUser?.id) {
       profile.value = null;
@@ -44,6 +50,7 @@ export function useProfile() {
       return;
     }
 
+    // Profile row doesn't exist yet — create it
     const { data: createdProfile } = await profileService.ensureProfileForUser({
       id: authUser.id,
       email: authUser.email,
@@ -55,18 +62,6 @@ export function useProfile() {
     }
 
     loading.value = false;
-  }
-
-  if (!initialized.value) {
-    initialized.value = true;
-    watch(
-      [() => user.value?.id, () => Boolean(session.value)],
-      ([userId, hasSession]) => {
-        if (userId || hasSession) fetchProfile();
-        else profile.value = null;
-      },
-      { immediate: true },
-    );
   }
 
   return { profile, loading, fetchProfile };

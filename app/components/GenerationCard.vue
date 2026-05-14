@@ -20,7 +20,7 @@ const props = defineProps<{
   showAuthor?: boolean;
 }>();
 
-const { profile } = useProfile();
+const { user: authUser } = useAuthState();
 const socialService = useSocialService();
 const toast = useToast();
 const likesCount = ref(
@@ -30,16 +30,16 @@ const isLiked = ref(false);
 const isTogglingLike = ref(false);
 
 async function checkLiked() {
-  if (!profile.value?.id) return;
+  if (!authUser.value?.id) return;
   const { data } = await socialService.getLikeByUser(
     props.generation.id,
-    profile.value.id,
+    authUser.value.id,
   );
   isLiked.value = !!data;
 }
 
 async function toggleLike() {
-  if (!profile.value?.id) {
+  if (!authUser.value?.id) {
     toast.add({ title: "Sign in to like", color: "warning" });
     return;
   }
@@ -48,11 +48,14 @@ async function toggleLike() {
     if (isLiked.value) {
       await socialService.unlikeGeneration(
         props.generation.id,
-        profile.value.id,
+        authUser.value.id,
       );
       likesCount.value--;
     } else {
-      await socialService.likeGeneration(props.generation.id, profile.value.id);
+      await socialService.likeGeneration(
+        props.generation.id,
+        authUser.value.id,
+      );
       likesCount.value++;
     }
     isLiked.value = !isLiked.value;

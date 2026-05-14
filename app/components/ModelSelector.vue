@@ -1,60 +1,213 @@
 <script setup lang="ts">
-import { AI_MODELS, TIER_CONFIG, type AIModel } from '~/utils/models'
+import { AI_MODELS, type AIModel } from "~/utils/models";
 
 const props = defineProps<{
-  modelValue: AIModel
-}>()
+  modelValue: AIModel;
+}>();
 
 const emit = defineEmits<{
-  'update:modelValue': [model: AIModel]
-}>()
+  "update:modelValue": [model: AIModel];
+}>();
 
-const tierColorMap: Record<string, string> = {
-  amber: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40',
-  blue: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40',
-  green: 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/40',
+type CompanyKey = "openai" | "google" | "recraft" | "black-forest-labs";
+
+const companyMeta: Record<
+  CompanyKey,
+  { label: string; subtitle: string; logo: string }
+> = {
+  openai: {
+    label: "OpenAI",
+    subtitle: "GPT Image family",
+    logo: "/ai-logos/openai.svg",
+  },
+  google: {
+    label: "Google",
+    subtitle: "Nano Banana family",
+    logo: "/ai-logos/gemini.svg",
+  },
+  recraft: {
+    label: "Recraft",
+    subtitle: "Recraft V3 / V4 family",
+    logo: "/ai-logos/recraft.svg",
+  },
+  "black-forest-labs": {
+    label: "Black Forest Labs",
+    subtitle: "FLUX family",
+    logo: "/ai-logos/flux.svg",
+  },
+};
+
+const companyOrder: CompanyKey[] = [
+  "openai",
+  "google",
+  "recraft",
+  "black-forest-labs",
+];
+
+const groupedModels = computed(() => {
+  const groups: Record<CompanyKey, AIModel[]> = {
+    openai: [],
+    google: [],
+    recraft: [],
+    "black-forest-labs": [],
+  };
+  for (const model of AI_MODELS) {
+    const company = model.id.split("/")[0] as CompanyKey;
+    if (company in groups) groups[company].push(model);
+  }
+  return companyOrder
+    .map((company) => ({
+      company,
+      ...companyMeta[company],
+      models: groups[company],
+    }))
+    .filter((g) => g.models.length > 0);
+});
+
+// First group open by default, rest collapsed
+const openGroups = ref<Set<CompanyKey>>(new Set([companyOrder[0]]));
+
+function toggleGroup(company: CompanyKey) {
+  if (openGroups.value.has(company)) {
+    openGroups.value.delete(company);
+  } else {
+    openGroups.value.add(company);
+  }
 }
+
+// When user selects a model, auto-expand its group
+watch(
+  () => props.modelValue,
+  (model) => {
+    const company = model.id.split("/")[0] as CompanyKey;
+    openGroups.value.add(company);
+  },
+  { immediate: true },
+);
+
+const tierBadge: Record<string, string> = {
+  high: "bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400",
+  mid: "bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-400",
+  low: "bg-green-100 dark:bg-green-950/50 text-green-700 dark:text-green-400",
+};
+const tierLabel: Record<string, string> = {
+  high: "High",
+  mid: "Mid",
+  low: "Low",
+};
 </script>
 
 <template>
-  <div class="grid gap-2">
+  <div class="space-y-2">
     <div
-      v-for="model in AI_MODELS"
-      :key="model.id"
-      class="flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all"
-      :class="modelValue.id === model.id
-        ? 'border-primary bg-primary/5 dark:bg-primary/10'
-        : 'border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'"
-      @click="emit('update:modelValue', model)"
+      v-for="group in groupedModels"
+      :key="group.company"
+      class="rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden"
     >
-      <div
-        class="mt-0.5 w-4 h-4 rounded-full border-2 flex-shrink-0 transition-all"
-        :class="modelValue.id === model.id
-          ? 'border-primary bg-primary'
-          : 'border-zinc-300 dark:border-zinc-600'"
-      />
-
-      <div class="flex-1 min-w-0">
-        <div class="flex items-center gap-2 flex-wrap">
-          <span class="font-medium text-sm">{{ model.name }}</span>
+      <!-- Group header (clickable to collapse/expand) -->
+      <button
+        class="w-full flex items-center gap-2.5 px-3 py-2.5 bg-zinc-50 dark:bg-zinc-900/80 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-colors text-left"
+        @click="toggleGroup(group.company as CompanyKey)"
+      >
+        <LogoColorMode
+          :src="group.logo"
+          :alt="`${group.label} logo`"
+          class="size-4 shrink-0"
+        />
+        <div class="flex-1 min-w-0">
           <span
-            class="text-xs font-medium px-1.5 py-0.5 rounded-full"
-            :class="tierColorMap[TIER_CONFIG[model.tier].color]"
+            class="text-sm font-semibold text-zinc-900 dark:text-zinc-100"
+            >{{ group.label }}</span
           >
-            {{ TIER_CONFIG[model.tier].label }}
-          </span>
-          <span class="text-xs text-zinc-400 dark:text-zinc-500 ml-auto">{{ model.priceEstimate }}</span>
+          <span class="text-xs text-zinc-400 dark:text-zinc-500 ml-2">{{
+            group.subtitle
+          }}</span>
         </div>
-        <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 line-clamp-1">{{ model.description }}</p>
-        <div class="flex items-center gap-3 mt-1">
-          <span class="flex items-center gap-1 text-xs text-zinc-400 dark:text-zinc-500">
-            <UIcon name="i-lucide-zap" class="size-3 text-amber-500" />
-            {{ model.tokensPerGeneration }} tokens
-          </span>
-          <span v-if="model.supportsImageInput" class="flex items-center gap-1 text-xs text-zinc-400 dark:text-zinc-500">
-            <UIcon name="i-lucide-image" class="size-3" />
-            Image input
-          </span>
+        <UIcon
+          name="i-lucide-chevron-down"
+          class="size-4 text-zinc-400 transition-transform shrink-0"
+          :class="
+            openGroups.has(group.company as CompanyKey) ? 'rotate-180' : ''
+          "
+        />
+      </button>
+
+      <!-- Models list -->
+      <div
+        v-if="openGroups.has(group.company as CompanyKey)"
+        class="divide-y divide-zinc-100 dark:divide-zinc-800"
+      >
+        <div
+          v-for="model in group.models"
+          :key="model.id"
+          class="flex items-start gap-3 px-3 py-2.5 cursor-pointer transition-colors"
+          :class="
+            modelValue.id === model.id
+              ? 'bg-primary/8 dark:bg-primary/12'
+              : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/40'
+          "
+          @click="emit('update:modelValue', model)"
+        >
+          <!-- Radio dot -->
+          <div
+            class="mt-1 size-3.5 rounded-full border-2 shrink-0 transition-all"
+            :class="
+              modelValue.id === model.id
+                ? 'border-primary bg-primary'
+                : 'border-zinc-300 dark:border-zinc-600'
+            "
+          />
+
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span
+                class="text-sm font-medium text-zinc-900 dark:text-zinc-100 leading-tight"
+                >{{ model.name }}</span
+              >
+
+              <!-- Recommended badge -->
+              <span
+                v-if="model.recommended"
+                class="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-primary/15 text-primary"
+              >
+                <UIcon name="i-lucide-star" class="size-2.5" />
+                Recommended
+              </span>
+
+              <!-- Tier badge -->
+              <span
+                class="text-[10px] font-medium px-1.5 py-0.5 rounded-full"
+                :class="tierBadge[model.tier]"
+              >
+                {{ tierLabel[model.tier] }}
+              </span>
+            </div>
+
+            <p
+              class="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5 leading-snug line-clamp-2"
+            >
+              {{ model.description }}
+            </p>
+
+            <div class="flex items-center gap-3 mt-1">
+              <span
+                class="flex items-center gap-1 text-[11px] text-zinc-400 dark:text-zinc-500"
+              >
+                <UIcon name="i-lucide-zap" class="size-3 text-amber-500" />
+                {{ model.tokensPerGeneration }} tokens
+              </span>
+              <span class="text-[11px] text-zinc-400 dark:text-zinc-500">{{
+                model.priceEstimate
+              }}</span>
+              <span
+                v-if="model.supportsImageInput"
+                class="flex items-center gap-1 text-[11px] text-zinc-400 dark:text-zinc-500"
+              >
+                <UIcon name="i-lucide-image" class="size-3" />
+                Img input
+              </span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
