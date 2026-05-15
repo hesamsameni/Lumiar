@@ -213,8 +213,10 @@ onMounted(() => checkLiked());
           class="flex items-center gap-1.5 min-w-0"
         >
           <UAvatar
-            :src="generation.profiles.avatar_url"
-            :fallback="generation.profiles.username?.slice(0, 2).toUpperCase()"
+            :src="generation.profiles.avatar_url || undefined"
+            :fallback="
+              generation.profiles.username?.slice(0, 1).toUpperCase() || '?'
+            "
             size="2xs"
           />
           <span

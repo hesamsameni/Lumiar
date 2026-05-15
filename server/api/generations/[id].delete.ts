@@ -1,5 +1,5 @@
 import { serverSupabaseClient } from "#supabase/server";
-import { requireUser } from "../../utils/auth";
+import { buildCdnUrl, deleteFromBunny } from "../../utils/bunny";
 
 export default defineEventHandler(async (event) => {
   const user = await requireUser(event);
@@ -33,18 +33,16 @@ export default defineEventHandler(async (event) => {
 
   const config = useRuntimeConfig();
   try {
-    const cdnBase = (config.public.bunnyCdnUrl as string).replace(/\/+$/, "");
-    const cdnBaseWithScheme = cdnBase.startsWith("http")
-      ? cdnBase
-      : `https://${cdnBase}`;
+    const cdnBase = buildCdnUrl(config.public.bunnyCdnUrl as string, "");
     const imageUrl = gen.output_image_url as string;
-    if (imageUrl.startsWith(cdnBaseWithScheme)) {
-      const path = imageUrl.slice(cdnBaseWithScheme.length + 1);
-      const deleteUrl = `https://${config.bunnyStorageHostname}/${config.bunnyStorageZone}/${path}`;
-      await fetch(deleteUrl, {
-        method: "DELETE",
-        headers: { AccessKey: config.bunnyApiKey as string },
-      });
+    if (imageUrl.startsWith(cdnBase)) {
+      const path = imageUrl.slice(cdnBase.length);
+      await deleteFromBunny(
+        config.bunnyStorageHostname as string,
+        config.bunnyStorageZone as string,
+        config.bunnyApiKey as string,
+        path,
+      );
     }
   } catch (err) {
     console.error("[delete generation] Bunny delete failed (non-fatal):", err);

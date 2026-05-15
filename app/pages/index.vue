@@ -17,6 +17,7 @@ const inputFile = ref<File | null>(null);
 const inputPreviewUrl = ref<string | null>(null);
 const selectedAspectRatio = ref(ASPECT_RATIOS[0]!);
 const editingImageUrl = ref<string | null>(null);
+const editingGenerationId = ref<string | null>(null);
 const showPromptLibrary = ref(false);
 
 onMounted(async () => {
@@ -27,7 +28,8 @@ onMounted(async () => {
       const row = data as { output_image_url: string; prompt: string };
       editingImageUrl.value = row.output_image_url;
       inputPreviewUrl.value = row.output_image_url;
-      prompt.value = row.prompt;
+      editingGenerationId.value = editId;
+      prompt.value = "";
     }
   }
   const prefilledPrompt = route.query.prompt as string | undefined;
@@ -56,18 +58,22 @@ async function handleGenerate() {
     inputImageFile: inputFile.value,
     inputImageUrl: editingImageUrl.value,
     aspectRatio: selectedAspectRatio.value.value,
+    parentId: editingGenerationId.value,
   });
 }
 
-function handleEditResult(imageUrl: string) {
+function handleEditResult(imageUrl: string, generationId: string) {
   editingImageUrl.value = imageUrl;
+  editingGenerationId.value = generationId;
   inputFile.value = null;
   inputPreviewUrl.value = imageUrl;
+  prompt.value = "";
   result.value = null;
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function getRatioStyle(value: string): Record<string, string> {
+  if (value === "auto") return { width: "36px", height: "36px" };
   const [w, h] = value.split(":").map(Number);
   const maxSize = 36;
   const aspect = (w ?? 1) / (h ?? 1);
@@ -157,15 +163,28 @@ function getRatioStyle(value: string): Record<string, string> {
                 class="flex items-center justify-center"
                 style="width: 44px; height: 44px"
               >
-                <div
-                  class="rounded-sm border-2 transition-all"
-                  :class="
-                    selectedAspectRatio.value === ratio.value
-                      ? 'border-primary bg-primary/20'
-                      : 'border-zinc-400 dark:border-zinc-500'
-                  "
-                  :style="getRatioStyle(ratio.value)"
-                />
+                <template v-if="ratio.value === 'auto'">
+                  <UIcon
+                    name="i-lucide-wand-sparkles"
+                    class="size-5 transition-all"
+                    :class="
+                      selectedAspectRatio.value === 'auto'
+                        ? 'text-primary'
+                        : 'text-zinc-400 dark:text-zinc-500'
+                    "
+                  />
+                </template>
+                <template v-else>
+                  <div
+                    class="rounded-sm border-2 transition-all"
+                    :class="
+                      selectedAspectRatio.value === ratio.value
+                        ? 'border-primary bg-primary/20'
+                        : 'border-zinc-400 dark:border-zinc-500'
+                    "
+                    :style="getRatioStyle(ratio.value)"
+                  />
+                </template>
               </div>
               <span
                 class="text-[11px] font-medium leading-none"
@@ -174,7 +193,7 @@ function getRatioStyle(value: string): Record<string, string> {
                     ? 'text-primary'
                     : 'text-zinc-500 dark:text-zinc-400'
                 "
-                >{{ ratio.value }}</span
+                >{{ ratio.value === "auto" ? "Auto" : ratio.value }}</span
               >
             </button>
           </div>

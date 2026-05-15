@@ -1,6 +1,26 @@
+import {
+  buildCdnUrl,
+  generateStorageFilename,
+  uploadToBunny,
+} from "../utils/bunny";
+
+const ALLOWED_MIME_TYPES: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const ALLOWED_FOLDERS = ["generations", "profile-pictures"] as const;
+
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig();
   const user = await requireUser(event);
+
+  const { folder: folderParam } = getQuery(event) as { folder?: string };
+  const folder = ALLOWED_FOLDERS.includes(folderParam as never)
+    ? (folderParam as string)
+    : "generations";
 
   const formData = await readFormData(event);
   const file = formData.get("file");
@@ -8,58 +28,32 @@ export default defineEventHandler(async (event) => {
   if (!(file instanceof File)) {
     throw createError({ statusCode: 400, message: "No file provided" });
   }
-
-  const allowedMimeTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
-  if (!allowedMimeTypes.has(file.type)) {
+  if (!(file.type in ALLOWED_MIME_TYPES)) {
     throw createError({ statusCode: 400, message: "Unsupported file type" });
   }
-
-  const maxBytes = 10 * 1024 * 1024;
-  if (file.size > maxBytes) {
+  if (file.size > MAX_FILE_BYTES) {
     throw createError({
       statusCode: 400,
       message: "File too large (max 10MB)",
     });
   }
 
-  const extByMime: Record<string, string> = {
-    "image/jpeg": "jpg",
-    "image/png": "png",
-    "image/webp": "webp",
-  };
-  const ext = extByMime[file.type] ?? "png";
-  const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-  const path = `generations/${user.id}/${filename}`;
+  const ext = ALLOWED_MIME_TYPES[file.type] ?? "png";
+  const path = `${folder}/${user.id}/${generateStorageFilename(ext)}`;
+  const buffer = Buffer.from(await file.arrayBuffer());
 
-  const arrayBuffer = await file.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
-
-  const uploadUrl = `https://${config.bunnyStorageHostname}/${config.bunnyStorageZone}/${path}`;
-
-  const response = await fetch(uploadUrl, {
-    method: "PUT",
-    headers: {
-      AccessKey: config.bunnyApiKey,
-      "Content-Type": "application/octet-stream",
-    },
-    body: buffer,
-  });
-
-  if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    console.error(
-      `[upload] Bunny.net error: HTTP ${response.status} — url: ${uploadUrl} — response: ${body}`,
+  try {
+    await uploadToBunny(
+      config.bunnyStorageHostname as string,
+      config.bunnyStorageZone as string,
+      config.bunnyApiKey as string,
+      path,
+      buffer,
     );
-    throw createError({
-      statusCode: 500,
-      message: `Failed to upload to Bunny.net (HTTP ${response.status})`,
-    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Upload failed";
+    throw createError({ statusCode: 500, message: msg });
   }
 
-  const cdnBase = config.public.bunnyCdnUrl.replace(/\/+$/, "");
-  const cdnUrl = cdnBase.startsWith("http")
-    ? `${cdnBase}/${path}`
-    : `https://${cdnBase}/${path}`;
-
-  return { url: cdnUrl, path };
+  return { url: buildCdnUrl(config.public.bunnyCdnUrl as string, path), path };
 });

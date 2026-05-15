@@ -4,7 +4,7 @@ import { useProfileService } from "~/services/profile.service";
 import { useSocialService } from "~/services/social.service";
 
 const route = useRoute();
-const { user: authUser } = useAuthState();
+const { user: authUser, session } = useAuthState();
 const toast = useToast();
 const router = useRouter();
 const generationService = useGenerationService();
@@ -20,6 +20,15 @@ const isPostingComment = ref(false);
 const likesCount = ref(0);
 const isLiked = ref(false);
 const isTogglingLike = ref(false);
+const isOwner = computed(
+  () =>
+    !!authUser.value?.id &&
+    authUser.value.id === (generation.value?.user_id as string | undefined),
+);
+const isShared = ref(false);
+const isTogglingShare = ref(false);
+const isDeleting = ref(false);
+const confirmingDelete = ref(false);
 
 type ProfileLite = {
   id: string;
@@ -156,8 +165,55 @@ function useAsBase() {
   router.push({ path: "/", query: { edit: id.value } });
 }
 
+async function toggleShare() {
+  isTogglingShare.value = true;
+  try {
+    const { error } = await generationService.setGenerationShared(
+      id.value,
+      !isShared.value,
+    );
+    if (error) throw error;
+    isShared.value = !isShared.value;
+    toast.add({
+      title: isShared.value ? "Added to Explore" : "Removed from Explore",
+      color: "success",
+    });
+  } catch {
+    toast.add({ title: "Failed to update sharing", color: "error" });
+  } finally {
+    isTogglingShare.value = false;
+  }
+}
+
+async function deleteGeneration() {
+  if (!confirmingDelete.value) {
+    confirmingDelete.value = true;
+    setTimeout(() => {
+      confirmingDelete.value = false;
+    }, 3000);
+    return;
+  }
+  isDeleting.value = true;
+  try {
+    await $fetch(`/api/generations/${id.value}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${session.value?.access_token ?? ""}`,
+      },
+    });
+    toast.add({ title: "Photo deleted", color: "success" });
+    router.back();
+  } catch {
+    toast.add({ title: "Failed to delete photo", color: "error" });
+  } finally {
+    isDeleting.value = false;
+    confirmingDelete.value = false;
+  }
+}
+
 onMounted(async () => {
   await Promise.all([fetchGeneration(), fetchComments()]);
+  isShared.value = (generation.value?.is_shared as boolean) ?? false;
   loading.value = false;
 });
 </script>
@@ -224,6 +280,31 @@ onMounted(async () => {
             >
               {{ likesCount }} {{ likesCount === 1 ? "like" : "likes" }}
             </UButton>
+            <template v-if="isOwner">
+              <UButton
+                :icon="isShared ? 'i-lucide-eye-off' : 'i-lucide-share-2'"
+                :variant="isShared ? 'solid' : 'outline'"
+                color="primary"
+                size="sm"
+                :loading="isTogglingShare"
+                @click="toggleShare"
+              >
+                {{ isShared ? "Unshare" : "Share to Explore" }}
+              </UButton>
+              <UButton
+                :icon="
+                  isDeleting ? 'i-lucide-loader-circle' : 'i-lucide-trash-2'
+                "
+                :variant="confirmingDelete ? 'solid' : 'outline'"
+                :color="confirmingDelete ? 'error' : 'neutral'"
+                size="sm"
+                :loading="isDeleting"
+                :class="confirmingDelete ? 'animate-pulse' : ''"
+                @click="deleteGeneration"
+              >
+                {{ confirmingDelete ? "Confirm delete?" : "Delete" }}
+              </UButton>
+            </template>
           </div>
         </div>
 
@@ -236,11 +317,12 @@ onMounted(async () => {
             >
               <UAvatar
                 :src="
-                  (generation.profiles as { avatar_url?: string }).avatar_url
+                  (generation.profiles as { avatar_url?: string }).avatar_url ||
+                  undefined
                 "
                 :fallback="
                   (generation.profiles as { username: string }).username
-                    ?.slice(0, 2)
+                    ?.slice(0, 1)
                     .toUpperCase()
                 "
                 size="sm"
@@ -257,9 +339,52 @@ onMounted(async () => {
                 <p
                   class="text-xs text-zinc-400 dark:text-zinc-500 uppercase tracking-wide mb-1"
                 >
-                  Prompt
+                  {{
+                    ((generation.metadata as { prompt_chain?: string[] })
+                      ?.prompt_chain?.length ?? 0) > 1
+                      ? "Prompt History"
+                      : "Prompt"
+                  }}
                 </p>
-                <p class="text-zinc-700 dark:text-zinc-300 leading-relaxed">
+                <template
+                  v-if="
+                    ((generation.metadata as { prompt_chain?: string[] })
+                      ?.prompt_chain?.length ?? 0) > 1
+                  "
+                >
+                  <div
+                    v-for="(p, i) in (
+                      generation.metadata as { prompt_chain: string[] }
+                    ).prompt_chain"
+                    :key="i"
+                    class="mb-2 pl-3 border-l-2"
+                    :class="
+                      i === 0
+                        ? 'border-zinc-300 dark:border-zinc-600'
+                        : 'border-primary/60'
+                    "
+                  >
+                    <span
+                      class="text-xs font-medium"
+                      :class="
+                        i === 0
+                          ? 'text-zinc-400 dark:text-zinc-500'
+                          : 'text-primary'
+                      "
+                    >
+                      {{ i === 0 ? "Original" : `Edit ${i}` }}
+                    </span>
+                    <p
+                      class="text-zinc-700 dark:text-zinc-300 leading-relaxed mt-0.5"
+                    >
+                      {{ p }}
+                    </p>
+                  </div>
+                </template>
+                <p
+                  v-else
+                  class="text-zinc-700 dark:text-zinc-300 leading-relaxed"
+                >
                   {{ generation.prompt }}
                 </p>
               </div>
@@ -309,12 +434,13 @@ onMounted(async () => {
               >
                 <UAvatar
                   :src="
-                    (comment.profiles as { avatar_url?: string })?.avatar_url
+                    (comment.profiles as { avatar_url?: string })?.avatar_url ||
+                    undefined
                   "
                   :fallback="
                     (comment.profiles as { username: string })?.username
-                      ?.slice(0, 2)
-                      .toUpperCase()
+                      ?.slice(0, 1)
+                      .toUpperCase() || '?'
                   "
                   size="2xs"
                   class="flex-shrink-0 mt-0.5"

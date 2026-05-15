@@ -17,7 +17,7 @@ const isDark = computed({
 
 const avatarLabel = computed(() => {
   const name = profile.value?.username ?? user.value?.email ?? "";
-  return name.slice(0, 2).toUpperCase();
+  return name.slice(0, 1).toUpperCase();
 });
 
 const profileItems = computed(() => [
@@ -122,7 +122,11 @@ async function handleSignOut() {
               class="rounded-full p-0.5"
             >
               <UAvatar
-                :src="profile?.avatar_url ?? user?.user_metadata?.avatar_url"
+                :src="
+                  profile?.avatar_url ||
+                  (user?.user_metadata?.avatar_url as string | undefined) ||
+                  undefined
+                "
                 :alt="avatarLabel"
                 :fallback="avatarLabel"
                 size="sm"

@@ -8,6 +8,16 @@ export interface ProfileRow {
   is_admin: boolean;
 }
 
+export interface TokenTransactionRow {
+  id: string;
+  user_id: string;
+  amount: number;
+  type: "generation" | "purchase" | "welcome" | "refund";
+  reference_id?: string | null;
+  description?: string | null;
+  created_at: string;
+}
+
 export function useProfileService() {
   const supabase = useSupabaseClient();
 
@@ -91,19 +101,24 @@ export function useProfileService() {
     username: string;
     full_name: string | null;
     bio: string | null;
+    avatar_url?: string | null;
   }) {
     const username = sanitizeUsernamePart(input.username.trim());
 
-    return supabase.from("profiles").upsert(
-      {
-        id: input.id,
-        username,
-        full_name: input.full_name,
-        bio: input.bio,
-        updated_at: new Date().toISOString(),
-      } as never,
-      { onConflict: "id" },
-    );
+    const payload: Record<string, unknown> = {
+      id: input.id,
+      username,
+      full_name: input.full_name,
+      bio: input.bio,
+      updated_at: new Date().toISOString(),
+    };
+    if ("avatar_url" in input) {
+      payload.avatar_url = input.avatar_url;
+    }
+
+    return supabase
+      .from("profiles")
+      .upsert(payload as never, { onConflict: "id" });
   }
 
   /**
@@ -131,7 +146,7 @@ export function useProfileService() {
     const { data: profile, error: profileErr } = await getProfileById(userId);
     if (profileErr) return { error: profileErr };
     if (!profile) return { error: new Error("Profile not found") };
-    const newBalance = (profile.token_balance ?? 0) - amount;
+    const newBalance = ((profile as any)?.token_balance ?? 0) - amount;
     // Update profile and insert transaction atomically
     const [{ error: balErr }, { error: txErr }, { error: updateErr }] =
       await Promise.all([
@@ -141,19 +156,18 @@ export function useProfileService() {
           full_name: full_name ?? null,
           bio: bio ?? null,
         }),
-        supabase.from("token_transactions").insert({
+        (supabase.from("token_transactions") as any).insert({
           user_id: userId,
           amount: -amount,
           type: "generation",
           reference_id: generationId,
           description,
         }),
-        supabase
-          .from("profiles")
+        (supabase.from("profiles") as any)
           .update({
             token_balance: newBalance,
             updated_at: new Date().toISOString(),
-          } as never)
+          })
           .eq("id", userId),
       ]);
     return { error: balErr || txErr || updateErr || null };
