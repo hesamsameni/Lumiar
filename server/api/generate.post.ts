@@ -162,13 +162,13 @@ async function generateWithOpenRouter(
   modelId: string,
   prompt: string,
   aspectRatio: string,
-  inputImageBase64: string | null,
+  inputImage: string | null,
 ): Promise<string> {
   const resolvedImageContent: {
     type: "image_url";
     image_url: { url: string };
-  } | null = inputImageBase64
-    ? { type: "image_url", image_url: { url: inputImageBase64 } }
+  } | null = inputImage
+    ? { type: "image_url", image_url: { url: inputImage } }
     : null;
 
   const userContent: MessageContent = resolvedImageContent
@@ -181,26 +181,111 @@ async function generateWithOpenRouter(
   const openRouterUrl = "https://openrouter.ai/api/v1/chat/completions";
   console.log("[OpenRouter] Model:", modelId);
   console.log("[OpenRouter] URL:", openRouterUrl);
-  const result = await $fetch<OpenRouterResponse>(openRouterUrl, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": "https://lumiar.app",
-      "X-Title": "Lumiar",
-    },
-    body: {
-      model: modelId,
-      messages: [{ role: "user", content: userContent }],
-      modalities,
-      image_config: { aspect_ratio: aspectRatio },
-    },
-  });
+  let result: OpenRouterResponse;
+  try {
+    result = await $fetch<OpenRouterResponse>(openRouterUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://lumiar.app",
+        "X-Title": "Lumiar",
+      },
+      body: {
+        model: modelId,
+        messages: [{ role: "user", content: userContent }],
+        modalities,
+        image_config: { aspect_ratio: aspectRatio },
+      },
+    });
+  } catch (err: unknown) {
+    const details =
+      typeof err === "object" && err !== null && "data" in err
+        ? (err as { data?: unknown }).data
+        : null;
+    const detailsMessage =
+      details && typeof details === "object"
+        ? JSON.stringify(details)
+        : String(details ?? "");
+    throw new Error(
+      detailsMessage
+        ? `OpenRouter request failed: ${detailsMessage}`
+        : "OpenRouter request failed",
+    );
+  }
 
   const imageBase64 =
     result.choices[0]?.message?.images?.[0]?.image_url?.url ?? null;
   if (!imageBase64) throw new Error("No image returned by OpenRouter");
   return imageBase64;
+}
+
+async function resolveInputImageBase64(
+  inputImageBase64: string | null,
+  inputImageUrl: string | null,
+  requestHeaders?: Record<string, string>,
+  bunnyConfig?: {
+    cdnUrl: string;
+    storageHostname: string;
+    storageZone: string;
+    accessKey: string;
+  },
+): Promise<string | null> {
+  if (inputImageBase64) return inputImageBase64;
+  if (!inputImageUrl) return null;
+
+  const requestInit = {
+    headers: {
+      Accept: "image/*,*/*;q=0.8",
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X)",
+      ...(requestHeaders ?? {}),
+    },
+  };
+
+  let response: Response;
+  try {
+    response = await fetch(inputImageUrl, requestInit);
+  } catch {
+    response = new Response(null, { status: 599 });
+  }
+
+  if (!response.ok && bunnyConfig) {
+    const inputUrl = new URL(inputImageUrl);
+    const cdnOrigin = bunnyConfig.cdnUrl.startsWith("http")
+      ? new URL(bunnyConfig.cdnUrl)
+      : new URL(`https://${bunnyConfig.cdnUrl}`);
+
+    if (inputUrl.host === cdnOrigin.host) {
+      const inputPath = inputUrl.pathname.replace(/^\/+/, "");
+      const storageUrl = `https://${bunnyConfig.storageHostname}/${bunnyConfig.storageZone}/${inputPath}`;
+      response = await fetch(storageUrl, {
+        headers: {
+          AccessKey: bunnyConfig.accessKey,
+        },
+      });
+    }
+  }
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch input image");
+  }
+
+  const contentType = response.headers.get("content-type") ?? "image/png";
+  if (!contentType.startsWith("image/")) {
+    throw new Error("Input URL did not return an image");
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+  const base64 = Buffer.from(arrayBuffer).toString("base64");
+  return `data:${contentType};base64,${base64}`;
+}
+
+function resolveOpenRouterInputImage(
+  inputImageBase64: string | null,
+  inputImageUrl: string | null,
+  resolvedInputImageBase64: string | null,
+): string | null {
+  return resolvedInputImageBase64 ?? inputImageBase64 ?? inputImageUrl ?? null;
 }
 
 export default defineEventHandler(async (event) => {
@@ -240,6 +325,26 @@ export default defineEventHandler(async (event) => {
   if (inputImageBase64 && typeof inputImageBase64 !== "string") {
     throw createError({ statusCode: 400, message: "Invalid input image" });
   }
+  if (inputImageUrl && typeof inputImageUrl !== "string") {
+    throw createError({ statusCode: 400, message: "Invalid input image URL" });
+  }
+  if (typeof inputImageUrl === "string") {
+    let parsed: URL;
+    try {
+      parsed = new URL(inputImageUrl);
+    } catch {
+      throw createError({
+        statusCode: 400,
+        message: "Invalid input image URL",
+      });
+    }
+    if (!["http:", "https:"].includes(parsed.protocol)) {
+      throw createError({
+        statusCode: 400,
+        message: "Invalid input image URL",
+      });
+    }
+  }
   if (aspectRatio && typeof aspectRatio !== "string") {
     throw createError({ statusCode: 400, message: "Invalid aspect ratio" });
   }
@@ -257,6 +362,47 @@ export default defineEventHandler(async (event) => {
 
   let imageBase64: string;
   try {
+    const inputImageRequestHeaders = {
+      Referer: "https://lumiar.app",
+      Origin: "https://lumiar.app",
+    };
+    const bunnyImageConfig = {
+      cdnUrl: String(config.public.bunnyCdnUrl),
+      storageHostname: String(config.bunnyStorageHostname),
+      storageZone: String(config.bunnyStorageZone),
+      accessKey: String(config.bunnyApiKey),
+    };
+
+    const resolvedInputImageBase64 = isOpenAI
+      ? await resolveInputImageBase64(
+          inputImageBase64 ?? null,
+          inputImageUrl ?? null,
+          inputImageRequestHeaders,
+          bunnyImageConfig,
+        )
+      : null;
+    let resolvedOpenRouterInputImage: string | null = null;
+
+    if (!isOpenAI) {
+      let openRouterResolvedBase64: string | null = null;
+      try {
+        openRouterResolvedBase64 = await resolveInputImageBase64(
+          inputImageBase64 ?? null,
+          inputImageUrl ?? null,
+          inputImageRequestHeaders,
+          bunnyImageConfig,
+        );
+      } catch {
+        openRouterResolvedBase64 = null;
+      }
+
+      resolvedOpenRouterInputImage = resolveOpenRouterInputImage(
+        inputImageBase64 ?? null,
+        inputImageUrl ?? null,
+        openRouterResolvedBase64,
+      );
+    }
+
     console.log(
       "[Handler] Requested model:",
       modelId,
@@ -270,14 +416,14 @@ export default defineEventHandler(async (event) => {
           actualModelId,
           trimmedPrompt,
           aspectRatio ?? "1:1",
-          inputImageBase64 ?? null,
+          resolvedInputImageBase64,
         )
       : await generateWithOpenRouter(
           config.openrouterApiKey as string,
           actualModelId,
           trimmedPrompt,
           aspectRatio ?? "1:1",
-          inputImageBase64 ?? null,
+          resolvedOpenRouterInputImage,
         );
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Image generation failed";
