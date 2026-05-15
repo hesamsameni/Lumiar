@@ -7,7 +7,8 @@ const route = useRoute();
 const { generate, isGenerating, result } = useGeneration();
 const generationService = useGenerationService();
 const toast = useToast();
-const { models, fetchModels, firstModel } = useModels();
+const { fetchModels, firstModel } = useModels();
+const supabase = useSupabaseClient();
 
 await fetchModels();
 
@@ -19,6 +20,13 @@ const selectedAspectRatio = ref(ASPECT_RATIOS[0]!);
 const editingImageUrl = ref<string | null>(null);
 const editingGenerationId = ref<string | null>(null);
 const showPromptLibrary = ref(false);
+const showModelSelector = ref(false);
+const showRatioSelector = ref(false);
+
+// Composer state
+const isPolishing = ref(false);
+const isDragging = ref(false);
+const fileInput = ref<HTMLInputElement | null>(null);
 
 onMounted(async () => {
   const editId = route.query.edit as string | undefined;
@@ -72,10 +80,72 @@ function handleEditResult(imageUrl: string, generationId: string) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+function onDrop(e: DragEvent) {
+  isDragging.value = false;
+  const file = e.dataTransfer?.files?.[0];
+  if (file && file.type.startsWith("image/")) handleFile(file);
+}
+
+function onFileChange(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0];
+  if (file) handleFile(file);
+}
+
+function handleFile(file: File) {
+  inputFile.value = file;
+  editingImageUrl.value = null;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    inputPreviewUrl.value = ev.target?.result as string;
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearFile() {
+  inputFile.value = null;
+  inputPreviewUrl.value = null;
+  editingImageUrl.value = null;
+  if (fileInput.value) fileInput.value.value = "";
+}
+
+async function polishPrompt() {
+  if (!prompt.value.trim()) {
+    toast.add({ title: "Write a prompt first", color: "warning" });
+    return;
+  }
+  isPolishing.value = true;
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+    const { polished } = await $fetch<{ polished: string }>(
+      "/api/polish-prompt",
+      {
+        method: "POST",
+        body: { prompt: prompt.value },
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+      },
+    );
+    prompt.value = polished;
+    toast.add({
+      title: "Prompt polished!",
+      description: "AI has enhanced your prompt.",
+      color: "success",
+    });
+  } catch {
+    toast.add({
+      title: "Polish failed",
+      description: "Could not improve the prompt.",
+      color: "error",
+    });
+  } finally {
+    isPolishing.value = false;
+  }
+}
+
 function getRatioStyle(value: string): Record<string, string> {
-  if (value === "auto") return { width: "36px", height: "36px" };
+  if (value === "auto") return { width: "28px", height: "28px" };
   const [w, h] = value.split(":").map(Number);
-  const maxSize = 36;
+  const maxSize = 28;
   const aspect = (w ?? 1) / (h ?? 1);
   let width: number, height: number;
   if (aspect >= 1) {
@@ -90,93 +160,285 @@ function getRatioStyle(value: string): Record<string, string> {
 </script>
 
 <template>
-  <div class="max-w-5xl mx-auto px-4 py-10">
+  <div class="max-w-xl mx-auto px-4 py-16 relative isolate">
+    <!-- Indigo glow backdrop -->
+    <div
+      class="pointer-events-none absolute inset-x-0 top-10 -z-10 flex justify-center overflow-visible"
+      aria-hidden="true"
+    >
+      <div
+        class="w-[600px] h-[400px] rounded-full bg-indigo-400/25 dark:bg-indigo-500/20 blur-[120px]"
+      />
+    </div>
+    <!-- Hero -->
     <div class="mb-10 text-center">
-      <h1 class="text-4xl font-bold tracking-tight mb-2">
-        Create with <span class="text-primary">Lumiar</span>
+      <h1 class="text-3xl font-semibold tracking-tight mb-1.5">
+        What will you create?
       </h1>
-      <p class="text-zinc-500 dark:text-zinc-400 text-lg">
-        Generate and edit images using state-of-the-art models
+      <p class="text-sm text-zinc-400 dark:text-zinc-500">
+        Describe an image and let AI bring it to life
       </p>
     </div>
 
-    <div class="grid lg:grid-cols-[1fr_340px] gap-6">
-      <div class="space-y-5">
-        <UCard>
-          <template #header>
-            <div class="flex items-center justify-between">
-              <span class="font-medium text-sm"
-                >Input Image
-                <span class="text-zinc-400 text-xs">(optional)</span></span
-              >
-              <span v-if="editingImageUrl" class="text-xs text-primary"
-                >Editing previous generation</span
-              >
-            </div>
-          </template>
-          <ImageUploader
-            v-model="inputFile"
-            v-model:previewUrl="inputPreviewUrl"
-            @update:model-value="
-              () => {
-                editingImageUrl = null;
-              }
-            "
-          />
-        </UCard>
+    <!-- Composer card -->
+    <div
+      class="rounded-3xl border shadow-sm bg-white dark:bg-zinc-900 transition-all duration-200"
+      :class="
+        isDragging
+          ? 'border-primary ring-2 ring-primary/20 shadow-primary/10'
+          : 'border-zinc-200 dark:border-zinc-800'
+      "
+      @dragover.prevent="isDragging = true"
+      @dragleave="isDragging = false"
+      @drop.prevent="onDrop"
+    >
+      <!-- Editing banner -->
+      <div
+        v-if="editingImageUrl"
+        class="flex items-center gap-2 px-4 py-2 bg-primary/8 dark:bg-primary/12 border-b border-primary/15 text-xs text-primary font-medium rounded-t-3xl overflow-hidden"
+      >
+        <UIcon name="i-lucide-pencil" class="size-3" />
+        Editing previous generation
+      </div>
 
-        <UCard>
-          <template #header>
-            <span class="font-medium text-sm">Prompt</span>
-          </template>
-          <PromptInput
-            v-model="prompt"
-            :disabled="isGenerating"
-            @browse="showPromptLibrary = true"
-          />
-        </UCard>
-
-        <PromptLibrarySlideover
-          :open="showPromptLibrary"
-          @update:open="showPromptLibrary = $event"
-          @select="prompt = $event"
+      <!-- Attached image preview -->
+      <div
+        v-if="inputPreviewUrl"
+        class="relative border-b border-zinc-100 dark:border-zinc-800 overflow-hidden rounded-t-3xl"
+      >
+        <img
+          :src="inputPreviewUrl"
+          alt="Input image"
+          class="w-full max-h-48 object-cover"
         />
+        <button
+          type="button"
+          class="absolute top-2 right-2 size-6 rounded-full bg-black/55 text-white flex items-center justify-center hover:bg-black/75 transition-colors"
+          @click="clearFile"
+        >
+          <UIcon name="i-lucide-x" class="size-3" />
+        </button>
+      </div>
 
-        <UCard>
-          <template #header>
-            <span class="font-medium text-sm">Aspect Ratio</span>
-          </template>
-          <div class="flex gap-3 flex-wrap">
+      <!-- Textarea -->
+      <textarea
+        v-model="prompt"
+        :disabled="isGenerating"
+        placeholder="Describe the image you want to generate…"
+        rows="4"
+        class="w-full px-5 pt-5 pb-3 text-sm bg-transparent resize-none outline-none placeholder-zinc-400 dark:placeholder-zinc-600 text-zinc-900 dark:text-zinc-100 leading-relaxed rounded-t-3xl"
+      />
+
+      <!-- Bottom controls -->
+      <div class="border-t border-zinc-100 dark:border-zinc-800">
+        <!-- Mobile-only selection summary strip -->
+        <div
+          class="flex sm:hidden items-center gap-2 px-4 py-2.5 border-b border-zinc-100 dark:border-zinc-800"
+        >
+          <button
+            type="button"
+            class="flex-1 flex items-center gap-2 rounded-xl px-3 py-2 bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 text-left transition-colors hover:border-zinc-300 dark:hover:border-zinc-600"
+            @click="showModelSelector = true"
+          >
+            <UIcon
+              name="i-lucide-cpu"
+              class="size-3.5 text-zinc-400 flex-shrink-0"
+            />
+            <span
+              class="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate flex-1"
+              >{{ selectedModel.name }}</span
+            >
+            <span
+              class="text-[10px] px-1.5 py-0.5 rounded-md font-medium flex-shrink-0"
+              :class="{
+                'bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400':
+                  selectedModel.tier === 'high',
+                'bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400':
+                  selectedModel.tier === 'mid',
+                'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400':
+                  selectedModel.tier === 'low',
+              }"
+              >{{ selectedModel.tier }}</span
+            >
+          </button>
+          <button
+            type="button"
+            class="flex items-center gap-1.5 rounded-xl px-3 py-2 bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 transition-colors hover:border-zinc-300 dark:hover:border-zinc-600 flex-shrink-0"
+            @click="showRatioSelector = true"
+          >
+            <UIcon name="i-lucide-ratio" class="size-3.5 text-zinc-400" />
+            <span
+              class="text-xs font-medium text-zinc-700 dark:text-zinc-300"
+              >{{
+                selectedAspectRatio.value === "auto"
+                  ? "Auto"
+                  : selectedAspectRatio.value
+              }}</span
+            >
+          </button>
+        </div>
+
+        <div class="flex items-center gap-1.5 px-3 py-2.5">
+          <!-- Attach image -->
+          <button
+            type="button"
+            :disabled="isGenerating"
+            title="Attach image"
+            class="size-9 rounded-xl flex items-center justify-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-40 flex-shrink-0"
+            @click="fileInput?.click()"
+          >
+            <UIcon name="i-lucide-image-plus" class="size-[18px]" />
+          </button>
+
+          <!-- Prompt library -->
+          <button
+            type="button"
+            :disabled="isGenerating"
+            title="Prompt library"
+            class="size-9 rounded-xl flex items-center justify-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-40 flex-shrink-0"
+            @click="showPromptLibrary = true"
+          >
+            <UIcon name="i-lucide-library" class="size-[18px]" />
+          </button>
+
+          <!-- Polish with AI -->
+          <button
+            type="button"
+            :disabled="isGenerating || !prompt.trim()"
+            title="Polish with AI"
+            class="size-9 rounded-xl flex items-center justify-center transition-colors disabled:opacity-40 flex-shrink-0"
+            :class="
+              isPolishing
+                ? 'text-primary bg-primary/10'
+                : 'text-zinc-400 hover:text-primary hover:bg-primary/10 dark:hover:bg-primary/10'
+            "
+            @click="polishPrompt"
+          >
+            <UIcon
+              name="i-lucide-wand-sparkles"
+              class="size-[18px]"
+              :class="isPolishing ? 'animate-pulse' : ''"
+            />
+          </button>
+
+          <!-- Divider (desktop only) -->
+          <div
+            class="hidden sm:block w-px h-5 bg-zinc-200 dark:bg-zinc-700 mx-0.5 flex-shrink-0"
+          />
+
+          <!-- Aspect ratio trigger (desktop only) -->
+          <button
+            type="button"
+            :disabled="isGenerating"
+            class="hidden sm:flex h-9 px-2.5 rounded-xl items-center gap-1.5 text-xs font-medium transition-colors disabled:opacity-40 text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex-shrink-0"
+            @click="showRatioSelector = true"
+          >
+            <UIcon name="i-lucide-ratio" class="size-3.5 flex-shrink-0" />
+            <span class="hidden sm:inline">{{
+              selectedAspectRatio.value === "auto"
+                ? "Auto"
+                : selectedAspectRatio.value
+            }}</span>
+          </button>
+
+          <!-- Model trigger (desktop only) -->
+          <button
+            type="button"
+            :disabled="isGenerating"
+            class="hidden sm:flex h-9 px-2.5 rounded-xl items-center gap-1.5 text-xs font-medium transition-colors disabled:opacity-40 text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex-shrink-0 min-w-0"
+            @click="showModelSelector = true"
+          >
+            <UIcon name="i-lucide-cpu" class="size-3.5 flex-shrink-0" />
+            <span class="hidden sm:inline truncate max-w-20">{{
+              selectedModel.name
+            }}</span>
+            <span
+              class="text-[10px] px-1 py-0.5 rounded font-medium flex-shrink-0"
+              :class="{
+                'bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400':
+                  selectedModel.tier === 'high',
+                'bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400':
+                  selectedModel.tier === 'mid',
+                'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400':
+                  selectedModel.tier === 'low',
+              }"
+              >{{ selectedModel.tier }}</span
+            >
+          </button>
+
+          <!-- Generate -->
+          <UButton
+            class="ml-auto flex-shrink-0"
+            size="sm"
+            icon="i-lucide-sparkles"
+            :loading="isGenerating"
+            :disabled="!prompt.trim()"
+            @click="handleGenerate"
+          >
+            {{
+              isGenerating
+                ? "Generating…"
+                : `Generate · ${selectedModel.tokens_per_generation}`
+            }}
+          </UButton>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ratio sidebar -->
+    <USlideover
+      :open="showRatioSelector"
+      side="right"
+      @update:open="showRatioSelector = $event"
+    >
+      <template #content>
+        <div class="flex flex-col h-full">
+          <div
+            class="flex items-center justify-between px-5 py-4 border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0"
+          >
+            <h2 class="font-semibold text-base">Aspect Ratio</h2>
+            <UButton
+              icon="i-lucide-x"
+              variant="ghost"
+              color="neutral"
+              size="sm"
+              @click="showRatioSelector = false"
+            />
+          </div>
+          <div class="flex-1 overflow-y-auto p-5 space-y-2">
             <button
               v-for="ratio in ASPECT_RATIOS"
               :key="ratio.value"
-              class="flex flex-col items-center gap-1.5 p-2 rounded-xl border transition-all"
+              class="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl border transition-all text-left"
               :class="
                 selectedAspectRatio.value === ratio.value
                   ? 'border-primary bg-primary/8 dark:bg-primary/12'
-                  : 'border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'
+                  : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
               "
-              @click="selectedAspectRatio = ratio"
+              @click="
+                selectedAspectRatio = ratio;
+                showRatioSelector = false;
+              "
             >
-              <!-- Visual frame preview -->
+              <!-- Visual preview -->
               <div
-                class="flex items-center justify-center"
-                style="width: 44px; height: 44px"
+                class="flex items-center justify-center flex-shrink-0"
+                style="width: 36px; height: 36px"
               >
                 <template v-if="ratio.value === 'auto'">
                   <UIcon
                     name="i-lucide-wand-sparkles"
-                    class="size-5 transition-all"
+                    class="size-5"
                     :class="
                       selectedAspectRatio.value === 'auto'
                         ? 'text-primary'
-                        : 'text-zinc-400 dark:text-zinc-500'
+                        : 'text-zinc-400'
                     "
                   />
                 </template>
                 <template v-else>
                   <div
-                    class="rounded-sm border-2 transition-all"
+                    class="rounded border-2 transition-all"
                     :class="
                       selectedAspectRatio.value === ratio.value
                         ? 'border-primary bg-primary/20'
@@ -186,54 +448,89 @@ function getRatioStyle(value: string): Record<string, string> {
                   />
                 </template>
               </div>
-              <span
-                class="text-[11px] font-medium leading-none"
-                :class="
-                  selectedAspectRatio.value === ratio.value
-                    ? 'text-primary'
-                    : 'text-zinc-500 dark:text-zinc-400'
-                "
-                >{{ ratio.value === "auto" ? "Auto" : ratio.value }}</span
-              >
+              <div class="flex-1 min-w-0">
+                <p
+                  class="text-sm font-medium"
+                  :class="
+                    selectedAspectRatio.value === ratio.value
+                      ? 'text-primary'
+                      : 'text-zinc-800 dark:text-zinc-200'
+                  "
+                >
+                  {{ ratio.label }}
+                </p>
+                <p class="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
+                  {{ ratio.width }} × {{ ratio.height }}px
+                </p>
+              </div>
+              <UIcon
+                v-if="selectedAspectRatio.value === ratio.value"
+                name="i-lucide-check"
+                class="size-4 text-primary flex-shrink-0"
+              />
             </button>
           </div>
-        </UCard>
-
-        <UButton
-          size="xl"
-          block
-          icon="i-lucide-sparkles"
-          :loading="isGenerating"
-          :disabled="!prompt.trim()"
-          @click="handleGenerate"
-        >
-          {{
-            isGenerating
-              ? "Generating…"
-              : `Generate · ${selectedModel.tokens_per_generation} tokens`
-          }}
-        </UButton>
-
-        <GenerationResult
-          v-if="result"
-          :image-url="result.imageUrl"
-          :generation-id="result.generationId"
-          :prompt="prompt"
-          @edit="handleEditResult"
-        />
-      </div>
-
-      <div class="space-y-4">
-        <div>
-          <div class="flex items-center justify-between mb-3">
-            <span class="font-medium text-sm">Model</span>
-            <span class="text-xs text-primary-400">{{
-              selectedModel.name
-            }}</span>
-          </div>
-          <ModelSelector v-model="selectedModel" />
         </div>
-      </div>
-    </div>
+      </template>
+    </USlideover>
+
+    <!-- Model sidebar -->
+    <USlideover
+      :open="showModelSelector"
+      side="right"
+      @update:open="showModelSelector = $event"
+    >
+      <template #content>
+        <div class="flex flex-col h-full">
+          <div
+            class="flex items-center justify-between px-5 py-4 border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0"
+          >
+            <div>
+              <h2 class="font-semibold text-base">Select Model</h2>
+              <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                {{ selectedModel.name }} ·
+                {{ selectedModel.tokens_per_generation }} tokens
+              </p>
+            </div>
+            <UButton
+              icon="i-lucide-x"
+              variant="ghost"
+              color="neutral"
+              size="sm"
+              @click="showModelSelector = false"
+            />
+          </div>
+          <div class="flex-1 overflow-y-auto p-4">
+            <ModelSelector
+              v-model="selectedModel"
+              @update:model-value="showModelSelector = false"
+            />
+          </div>
+        </div>
+      </template>
+    </USlideover>
+
+    <input
+      ref="fileInput"
+      type="file"
+      accept="image/*"
+      class="hidden"
+      @change="onFileChange"
+    />
+
+    <PromptLibrarySlideover
+      :open="showPromptLibrary"
+      @update:open="showPromptLibrary = $event"
+      @select="prompt = $event"
+    />
+
+    <GenerationResult
+      v-if="result"
+      class="mt-8"
+      :image-url="result.imageUrl"
+      :generation-id="result.generationId"
+      :prompt="prompt"
+      @edit="handleEditResult"
+    />
   </div>
 </template>

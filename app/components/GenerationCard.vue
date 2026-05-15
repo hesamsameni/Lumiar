@@ -128,7 +128,7 @@ onMounted(() => checkLiked());
 
 <template>
   <div
-    class="group relative rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 hover:shadow-lg transition-all"
+    class="rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 transition-all hover:shadow-md hover:-translate-y-0.5"
   >
     <!-- Image -->
     <NuxtLink :to="`/generation/${generation.id}`" class="block">
@@ -136,81 +136,18 @@ onMounted(() => checkLiked());
         <img
           :src="generation.output_image_url"
           :alt="generation.prompt"
-          class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          class="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
           loading="lazy"
         />
       </div>
     </NuxtLink>
 
-    <!-- Hover overlay -->
-    <div
-      class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-3"
-    >
-      <!-- Owner action buttons (top-right) -->
-      <div v-if="isOwner" class="flex justify-end gap-1.5">
-        <button
-          class="flex items-center gap-1 text-xs px-2 py-1 rounded-lg backdrop-blur-sm transition-all"
-          :class="
-            isShared
-              ? 'bg-primary text-white hover:bg-primary/80'
-              : 'bg-white/20 text-white hover:bg-white/30'
-          "
-          :disabled="isTogglingShare"
-          @click.prevent="toggleShare"
-        >
-          <UIcon
-            :name="
-              isTogglingShare
-                ? 'i-lucide-loader-circle'
-                : isShared
-                  ? 'i-lucide-eye-off'
-                  : 'i-lucide-share-2'
-            "
-            class="size-3"
-            :class="isTogglingShare ? 'animate-spin' : ''"
-          />
-          <span>{{ isShared ? "Unshare" : "Share" }}</span>
-        </button>
-
-        <button
-          class="flex items-center gap-1 text-xs px-2 py-1 rounded-lg backdrop-blur-sm transition-all"
-          :class="
-            confirmingDelete
-              ? 'bg-red-500 text-white hover:bg-red-600 animate-pulse'
-              : 'bg-white/20 text-white hover:bg-red-500/80'
-          "
-          :disabled="isDeleting"
-          @click.prevent="deleteGeneration"
-        >
-          <UIcon
-            :name="isDeleting ? 'i-lucide-loader-circle' : 'i-lucide-trash-2'"
-            class="size-3"
-            :class="isDeleting ? 'animate-spin' : ''"
-          />
-          <span>{{ confirmingDelete ? "Confirm?" : "Delete" }}</span>
-        </button>
-      </div>
-      <div v-else />
-
-      <!-- Bottom: prompt + view -->
-      <div class="flex flex-col gap-2">
-        <p class="text-white/90 text-xs line-clamp-4 leading-relaxed">
-          {{ generation.prompt }}
-        </p>
-        <NuxtLink :to="`/generation/${generation.id}`">
-          <UButton size="xs" block icon="i-lucide-expand" color="neutral">
-            View
-          </UButton>
-        </NuxtLink>
-      </div>
-    </div>
-
     <!-- Bottom bar -->
-    <div class="p-2.5 flex items-center justify-between gap-2">
+    <div class="px-3 py-2.5 flex items-center gap-2">
       <template v-if="showAuthor && generation.profiles">
         <NuxtLink
           :to="`/profile/${generation.profiles.username}`"
-          class="flex items-center gap-1.5 min-w-0"
+          class="flex items-center gap-1.5 min-w-0 flex-1"
         >
           <UAvatar
             :src="generation.profiles.avatar_url || undefined"
@@ -218,22 +155,53 @@ onMounted(() => checkLiked());
               generation.profiles.username?.slice(0, 1).toUpperCase() || '?'
             "
             size="2xs"
+            class="flex-shrink-0"
           />
           <span
-            class="text-xs font-medium text-zinc-800 dark:text-zinc-200 truncate leading-tight"
+            class="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate leading-tight"
           >
             {{ generation.profiles.username }}
           </span>
         </NuxtLink>
       </template>
-      <div v-else class="min-w-0 flex-1">
+      <div v-else class="flex-1 min-w-0">
         <p
-          class="text-xs font-medium text-zinc-800 dark:text-zinc-200 truncate leading-tight"
+          class="text-xs text-zinc-500 dark:text-zinc-400 truncate leading-tight"
         >
-          {{ generation.model_name }}
+          {{ generation.prompt }}
         </p>
       </div>
 
+      <!-- Owner actions dropdown -->
+      <UDropdownMenu
+        v-if="isOwner"
+        :items="[
+          [
+            {
+              label: isShared ? 'Unshare' : 'Share to Explore',
+              icon: isShared ? 'i-lucide-eye-off' : 'i-lucide-share-2',
+              onSelect: toggleShare,
+            },
+          ],
+          [
+            {
+              label: confirmingDelete ? 'Confirm delete?' : 'Delete',
+              icon: 'i-lucide-trash-2',
+              color: 'error',
+              onSelect: deleteGeneration,
+            },
+          ],
+        ]"
+      >
+        <button
+          class="size-6 rounded-md flex items-center justify-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex-shrink-0"
+          @click.prevent
+        >
+          <UIcon name="i-lucide-more-horizontal" class="size-3.5" />
+        </button>
+      </UDropdownMenu>
+
+      <!-- Like button -->
       <button
         class="flex items-center gap-1 text-xs flex-shrink-0 transition-colors"
         :class="
