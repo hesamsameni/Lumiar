@@ -6,6 +6,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   "update:modelValue": [value: string];
+  browse: [];
 }>();
 
 const supabase = useSupabaseClient();
@@ -61,7 +62,19 @@ async function polishPrompt() {
         emit('update:modelValue', ($event.target as HTMLTextAreaElement).value)
       "
     />
-    <div class="flex justify-end">
+    <div class="flex items-center justify-between">
+      <UTooltip text="Browse curated prompts">
+        <UButton
+          icon="i-lucide-library"
+          size="sm"
+          variant="ghost"
+          color="neutral"
+          :disabled="disabled"
+          @click="emit('browse')"
+        >
+          Prompt Library
+        </UButton>
+      </UTooltip>
       <UTooltip text="Polish prompt with AI">
         <UButton
           icon="i-lucide-wand-sparkles"

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AI_MODELS, type AIModel } from "~/utils/models";
+import type { AIModel } from "~/utils/models";
 
 const props = defineProps<{
   modelValue: AIModel;
@@ -8,6 +8,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   "update:modelValue": [model: AIModel];
 }>();
+
+const { models } = useModels();
 
 type CompanyKey = "openai" | "google" | "recraft" | "black-forest-labs";
 
@@ -51,7 +53,7 @@ const groupedModels = computed(() => {
     recraft: [],
     "black-forest-labs": [],
   };
-  for (const model of AI_MODELS) {
+  for (const model of models.value) {
     const company = model.id.split("/")[0] as CompanyKey;
     if (company in groups) groups[company].push(model);
   }
@@ -65,7 +67,9 @@ const groupedModels = computed(() => {
 });
 
 // First group open by default, rest collapsed
-const openGroups = ref<Set<CompanyKey>>(new Set([companyOrder[0]]));
+const openGroups = ref<Set<CompanyKey>>(
+  new Set<CompanyKey>([companyOrder[0] as CompanyKey]),
+);
 
 function toggleGroup(company: CompanyKey) {
   if (openGroups.value.has(company)) {
@@ -194,13 +198,13 @@ const tierLabel: Record<string, string> = {
                 class="flex items-center gap-1 text-[11px] text-zinc-400 dark:text-zinc-500"
               >
                 <UIcon name="i-lucide-zap" class="size-3 text-amber-500" />
-                {{ model.tokensPerGeneration }} tokens
+                {{ model.tokens_per_generation }} tokens
               </span>
               <span class="text-[11px] text-zinc-400 dark:text-zinc-500">{{
-                model.priceEstimate
+                model.price_estimate
               }}</span>
               <span
-                v-if="model.supportsImageInput"
+                v-if="model.supports_image_input"
                 class="flex items-center gap-1 text-[11px] text-zinc-400 dark:text-zinc-500"
               >
                 <UIcon name="i-lucide-image" class="size-3" />

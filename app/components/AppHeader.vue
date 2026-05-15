@@ -43,6 +43,20 @@ const profileItems = computed(() => [
       icon: "i-lucide-compass",
       onSelect: () => navigateTo("/explore"),
     },
+    {
+      label: "Prompt Library",
+      icon: "i-lucide-library",
+      onSelect: () => navigateTo("/prompt-library"),
+    },
+    ...(profile.value?.is_admin
+      ? [
+          {
+            label: "Admin Dashboard",
+            icon: "i-lucide-shield",
+            onSelect: () => navigateTo("/admin"),
+          },
+        ]
+      : []),
   ],
   [{ label: "Sign out", icon: "i-lucide-log-out", onSelect: handleSignOut }],
 ]);
@@ -74,6 +88,18 @@ async function handleSignOut() {
         >
         <UButton to="/explore" variant="ghost" size="sm" color="neutral"
           >Explore</UButton
+        >
+        <UButton to="/prompt-library" variant="ghost" size="sm" color="neutral"
+          >Prompts</UButton
+        >
+        <UButton
+          v-if="profile?.is_admin"
+          to="/admin"
+          variant="ghost"
+          size="sm"
+          color="neutral"
+          icon="i-lucide-shield"
+          >Admin</UButton
         >
       </nav>
 

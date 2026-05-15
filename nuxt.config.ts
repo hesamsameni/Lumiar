@@ -38,8 +38,8 @@ export default defineNuxtConfig({
     redirectOptions: {
       login: "/auth/login",
       callback: "/auth/callback",
-      include: ["/profile(/*)?", "/generation/new"],
-      exclude: ["/", "/explore", "/generation/*", "/auth/*"],
+      include: ["/profile(/*)?", "/generation/new", "/admin(/*)?"],
+      exclude: ["/", "/explore", "/generation/*", "/auth/*", "/prompt-library"],
     },
   },
 
