@@ -29,6 +29,7 @@ const isShared = ref(false);
 const isTogglingShare = ref(false);
 const isDeleting = ref(false);
 const confirmingDelete = ref(false);
+const isFullscreen = ref(false);
 
 type ProfileLite = {
   id: string;
@@ -242,14 +243,53 @@ onMounted(async () => {
       <div class="grid lg:grid-cols-[1fr_360px] gap-8">
         <div>
           <div
-            class="rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900"
+            class="relative rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 group"
           >
             <img
               :src="generation.output_image_url as string"
               :alt="generation.prompt as string"
               class="w-full object-contain max-h-[70vh]"
             />
+            <!-- Fullscreen button -->
+            <button
+              class="absolute top-3 right-3 size-9 rounded-xl bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors backdrop-blur-sm"
+              title="View fullscreen"
+              @click="isFullscreen = true"
+            >
+              <UIcon name="i-lucide-maximize-2" class="size-4" />
+            </button>
           </div>
+
+          <!-- Fullscreen overlay -->
+          <Teleport to="body">
+            <Transition
+              enter-active-class="transition-opacity duration-200"
+              enter-from-class="opacity-0"
+              enter-to-class="opacity-100"
+              leave-active-class="transition-opacity duration-150"
+              leave-from-class="opacity-100"
+              leave-to-class="opacity-0"
+            >
+              <div
+                v-if="isFullscreen"
+                class="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4"
+                @click="isFullscreen = false"
+              >
+                <button
+                  class="absolute top-4 right-4 size-10 rounded-xl bg-white/10 text-white flex items-center justify-center hover:bg-white/20 transition-colors"
+                  @click.stop="isFullscreen = false"
+                >
+                  <UIcon name="i-lucide-x" class="size-5" />
+                </button>
+                <img
+                  :src="generation.output_image_url as string"
+                  :alt="generation.prompt as string"
+                  class="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
+                  @click.stop
+                />
+              </div>
+            </Transition>
+          </Teleport>
 
           <div class="flex flex-wrap gap-2 mt-4">
             <UButton
@@ -394,7 +434,19 @@ onMounted(async () => {
                 >
                   Model
                 </p>
-                <span class="text-xs font-medium">{{ model.name }}</span>
+                <span
+                  class="inline-flex items-center text-xs px-2 py-0.5 rounded-lg font-medium"
+                  :class="{
+                    'bg-amber-500/15 text-amber-600 dark:bg-amber-400/15 dark:text-amber-400':
+                      model.tier === 'high',
+                    'bg-blue-500/15 text-blue-600 dark:bg-blue-400/15 dark:text-blue-400':
+                      model.tier === 'mid',
+                    'bg-emerald-500/15 text-emerald-600 dark:bg-emerald-400/15 dark:text-emerald-400':
+                      model.tier === 'low',
+                  }"
+                >
+                  {{ model.name }}
+                </span>
               </div>
               <div
                 v-if="

@@ -102,39 +102,29 @@ function getRatioStyle(value: string): Record<string, string> {
 
     <div class="grid lg:grid-cols-[1fr_340px] gap-6">
       <div class="space-y-5">
-        <UCard>
-          <template #header>
-            <div class="flex items-center justify-between">
-              <span class="font-medium text-sm"
-                >Input Image
-                <span class="text-zinc-400 text-xs">(optional)</span></span
-              >
-              <span v-if="editingImageUrl" class="text-xs text-primary"
-                >Editing previous generation</span
-              >
-            </div>
-          </template>
-          <ImageUploader
-            v-model="inputFile"
-            v-model:previewUrl="inputPreviewUrl"
-            @update:model-value="
-              () => {
-                editingImageUrl = null;
+        <div>
+          <div
+            v-if="editingImageUrl"
+            class="mb-2 flex items-center gap-1.5 text-xs text-primary"
+          >
+            <UIcon name="i-lucide-pencil" class="size-3.5" />
+            <span>Editing previous generation</span>
+          </div>
+          <PromptComposer
+            v-model="prompt"
+            :input-file="inputFile"
+            :preview-url="inputPreviewUrl"
+            :disabled="isGenerating"
+            @update:input-file="
+              (f) => {
+                inputFile = f;
+                if (!f) editingImageUrl = null;
               }
             "
-          />
-        </UCard>
-
-        <UCard>
-          <template #header>
-            <span class="font-medium text-sm">Prompt</span>
-          </template>
-          <PromptInput
-            v-model="prompt"
-            :disabled="isGenerating"
+            @update:preview-url="inputPreviewUrl = $event"
             @browse="showPromptLibrary = true"
           />
-        </UCard>
+        </div>
 
         <PromptLibrarySlideover
           :open="showPromptLibrary"

@@ -21,7 +21,6 @@ type CatForm = {
   id: string;
   name: string;
   description: string;
-  color: string;
   icon: string;
   sort_order: number;
   is_active: boolean;
@@ -31,7 +30,6 @@ const emptyCatForm = (): CatForm => ({
   id: "",
   name: "",
   description: "",
-  color: "from-zinc-500 to-zinc-600",
   icon: "i-lucide-sparkles",
   sort_order: 0,
   is_active: true,
@@ -78,7 +76,6 @@ function openEditCat(cat: PromptCategory) {
     id: cat.id,
     name: cat.name,
     description: cat.description,
-    color: cat.color,
     icon: cat.icon,
     sort_order: cat.sort_order,
     is_active: cat.is_active,
@@ -98,7 +95,6 @@ async function saveCat() {
     const payload = {
       name: catForm.value.name.trim(),
       description: catForm.value.description.trim(),
-      color: catForm.value.color.trim(),
       icon: catForm.value.icon.trim(),
       sort_order: Number(catForm.value.sort_order),
       is_active: Boolean(catForm.value.is_active),
@@ -653,16 +649,6 @@ await Promise.all([fetchCategories(), fetchPrompts()]);
               v-model="catForm.description"
               placeholder="Short description"
               :rows="2"
-            />
-          </UFormField>
-          <UFormField label="Gradient Color" hint="Tailwind gradient classes">
-            <UInput
-              v-model="catForm.color"
-              placeholder="from-amber-500 to-orange-600"
-              class="font-mono text-xs"
-            />
-            <div
-              :class="`mt-2 h-8 rounded-lg bg-gradient-to-br ${catForm.color}`"
             />
           </UFormField>
           <UFormField label="Icon" hint="Lucide icon name">

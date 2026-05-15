@@ -8,7 +8,7 @@ const emit = defineEmits<{
   select: [prompt: string];
 }>();
 
-const { categories, allPrompts, fetchLibrary } = usePromptLibrary();
+const { categories, promptCards, fetchLibrary } = usePromptLibrary();
 
 watch(
   () => props.open,
@@ -22,7 +22,7 @@ const search = ref("");
 const selectedCategory = ref<string | null>(null);
 
 const filtered = computed(() => {
-  let list = allPrompts.value;
+  let list = promptCards.value;
   if (selectedCategory.value) {
     list = list.filter((p) => p.category.id === selectedCategory.value);
   }
@@ -46,7 +46,7 @@ function usePrompt(prompt: string) {
   <USlideover
     :open="open"
     side="right"
-    class="w-full max-w-lg"
+    class="w-full max-w-2xl"
     @update:open="emit('update:open', $event)"
   >
     <template #content>
@@ -107,7 +107,7 @@ function usePrompt(prompt: string) {
           </div>
         </div>
 
-        <div class="flex-1 overflow-y-auto px-5 py-4 space-y-2">
+        <div class="flex-1 overflow-y-auto px-5 py-4">
           <div
             v-if="!filtered.length"
             class="text-center py-16 text-zinc-400 dark:text-zinc-500"
@@ -119,54 +119,12 @@ function usePrompt(prompt: string) {
             <p class="text-sm">No prompts found</p>
           </div>
 
-          <div
-            v-for="item in filtered"
-            :key="item.id"
-            class="group flex gap-3 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-all cursor-pointer"
-            @click="usePrompt(item.prompt)"
-          >
-            <div
-              class="size-12 rounded-lg overflow-hidden flex-shrink-0 bg-zinc-100 dark:bg-zinc-800"
-            >
-              <img
-                v-if="item.image_urls?.[0]"
-                :src="item.image_urls[0]"
-                :alt="item.title"
-                class="w-full h-full object-cover"
-                loading="lazy"
-                @error="
-                  ($event.target as HTMLImageElement).style.display = 'none'
-                "
-              />
-              <div
-                v-else
-                :class="`w-full h-full bg-gradient-to-br ${item.category.color} flex items-center justify-center`"
-              >
-                <UIcon
-                  :name="item.category.icon"
-                  class="size-5 text-white/80"
-                />
-              </div>
-            </div>
-
-            <div class="flex-1 min-w-0">
-              <div class="mb-0.5">
-                <p
-                  class="font-medium text-sm text-zinc-900 dark:text-zinc-100 truncate"
-                >
-                  {{ item.title }}
-                </p>
-              </div>
-              <p
-                class="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2 leading-relaxed"
-              >
-                {{ item.prompt }}
-              </p>
-            </div>
-
-            <UIcon
-              name="i-lucide-arrow-right"
-              class="size-4 text-zinc-400 flex-shrink-0 self-center opacity-0 group-hover:opacity-100 transition-opacity"
+          <div v-else class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <PromptLibraryCard
+              v-for="item in filtered"
+              :key="item.cardId"
+              :card="item"
+              @use="usePrompt"
             />
           </div>
         </div>

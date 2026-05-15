@@ -121,9 +121,12 @@ function handleUsePrompt(prompt: string) {
       <section v-for="group in groupedCards" :key="group.category.id">
         <div v-if="!selectedCategory" class="flex items-center gap-3 mb-5">
           <div
-            :class="`size-9 rounded-xl bg-gradient-to-br ${group.category.color} flex items-center justify-center flex-shrink-0`"
+            class="size-9 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center flex-shrink-0"
           >
-            <UIcon :name="group.category.icon" class="size-4 text-white" />
+            <UIcon
+              :name="group.category.icon"
+              class="size-4 text-zinc-500 dark:text-zinc-400"
+            />
           </div>
           <div>
             <h2 class="font-semibold text-base leading-tight">
