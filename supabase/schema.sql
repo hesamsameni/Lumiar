@@ -277,3 +277,53 @@ create index if not exists likes_generation_id_idx on likes(generation_id);
 create index if not exists comments_generation_id_idx on comments(generation_id);
 create index if not exists follows_follower_idx on follows(follower_id);
 create index if not exists follows_following_idx on follows(following_id);
+
+-- ============================================================
+-- AI MODELS
+-- ============================================================
+create table if not exists ai_models (
+  id text primary key,
+  name text not null,
+  description text not null default '',
+  tier text not null check (tier in ('low', 'mid', 'high')),
+  provider text not null check (provider in ('openai', 'openrouter')),
+  tokens_per_generation integer not null default 5,
+  price_estimate text not null default '',
+  supports_image_input boolean not null default true,
+  max_resolution text,
+  recommended boolean not null default false,
+  is_active boolean not null default true,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table ai_models enable row level security;
+
+drop policy if exists "AI models are viewable by everyone" on ai_models;
+create policy "AI models are viewable by everyone"
+  on ai_models for select using (true);
+
+drop policy if exists "Only admins can insert ai_models" on ai_models;
+create policy "Only admins can insert ai_models"
+  on ai_models for insert
+  with check (
+    exists (select 1 from profiles where id = auth.uid() and is_admin = true)
+  );
+
+drop policy if exists "Only admins can update ai_models" on ai_models;
+create policy "Only admins can update ai_models"
+  on ai_models for update
+  using (
+    exists (select 1 from profiles where id = auth.uid() and is_admin = true)
+  );
+
+drop policy if exists "Only admins can delete ai_models" on ai_models;
+create policy "Only admins can delete ai_models"
+  on ai_models for delete
+  using (
+    exists (select 1 from profiles where id = auth.uid() and is_admin = true)
+  );
+
+create index if not exists ai_models_is_active_idx on ai_models(is_active);
+create index if not exists ai_models_sort_order_idx on ai_models(sort_order);

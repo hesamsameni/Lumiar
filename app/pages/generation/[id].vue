@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { getModelById } from "~/utils/models";
 import { useGenerationService } from "~/services/generation.service";
 import { useProfileService } from "~/services/profile.service";
 import { useSocialService } from "~/services/social.service";
@@ -39,6 +38,7 @@ async function fetchProfilesMap(userIds: string[]) {
   );
 }
 
+const { getModelById } = useModels();
 const model = computed(() =>
   generation.value ? getModelById(generation.value.model_id as string) : null,
 );
@@ -336,7 +336,8 @@ onMounted(async () => {
                     </span>
                     <button
                       v-if="
-                        user?.id === (comment as { user_id: string }).user_id
+                        authUser?.id ===
+                        (comment as { user_id: string }).user_id
                       "
                       class="ml-auto text-xs text-zinc-400 hover:text-red-500 transition-colors"
                       @click="deleteComment((comment as { id: string }).id)"

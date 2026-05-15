@@ -27,3 +27,24 @@ export async function requireUser(event: H3Event) {
 
   return data.user;
 }
+
+/**
+ * Verifies the request is authenticated AND the user has is_admin = true.
+ * Throws 401 if not authenticated, 403 if not an admin.
+ */
+export async function requireAdmin(event: H3Event) {
+  const user = await requireUser(event);
+  const client = await serverSupabaseClient(event);
+
+  const { data: profile } = (await client
+    .from("profiles")
+    .select("is_admin")
+    .eq("id", user.id)
+    .single()) as unknown as { data: { is_admin: boolean } | null };
+
+  if (!profile?.is_admin) {
+    throw createError({ statusCode: 403, message: "Forbidden" });
+  }
+
+  return user;
+}

@@ -27,10 +27,10 @@ export function useGeneration() {
     }
 
     const balance = profile.value.token_balance ?? 0;
-    if (!profile.value.is_admin && balance < opts.model.tokensPerGeneration) {
+    if (!profile.value.is_admin && balance < opts.model.tokens_per_generation) {
       toast.add({
         title: "Insufficient tokens",
-        description: `This model requires ${opts.model.tokensPerGeneration} tokens but you only have ${balance}. Purchase more tokens to continue.`,
+        description: `This model requires ${opts.model.tokens_per_generation} tokens but you only have ${balance}. Purchase more tokens to continue.`,
         color: "warning",
       });
       return null;
@@ -83,7 +83,7 @@ export function useGeneration() {
           modelName: opts.model.name,
           inputImageBase64: inputImageBase64 ?? null,
           inputImageUrl: inputImageUrl,
-          tokensUsed: opts.model.tokensPerGeneration,
+          tokensUsed: opts.model.tokens_per_generation,
           aspectRatio: opts.aspectRatio ?? "1:1",
           parentId: opts.parentId ?? null,
         },
@@ -91,7 +91,7 @@ export function useGeneration() {
       });
 
       await deductTokens(
-        opts.model.tokensPerGeneration,
+        opts.model.tokens_per_generation,
         genRes.generationId,
         `Generation with ${opts.model.name}`,
       );

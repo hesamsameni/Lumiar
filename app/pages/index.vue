@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AI_MODELS, type AIModel } from "~/utils/models";
+import type { AIModel } from "~/utils/models";
 import { ASPECT_RATIOS } from "~/utils/constants";
 import { useGenerationService } from "~/services/generation.service";
 
@@ -7,13 +7,17 @@ const route = useRoute();
 const { generate, isGenerating, result } = useGeneration();
 const generationService = useGenerationService();
 const toast = useToast();
+const { models, fetchModels, firstModel } = useModels();
+
+await fetchModels();
 
 const prompt = ref("");
-const selectedModel = ref<AIModel>(AI_MODELS[0]!);
+const selectedModel = ref<AIModel>(firstModel.value!);
 const inputFile = ref<File | null>(null);
 const inputPreviewUrl = ref<string | null>(null);
 const selectedAspectRatio = ref(ASPECT_RATIOS[0]!);
 const editingImageUrl = ref<string | null>(null);
+const showPromptLibrary = ref(false);
 
 onMounted(async () => {
   const editId = route.query.edit as string | undefined;
@@ -26,11 +30,15 @@ onMounted(async () => {
       prompt.value = row.prompt;
     }
   }
+  const prefilledPrompt = route.query.prompt as string | undefined;
+  if (prefilledPrompt) {
+    prompt.value = prefilledPrompt;
+  }
 });
 
 async function handleGenerate() {
   if (
-    !selectedModel.value.supportsImageInput &&
+    !selectedModel.value.supports_image_input &&
     (inputFile.value || editingImageUrl.value)
   ) {
     toast.add({
@@ -115,8 +123,18 @@ function getRatioStyle(value: string): Record<string, string> {
           <template #header>
             <span class="font-medium text-sm">Prompt</span>
           </template>
-          <PromptInput v-model="prompt" :disabled="isGenerating" />
+          <PromptInput
+            v-model="prompt"
+            :disabled="isGenerating"
+            @browse="showPromptLibrary = true"
+          />
         </UCard>
+
+        <PromptLibrarySlideover
+          :open="showPromptLibrary"
+          @update:open="showPromptLibrary = $event"
+          @select="prompt = $event"
+        />
 
         <UCard>
           <template #header>
@@ -173,7 +191,7 @@ function getRatioStyle(value: string): Record<string, string> {
           {{
             isGenerating
               ? "Generating…"
-              : `Generate · ${selectedModel.tokensPerGeneration} tokens`
+              : `Generate · ${selectedModel.tokens_per_generation} tokens`
           }}
         </UButton>
 

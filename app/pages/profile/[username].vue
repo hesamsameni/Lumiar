@@ -94,6 +94,17 @@ async function toggleFollow() {
   }
 }
 
+function handleDeleted(id: string) {
+  generations.value = generations.value.filter(
+    (g) => (g as { id: string }).id !== id,
+  );
+}
+
+function handleShareToggled(id: string, isShared: boolean) {
+  const gen = generations.value.find((g) => (g as { id: string }).id === id);
+  if (gen) (gen as Record<string, unknown>).is_shared = isShared;
+}
+
 const sharedGenerations = computed(() =>
   generations.value.filter((g) => (g as { is_shared: boolean }).is_shared),
 );
@@ -253,6 +264,9 @@ watch(
           :key="(gen as { id: string }).id"
           :generation="gen as never"
           :show-author="false"
+          :is-owner="isOwnProfile"
+          @deleted="handleDeleted"
+          @share-toggled="handleShareToggled"
         />
       </div>
     </template>
