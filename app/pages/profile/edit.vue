@@ -4,12 +4,18 @@ import { useProfileService } from "~/services/profile.service";
 
 const authService = useAuthService();
 const profileService = useProfileService();
+const { fetchProfile } = useProfile();
+const { session } = useAuthState();
 const toast = useToast();
 const router = useRouter();
 
 const username = ref("");
 const fullName = ref("");
 const bio = ref("");
+const currentAvatarUrl = ref<string | null>(null);
+const avatarFile = ref<File | null>(null);
+const avatarPreviewUrl = ref<string | null>(null);
+const avatarInput = ref<HTMLInputElement | null>(null);
 const loading = ref(true);
 const saving = ref(false);
 
@@ -28,11 +34,59 @@ onMounted(async () => {
       username.value = (data as { username?: string }).username ?? "";
       fullName.value = (data as { full_name?: string }).full_name ?? "";
       bio.value = (data as { bio?: string }).bio ?? "";
+      currentAvatarUrl.value =
+        (data as { avatar_url?: string | null }).avatar_url ?? null;
     }
   } finally {
     loading.value = false;
   }
 });
+
+function compressImage(file: File, maxPx = 400, quality = 0.85): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(
+        1,
+        maxPx / img.naturalWidth,
+        maxPx / img.naturalHeight,
+      );
+      const w = Math.round(img.naturalWidth * scale);
+      const h = Math.round(img.naturalHeight * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext("2d")!.drawImage(img, 0, 0, w, h);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) return reject(new Error("Compression failed"));
+          resolve(new File([blob], "avatar.jpg", { type: "image/jpeg" }));
+        },
+        "image/jpeg",
+        quality,
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Image load failed"));
+    };
+    img.src = url;
+  });
+}
+
+function handleAvatarChange(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+  avatarFile.value = file;
+  if (avatarPreviewUrl.value) URL.revokeObjectURL(avatarPreviewUrl.value);
+  avatarPreviewUrl.value = URL.createObjectURL(file);
+}
+
+const displayAvatarUrl = computed(
+  () => avatarPreviewUrl.value ?? currentAvatarUrl.value ?? undefined,
+);
 
 async function save() {
   const authUser = await authService.getCurrentUser();
@@ -52,22 +106,54 @@ async function save() {
   }
 
   saving.value = true;
-  const { error } = await profileService.upsertProfile({
-    id: authUser.id,
-    username: nextUsername,
-    full_name: fullName.value,
-    bio: bio.value,
-  });
-  saving.value = false;
-  if (error) {
-    toast.add({
-      title: "Failed to save",
-      description: error.message,
-      color: "error",
-    });
-  } else {
+  try {
+    let newAvatarUrl: string | undefined;
+    if (avatarFile.value) {
+      const compressed = await compressImage(avatarFile.value);
+      const formData = new FormData();
+      formData.append("file", compressed);
+      const { url } = await $fetch<{ url: string }>(
+        "/api/upload?folder=profile-pictures",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.value?.access_token ?? ""}`,
+          },
+          body: formData,
+        },
+      );
+      newAvatarUrl = url;
+    }
+
+    const upsertInput: Parameters<typeof profileService.upsertProfile>[0] = {
+      id: authUser.id,
+      username: nextUsername,
+      full_name: fullName.value,
+      bio: bio.value,
+      ...(newAvatarUrl !== undefined ? { avatar_url: newAvatarUrl } : {}),
+    };
+    const { error } = await profileService.upsertProfile(upsertInput);
+
+    if (error) {
+      toast.add({
+        title: "Failed to save",
+        description: (error as { message?: string }).message,
+        color: "error",
+      });
+      return;
+    }
+
+    await fetchProfile();
     toast.add({ title: "Profile updated!", color: "success" });
     router.push(`/profile/${nextUsername}`);
+  } catch (err) {
+    toast.add({
+      title: "Failed to save",
+      description: err instanceof Error ? err.message : "Unknown error",
+      color: "error",
+    });
+  } finally {
+    saving.value = false;
   }
 }
 </script>
@@ -94,6 +180,50 @@ async function save() {
 
     <UCard v-else>
       <div class="space-y-5">
+        <!-- Avatar upload -->
+        <div class="flex items-center gap-4">
+          <div
+            class="relative group cursor-pointer"
+            @click="avatarInput?.click()"
+          >
+            <UAvatar
+              :src="
+                (displayAvatarUrl as string | null | undefined) || undefined
+              "
+              :fallback="username?.slice(0, 1).toUpperCase() || '?'"
+              size="2xl"
+              class="ring-4 ring-primary/20"
+            />
+            <div
+              class="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <UIcon name="i-lucide-camera" class="size-5 text-white" />
+            </div>
+          </div>
+          <div class="space-y-1">
+            <p class="text-sm font-medium">Profile photo</p>
+            <p class="text-xs text-zinc-500 dark:text-zinc-400">
+              JPG, PNG or WebP · max 10 MB
+            </p>
+            <UButton
+              size="xs"
+              variant="outline"
+              color="neutral"
+              icon="i-lucide-upload"
+              @click="avatarInput?.click()"
+            >
+              Upload photo
+            </UButton>
+          </div>
+          <input
+            ref="avatarInput"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            class="hidden"
+            @change="handleAvatarChange"
+          />
+        </div>
+
         <UFormField label="Username" required>
           <UInput v-model="username" placeholder="yourname" class="w-full" />
         </UFormField>

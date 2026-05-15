@@ -9,6 +9,7 @@ export interface Database {
           avatar_url: string | null;
           bio: string | null;
           token_balance: number;
+          is_admin: boolean;
           updated_at: string;
           created_at: string;
         };

@@ -45,7 +45,26 @@ export function useProfile() {
     }
 
     if (data) {
-      profile.value = data as UserProfile;
+      const existing = data as UserProfile;
+
+      // Backfill OAuth provider avatar (e.g. Google) when the profile row has
+      // none yet. Uploaded avatars take priority because they overwrite
+      // avatar_url, so this branch is skipped once the user has set their own.
+      const oauthAvatar = authUser.user_metadata?.avatar_url as
+        | string
+        | undefined;
+      if (!existing.avatar_url && oauthAvatar) {
+        await profileService.upsertProfile({
+          id: authUser.id,
+          username: existing.username,
+          full_name: existing.full_name,
+          bio: existing.bio,
+          avatar_url: oauthAvatar,
+        });
+        existing.avatar_url = oauthAvatar;
+      }
+
+      profile.value = existing;
       loading.value = false;
       return;
     }

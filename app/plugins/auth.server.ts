@@ -1,3 +1,5 @@
+import type { Session } from "@supabase/supabase-js";
+
 /**
  * Server plugin — runs once per SSR request.
  * Populates `profile` state on the server so the initial HTML is rendered
@@ -10,7 +12,12 @@ export default defineNuxtPlugin(async () => {
   const supabaseSession = useSupabaseSession();
   const user = useSupabaseUser();
   const { session, ready } = useAuthState();
-  session.value = supabaseSession.value ?? null;
+
+  // Reconstruct full Session type (useSupabaseSession returns Omit<Session, "user">)
+  session.value =
+    supabaseSession.value && user.value
+      ? ({ ...supabaseSession.value, user: user.value } as unknown as Session)
+      : null;
   ready.value = true;
 
   if (!user.value?.id) return;

@@ -8,7 +8,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  edit: [imageUrl: string];
+  edit: [imageUrl: string, generationId: string];
 }>();
 
 const generationService = useGenerationService();
@@ -88,7 +88,7 @@ onMounted(async () => {
           size="sm"
           variant="outline"
           color="neutral"
-          @click="emit('edit', imageUrl)"
+          @click="emit('edit', imageUrl, generationId)"
         >
           Edit this image
         </UButton>

@@ -1,4 +1,16 @@
-import { requireAdmin } from "../../../utils/auth";
+import {
+  buildCdnUrl,
+  generateStorageFilename,
+  uploadToBunny,
+} from "../../../utils/bunny";
+
+const ALLOWED_MIME_TYPES: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 export default defineEventHandler(async (event) => {
   await requireAdmin(event);
@@ -8,54 +20,34 @@ export default defineEventHandler(async (event) => {
   const file = formData.get("file") as File | null;
   const promptId = (formData.get("promptId") as string | null) ?? "misc";
 
-  if (!file) throw createError({ statusCode: 400, message: "No file provided" });
-
-  const allowedMimeTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
-  if (!allowedMimeTypes.has(file.type)) {
+  if (!file)
+    throw createError({ statusCode: 400, message: "No file provided" });
+  if (!(file.type in ALLOWED_MIME_TYPES)) {
     throw createError({ statusCode: 400, message: "Unsupported file type" });
   }
-
-  const maxBytes = 10 * 1024 * 1024;
-  if (file.size > maxBytes) {
-    throw createError({ statusCode: 400, message: "File too large (max 10MB)" });
-  }
-
-  const extByMime: Record<string, string> = {
-    "image/jpeg": "jpg",
-    "image/png": "png",
-    "image/webp": "webp",
-  };
-  const ext = extByMime[file.type] ?? "jpg";
-  const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-  const path = `prompt-library/${promptId}/${filename}`;
-
-  const arrayBuffer = await file.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
-
-  const uploadUrl = `https://${config.bunnyStorageHostname}/${config.bunnyStorageZone}/${path}`;
-
-  const response = await fetch(uploadUrl, {
-    method: "PUT",
-    headers: {
-      AccessKey: config.bunnyApiKey,
-      "Content-Type": "application/octet-stream",
-    },
-    body: buffer,
-  });
-
-  if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    console.error(`[prompt-img upload] Bunny HTTP ${response.status} — ${body}`);
+  if (file.size > MAX_FILE_BYTES) {
     throw createError({
-      statusCode: 500,
-      message: `Bunny.net upload failed (HTTP ${response.status})`,
+      statusCode: 400,
+      message: "File too large (max 10MB)",
     });
   }
 
-  const cdnBase = config.public.bunnyCdnUrl.replace(/\/+$/, "");
-  const cdnUrl = cdnBase.startsWith("http")
-    ? `${cdnBase}/${path}`
-    : `https://${cdnBase}/${path}`;
+  const ext = ALLOWED_MIME_TYPES[file.type] ?? "jpg";
+  const path = `prompt-library/${promptId}/${generateStorageFilename(ext)}`;
+  const buffer = Buffer.from(await file.arrayBuffer());
 
-  return { url: cdnUrl };
+  try {
+    await uploadToBunny(
+      config.bunnyStorageHostname as string,
+      config.bunnyStorageZone as string,
+      config.bunnyApiKey as string,
+      path,
+      buffer,
+    );
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Upload failed";
+    throw createError({ statusCode: 500, message: msg });
+  }
+
+  return { url: buildCdnUrl(config.public.bunnyCdnUrl as string, path) };
 });

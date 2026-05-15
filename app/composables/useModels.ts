@@ -16,7 +16,8 @@ export function useModels() {
       const data = await $fetch<AIModel[]>("/api/models");
       models.value = data ?? [];
     } catch (err: unknown) {
-      error.value = err instanceof Error ? err.message : "Failed to load models";
+      error.value =
+        err instanceof Error ? err.message : "Failed to load models";
     } finally {
       loading.value = false;
     }
@@ -35,13 +36,16 @@ export function useModels() {
       });
       models.value = data ?? [];
     } catch (err: unknown) {
-      error.value = err instanceof Error ? err.message : "Failed to load models";
+      error.value =
+        err instanceof Error ? err.message : "Failed to load models";
     } finally {
       loading.value = false;
     }
   }
 
-  const firstModel = computed<AIModel | undefined>(() => models.value[0]);
+  const firstModel = computed<AIModel | undefined>(
+    () => models.value.find((m) => m.recommended) ?? models.value[0],
+  );
 
   function getModelById(id: string): AIModel | undefined {
     return models.value.find((m) => m.id === id);

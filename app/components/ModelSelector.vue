@@ -11,21 +11,26 @@ const emit = defineEmits<{
 
 const { models } = useModels();
 
-type CompanyKey = "openai" | "google" | "recraft" | "black-forest-labs";
+type CompanyKey =
+  | "openai"
+  | "google"
+  | "recraft"
+  | "black-forest-labs"
+  | "bytedance";
 
 const companyMeta: Record<
   CompanyKey,
   { label: string; subtitle: string; logo: string }
 > = {
-  openai: {
-    label: "OpenAI",
-    subtitle: "GPT Image family",
-    logo: "/ai-logos/openai.svg",
-  },
   google: {
     label: "Google",
     subtitle: "Nano Banana family",
     logo: "/ai-logos/gemini.svg",
+  },
+  openai: {
+    label: "OpenAI",
+    subtitle: "GPT Image family",
+    logo: "/ai-logos/openai.svg",
   },
   recraft: {
     label: "Recraft",
@@ -37,14 +42,24 @@ const companyMeta: Record<
     subtitle: "FLUX family",
     logo: "/ai-logos/flux.svg",
   },
+  bytedance: {
+    label: "Bytedance",
+    subtitle: "Bytedance family",
+    logo: "/ai-logos/bytedance.svg",
+  },
 };
 
 const companyOrder: CompanyKey[] = [
-  "openai",
   "google",
+  "openai",
   "recraft",
   "black-forest-labs",
+  "bytedance",
 ];
+
+const COMPANY_ID_MAP: Partial<Record<string, CompanyKey>> = {
+  "bytedance-seed": "bytedance",
+};
 
 const groupedModels = computed(() => {
   const groups: Record<CompanyKey, AIModel[]> = {
@@ -52,9 +67,11 @@ const groupedModels = computed(() => {
     google: [],
     recraft: [],
     "black-forest-labs": [],
+    bytedance: [],
   };
   for (const model of models.value) {
-    const company = model.id.split("/")[0] as CompanyKey;
+    const prefix = model.id.split("/")[0] ?? "";
+    const company = (COMPANY_ID_MAP[prefix] ?? prefix) as CompanyKey;
     if (company in groups) groups[company].push(model);
   }
   return companyOrder
@@ -83,7 +100,8 @@ function toggleGroup(company: CompanyKey) {
 watch(
   () => props.modelValue,
   (model) => {
-    const company = model.id.split("/")[0] as CompanyKey;
+    const prefix = model.id.split("/")[0] ?? "";
+    const company = (COMPANY_ID_MAP[prefix] ?? prefix) as CompanyKey;
     openGroups.value.add(company);
   },
   { immediate: true },

@@ -145,8 +145,8 @@ watch(
         class="flex flex-col sm:flex-row items-start sm:items-center gap-5 mb-10"
       >
         <UAvatar
-          :src="profile.avatar_url as string"
-          :fallback="(profile.username as string)?.slice(0, 2).toUpperCase()"
+          :src="(profile.avatar_url as string | null) || undefined"
+          :fallback="(profile.username as string)?.slice(0, 1).toUpperCase()"
           size="2xl"
           class="ring-4 ring-primary/20"
         />
