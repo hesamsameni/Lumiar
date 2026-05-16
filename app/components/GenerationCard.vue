@@ -39,6 +39,8 @@ const isTogglingLike = ref(false);
 const isShared = ref(props.generation.is_shared ?? false);
 const isTogglingShare = ref(false);
 const isDeleting = ref(false);
+const showDeleteModal = ref(false);
+const showUnshareModal = ref(false);
 
 async function checkLiked() {
   if (!authUser.value?.id) return;
@@ -95,6 +97,15 @@ async function toggleShare() {
     toast.add({ title: "Failed to update sharing", color: "error" });
   } finally {
     isTogglingShare.value = false;
+    showUnshareModal.value = false;
+  }
+}
+
+function handleShareClick() {
+  if (isShared.value) {
+    showUnshareModal.value = true;
+  } else {
+    toggleShare();
   }
 }
 
@@ -117,7 +128,7 @@ async function deleteGeneration() {
     });
   } finally {
     isDeleting.value = false;
-    confirmingDelete.value = false;
+    showDeleteModal.value = false;
   }
 }
 
@@ -126,7 +137,7 @@ onMounted(() => checkLiked());
 
 <template>
   <div
-    class="rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 transition-all hover:shadow-md hover:-translate-y-0.5"
+    class="rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 transition-all hover:shadow-md"
   >
     <!-- Image -->
     <NuxtLink :to="`/generation/${generation.id}`" class="block">
@@ -180,7 +191,7 @@ onMounted(() => checkLiked());
             {
               label: isShared ? 'Unshare' : 'Share to Explore',
               icon: isShared ? 'i-lucide-eye-off' : 'i-lucide-share-2',
-              onSelect: toggleShare,
+              onSelect: handleShareClick,
             },
           ],
           [
@@ -189,7 +200,7 @@ onMounted(() => checkLiked());
               icon: 'i-lucide-trash-2',
               color: 'error',
               disabled: isDeleting,
-              onSelect: deleteGeneration,
+              onSelect: () => showDeleteModal = true,
             },
           ],
         ]"
@@ -221,5 +232,28 @@ onMounted(() => checkLiked());
         {{ likesCount }}
       </button>
     </div>
+
+    <!-- Modals -->
+    <ConfirmModal
+      v-model:open="showDeleteModal"
+      title="Delete Image"
+      description="Are you sure you want to delete this image? This action cannot be undone."
+      confirm-text="Delete"
+      confirm-color="error"
+      icon="i-lucide-trash-2"
+      :loading="isDeleting"
+      @confirm="deleteGeneration"
+    />
+
+    <ConfirmModal
+      v-model:open="showUnshareModal"
+      title="Unshare Image"
+      description="Are you sure you want to remove this image from the Explore feed? It will no longer be visible to other users."
+      confirm-text="Unshare"
+      confirm-color="primary"
+      icon="i-lucide-eye-off"
+      :loading="isTogglingShare"
+      @confirm="toggleShare"
+    />
   </div>
 </template>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useGenerationService } from "~/services/generation.service";
+import { downloadImageToDevice } from "~/utils/download";
 
 const props = defineProps<{
   imageUrl: string;
@@ -17,11 +18,7 @@ const isSaving = ref(false);
 const isShared = ref(false);
 
 async function downloadImage() {
-  const a = document.createElement("a");
-  a.href = props.imageUrl;
-  a.download = `lumiar-${props.generationId}.png`;
-  a.target = "_blank";
-  a.click();
+  await downloadImageToDevice(props.imageUrl, `lumiar-${props.generationId}.png`);
 }
 
 async function toggleShare() {

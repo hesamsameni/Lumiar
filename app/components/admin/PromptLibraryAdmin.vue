@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { PromptCategory, PromptItem } from "~/utils/promptLibrary";
+import { compressImage } from "~/utils/imageCompression";
 
 const { session } = useAuthState();
 const toast = useToast();
@@ -237,8 +238,10 @@ async function handleImageSelect(event: Event) {
   if (!file) return;
   uploadingImage.value = true;
   try {
+    // Compress client-side to avoid FUNCTION_PAYLOAD_TOO_LARGE
+    const compressed = await compressImage(file);
     const fd = new FormData();
-    fd.append("file", file);
+    fd.append("file", compressed);
     fd.append("promptId", promptForm.value.id || "new");
     const { url } = await $fetch<{ url: string }>(
       "/api/admin/prompt-library/upload-image",

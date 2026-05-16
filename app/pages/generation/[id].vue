@@ -2,6 +2,7 @@
 import { useGenerationService } from "~/services/generation.service";
 import { useProfileService } from "~/services/profile.service";
 import { useSocialService } from "~/services/social.service";
+import { downloadImageToDevice } from "~/utils/download";
 
 const route = useRoute();
 const { user: authUser, session } = useAuthState();
@@ -28,8 +29,24 @@ const isOwner = computed(
 const isShared = ref(false);
 const isTogglingShare = ref(false);
 const isDeleting = ref(false);
-const confirmingDelete = ref(false);
-const isFullscreen = ref(false);
+const showDeleteModal = ref(false);
+const showUnshareModal = ref(false);
+const fullscreenImageUrl = ref<string | null>(null);
+
+const referenceImages = computed(() => {
+  if (!generation.value) return [];
+  const urls: string[] = [];
+  if (generation.value.input_image_url) {
+    urls.push(generation.value.input_image_url as string);
+  }
+  const metadataUrls = (generation.value.metadata as { input_image_urls?: string[] })?.input_image_urls;
+  if (Array.isArray(metadataUrls)) {
+    metadataUrls.forEach(url => {
+      if (!urls.includes(url)) urls.push(url);
+    });
+  }
+  return urls;
+});
 
 type ProfileLite = {
   id: string;
@@ -155,11 +172,10 @@ async function toggleLike() {
 
 async function downloadImage() {
   if (!generation.value) return;
-  const a = document.createElement("a");
-  a.href = generation.value.output_image_url as string;
-  a.download = `lumiar-${id.value}.png`;
-  a.target = "_blank";
-  a.click();
+  await downloadImageToDevice(
+    generation.value.output_image_url as string,
+    `lumiar-${id.value}.png`
+  );
 }
 
 function useAsBase() {
@@ -183,17 +199,19 @@ async function toggleShare() {
     toast.add({ title: "Failed to update sharing", color: "error" });
   } finally {
     isTogglingShare.value = false;
+    showUnshareModal.value = false;
+  }
+}
+
+function handleShareClick() {
+  if (isShared.value) {
+    showUnshareModal.value = true;
+  } else {
+    toggleShare();
   }
 }
 
 async function deleteGeneration() {
-  if (!confirmingDelete.value) {
-    confirmingDelete.value = true;
-    setTimeout(() => {
-      confirmingDelete.value = false;
-    }, 3000);
-    return;
-  }
   isDeleting.value = true;
   try {
     await $fetch(`/api/generations/${id.value}`, {
@@ -208,7 +226,7 @@ async function deleteGeneration() {
     toast.add({ title: "Failed to delete photo", color: "error" });
   } finally {
     isDeleting.value = false;
-    confirmingDelete.value = false;
+    showDeleteModal.value = false;
   }
 }
 
@@ -254,7 +272,7 @@ onMounted(async () => {
             <button
               class="absolute top-3 right-3 size-9 rounded-xl bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors backdrop-blur-sm"
               title="View fullscreen"
-              @click="isFullscreen = true"
+              @click="fullscreenImageUrl = generation.output_image_url as string"
             >
               <UIcon name="i-lucide-maximize-2" class="size-4" />
             </button>
@@ -271,18 +289,18 @@ onMounted(async () => {
               leave-to-class="opacity-0"
             >
               <div
-                v-if="isFullscreen"
+                v-if="fullscreenImageUrl"
                 class="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4"
-                @click="isFullscreen = false"
+                @click="fullscreenImageUrl = null"
               >
                 <button
                   class="absolute top-4 right-4 size-10 rounded-xl bg-white/10 text-white flex items-center justify-center hover:bg-white/20 transition-colors"
-                  @click.stop="isFullscreen = false"
+                  @click.stop="fullscreenImageUrl = null"
                 >
                   <UIcon name="i-lucide-x" class="size-5" />
                 </button>
                 <img
-                  :src="generation.output_image_url as string"
+                  :src="fullscreenImageUrl"
                   :alt="generation.prompt as string"
                   class="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
                   @click.stop
@@ -327,22 +345,19 @@ onMounted(async () => {
                 color="primary"
                 size="sm"
                 :loading="isTogglingShare"
-                @click="toggleShare"
+                @click="handleShareClick"
               >
                 {{ isShared ? "Unshare" : "Share to Explore" }}
               </UButton>
               <UButton
-                :icon="
-                  isDeleting ? 'i-lucide-loader-circle' : 'i-lucide-trash-2'
-                "
-                :variant="confirmingDelete ? 'solid' : 'outline'"
-                :color="confirmingDelete ? 'error' : 'neutral'"
+                :icon="isDeleting ? 'i-lucide-loader-circle' : 'i-lucide-trash-2'"
+                variant="outline"
+                color="neutral"
                 size="sm"
                 :loading="isDeleting"
-                :class="confirmingDelete ? 'animate-pulse' : ''"
-                @click="deleteGeneration"
+                @click="showDeleteModal = true"
               >
-                {{ confirmingDelete ? "Confirm delete?" : "Delete" }}
+                Delete
               </UButton>
             </template>
           </div>
@@ -375,6 +390,35 @@ onMounted(async () => {
             </NuxtLink>
 
             <div class="space-y-3 text-sm">
+              <div v-if="isOwner && referenceImages.length > 0" class="mb-4">
+                <div class="flex items-center gap-2 mb-2">
+                  <p class="text-xs text-zinc-400 dark:text-zinc-500 uppercase tracking-wide">
+                    Reference Images
+                  </p>
+                  <span class="flex items-center gap-1 text-[10px] text-zinc-400 dark:text-zinc-500 bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">
+                    <UIcon name="i-lucide-lock" class="size-3" />
+                    Only visible to you
+                  </span>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  <button
+                    v-for="(url, idx) in referenceImages"
+                    :key="idx"
+                    class="relative group rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-700 size-16 flex-shrink-0"
+                    @click="fullscreenImageUrl = url"
+                  >
+                    <img
+                      :src="url"
+                      alt="Reference image"
+                      class="w-full h-full object-cover"
+                    />
+                    <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                      <UIcon name="i-lucide-maximize-2" class="size-4 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-md" />
+                    </div>
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <p
                   class="text-xs text-zinc-400 dark:text-zinc-500 uppercase tracking-wide mb-1"
@@ -563,5 +607,28 @@ onMounted(async () => {
       />
       <p class="text-zinc-500 dark:text-zinc-400">Generation not found</p>
     </div>
+
+    <!-- Modals -->
+    <ConfirmModal
+      v-model:open="showDeleteModal"
+      title="Delete Image"
+      description="Are you sure you want to delete this image? This action cannot be undone."
+      confirm-text="Delete"
+      confirm-color="error"
+      icon="i-lucide-trash-2"
+      :loading="isDeleting"
+      @confirm="deleteGeneration"
+    />
+
+    <ConfirmModal
+      v-model:open="showUnshareModal"
+      title="Unshare Image"
+      description="Are you sure you want to remove this image from the Explore feed? It will no longer be visible to other users."
+      confirm-text="Unshare"
+      confirm-color="primary"
+      icon="i-lucide-eye-off"
+      :loading="isTogglingShare"
+      @confirm="toggleShare"
+    />
   </div>
 </template>

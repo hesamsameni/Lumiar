@@ -8,6 +8,7 @@ export default defineNuxtConfig({
   app: {
     head: {
       title: "Lumiar",
+      viewport: "width=device-width, initial-scale=1, maximum-scale=1",
       link: [
         { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
         {
