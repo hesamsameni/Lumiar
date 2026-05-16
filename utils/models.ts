@@ -1,5 +1,5 @@
 export type ModelTier = "low" | "mid" | "high";
-export type ModelProvider = "openai" | "openrouter";
+export type ModelProvider = "openai" | "openrouter" | "google";
 
 export interface AIModel {
   id: string;

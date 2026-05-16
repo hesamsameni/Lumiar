@@ -10,6 +10,7 @@
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
+    "@google/genai": "^2.3.0",
     "@nuxt/ui": "^4.7.1",
     "@nuxtjs/supabase": "^2.0.8",
     "@vueuse/core": "^14.3.0",

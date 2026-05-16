@@ -183,6 +183,7 @@ const providerOptions: { label: string; value: ModelProvider; icon: string }[] =
   [
     { label: "OpenRouter", value: "openrouter", icon: "i-lucide-waypoints" },
     { label: "OpenAI", value: "openai", icon: "i-lucide-sparkles" },
+    { label: "Google", value: "google", icon: "i-lucide-brain-circuit" },
   ];
 
 const activeTab = ref<"models" | "prompts">("models");

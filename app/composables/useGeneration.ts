@@ -81,6 +81,7 @@ export function useGeneration() {
           prompt: opts.prompt,
           modelId: opts.model.id,
           modelName: opts.model.name,
+          provider: opts.model.provider,
           inputImageBase64: inputImageBase64 ?? null,
           inputImageUrl: inputImageUrl,
           tokensUsed: opts.model.tokens_per_generation,

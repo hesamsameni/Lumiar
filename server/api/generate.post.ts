@@ -3,6 +3,7 @@ import {
   OPENAI_GPT_IMAGE_MODELS,
   generateWithOpenAI,
   generateWithOpenRouter,
+  generateWithGoogle,
   resolveInputImageBase64,
   resolveOpenRouterInputImage,
 } from "../utils/providers";
@@ -27,6 +28,7 @@ export default defineEventHandler(async (event) => {
     prompt,
     modelId,
     modelName,
+    provider,
     inputImageBase64,
     inputImageUrl,
     tokensUsed,
@@ -92,8 +94,18 @@ export default defineEventHandler(async (event) => {
   }
 
   // --- Provider routing ---
-  const isOpenAI = modelId.startsWith("openai/");
-  const actualModelId = isOpenAI ? modelId.replace("openai/", "") : modelId;
+  const resolvedProvider: string =
+    typeof provider === "string" ? provider : "openrouter";
+  const isOpenAI = resolvedProvider === "openai";
+  const isGoogle = resolvedProvider === "google";
+  // Model IDs in the DB may carry a vendor prefix (e.g. "openai/gpt-image-1",
+  // "google/gemini-2.0-flash-preview-image-generation"). Strip the prefix before
+  // hitting the native API so the provider receives the bare model name.
+  const actualModelId = isOpenAI
+    ? modelId.replace(/^openai\//, "")
+    : isGoogle
+      ? modelId.replace(/^google\//, "")
+      : modelId;
 
   if (isOpenAI && !OPENAI_GPT_IMAGE_MODELS.has(actualModelId)) {
     throw createError({
@@ -112,17 +124,35 @@ export default defineEventHandler(async (event) => {
   // --- Image generation ---
   let imageBase64: string;
   try {
-    const resolvedInputBase64 = isOpenAI
-      ? await resolveInputImageBase64(
-          inputImageBase64 ?? null,
-          inputImageUrl ?? null,
-          INPUT_IMAGE_REQUEST_HEADERS,
-          bunnyConfig,
-        )
-      : null;
-
-    let openRouterInputImage: string | null = null;
-    if (!isOpenAI) {
+    if (isOpenAI) {
+      const resolvedInputBase64 = await resolveInputImageBase64(
+        inputImageBase64 ?? null,
+        inputImageUrl ?? null,
+        INPUT_IMAGE_REQUEST_HEADERS,
+        bunnyConfig,
+      );
+      imageBase64 = await generateWithOpenAI(
+        config.openaiApiKey as string,
+        actualModelId,
+        trimmedPrompt,
+        aspectRatio ?? "1:1",
+        resolvedInputBase64,
+      );
+    } else if (isGoogle) {
+      const resolvedInputBase64 = await resolveInputImageBase64(
+        inputImageBase64 ?? null,
+        inputImageUrl ?? null,
+        INPUT_IMAGE_REQUEST_HEADERS,
+        bunnyConfig,
+      );
+      imageBase64 = await generateWithGoogle(
+        config.googleApiKey as string,
+        actualModelId,
+        trimmedPrompt,
+        aspectRatio ?? "1:1",
+        resolvedInputBase64,
+      );
+    } else {
       let resolvedForOpenRouter: string | null = null;
       try {
         resolvedForOpenRouter = await resolveInputImageBase64(
@@ -134,28 +164,19 @@ export default defineEventHandler(async (event) => {
       } catch {
         resolvedForOpenRouter = null;
       }
-      openRouterInputImage = resolveOpenRouterInputImage(
+      const openRouterInputImage = resolveOpenRouterInputImage(
         inputImageBase64 ?? null,
         inputImageUrl ?? null,
         resolvedForOpenRouter,
       );
+      imageBase64 = await generateWithOpenRouter(
+        config.openrouterApiKey as string,
+        actualModelId,
+        trimmedPrompt,
+        aspectRatio ?? "1:1",
+        openRouterInputImage,
+      );
     }
-
-    imageBase64 = isOpenAI
-      ? await generateWithOpenAI(
-          config.openaiApiKey as string,
-          actualModelId,
-          trimmedPrompt,
-          aspectRatio ?? "1:1",
-          resolvedInputBase64,
-        )
-      : await generateWithOpenRouter(
-          config.openrouterApiKey as string,
-          actualModelId,
-          trimmedPrompt,
-          aspectRatio ?? "1:1",
-          openRouterInputImage,
-        );
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Image generation failed";
     throw createError({ statusCode: 500, message: msg });

@@ -286,7 +286,7 @@ create table if not exists ai_models (
   name text not null,
   description text not null default '',
   tier text not null check (tier in ('low', 'mid', 'high')),
-  provider text not null check (provider in ('openai', 'openrouter')),
+  provider text not null check (provider in ('openai', 'openrouter', 'google')),
   tokens_per_generation integer not null default 5,
   price_estimate text not null default '',
   supports_image_input boolean not null default true,
