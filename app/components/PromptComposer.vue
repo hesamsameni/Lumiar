@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { convertHeicToJpeg } from "~/utils/imageCompression";
 const props = defineProps<{
   modelValue: string;
   inputFile?: File | null;
@@ -30,11 +31,22 @@ function onFileChange(e: Event) {
   if (file) handleFile(file);
 }
 
-function handleFile(file: File) {
-  emit("update:inputFile", file);
-  const reader = new FileReader();
-  reader.onload = (e) => emit("update:previewUrl", e.target?.result as string);
-  reader.readAsDataURL(file);
+const isProcessingImage = ref(false);
+
+async function handleFile(file: File) {
+  isProcessingImage.value = true;
+  try {
+    emit("update:inputFile", file);
+    
+    // Convert HEIC to JPEG for the preview so the browser can render it
+    const previewFile = await convertHeicToJpeg(file);
+    
+    const reader = new FileReader();
+    reader.onload = (e) => emit("update:previewUrl", e.target?.result as string);
+    reader.readAsDataURL(previewFile);
+  } finally {
+    isProcessingImage.value = false;
+  }
 }
 
 function clearFile() {
@@ -133,12 +145,16 @@ async function polishPrompt() {
       <div class="flex items-center gap-1">
         <button
           type="button"
-          :disabled="disabled"
+          :disabled="disabled || isProcessingImage"
           title="Attach image (optional)"
           class="h-8 w-8 rounded-lg flex items-center justify-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           @click="fileInput?.click()"
         >
-          <UIcon name="i-lucide-image-plus" class="size-4" />
+          <UIcon
+            :name="isProcessingImage ? 'i-lucide-loader-2' : 'i-lucide-image-plus'"
+            class="size-4"
+            :class="isProcessingImage ? 'animate-spin' : ''"
+          />
         </button>
         <button
           type="button"

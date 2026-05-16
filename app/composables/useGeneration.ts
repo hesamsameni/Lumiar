@@ -1,4 +1,5 @@
 import type { AIModel } from "~/utils/models";
+import { compressImage } from "~/utils/imageCompression";
 
 export function useGeneration() {
   const { profile } = useProfile();
@@ -53,18 +54,21 @@ export function useGeneration() {
 
       const files = opts.inputImageFiles?.filter(Boolean) ?? [];
       for (const file of files) {
+        // Compress (and auto-convert HEIC/HEIF) client-side to avoid FUNCTION_PAYLOAD_TOO_LARGE
+        const compressed = await compressImage(file);
+
         // Convert to base64 data URI for the AI provider
         const base64 = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = () => resolve(reader.result as string);
           reader.onerror = reject;
-          reader.readAsDataURL(file);
+          reader.readAsDataURL(compressed);
         });
         inputImagesBase64.push(base64);
 
-        // Also upload to CDN for the DB record
+        // Also upload compressed file to CDN for the DB record
         const fd = new FormData();
-        fd.append("file", file);
+        fd.append("file", compressed);
         const uploadRes = await $fetch<{ url: string }>("/api/upload", {
           method: "POST",
           body: fd,

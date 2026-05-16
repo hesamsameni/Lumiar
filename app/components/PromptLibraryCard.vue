@@ -12,7 +12,7 @@ const emit = defineEmits<{
 
 <template>
   <div
-    class="rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 transition-all hover:shadow-md hover:-translate-y-0.5 flex flex-col"
+    class="rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 transition-all hover:shadow-md flex flex-col"
   >
     <!-- Image / gradient top -->
     <div

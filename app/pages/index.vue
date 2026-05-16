@@ -2,6 +2,7 @@
 import type { AIModel } from "~/utils/models";
 import { ASPECT_RATIOS } from "~/utils/constants";
 import { useGenerationService } from "~/services/generation.service";
+import { convertHeicToJpeg } from "~/utils/imageCompression";
 
 const route = useRoute();
 const { generate, isGenerating, result } = useGeneration();
@@ -105,17 +106,29 @@ function onFileChange(e: Event) {
   (e.target as HTMLInputElement).value = "";
 }
 
-function handleFile(file: File) {
+const processingImageCount = ref(0);
+const isProcessingImage = computed(() => processingImageCount.value > 0);
+
+async function handleFile(file: File) {
   editingImageUrl.value = null;
-  inputFiles.value = [...inputFiles.value, file];
-  const reader = new FileReader();
-  reader.onload = (ev) => {
-    inputPreviewUrls.value = [
-      ...inputPreviewUrls.value,
-      ev.target?.result as string,
-    ];
-  };
-  reader.readAsDataURL(file);
+  processingImageCount.value++;
+  
+  try {
+    // Convert HEIC to JPEG for the preview so the browser can render it
+    const previewFile = await convertHeicToJpeg(file);
+    
+    inputFiles.value = [...inputFiles.value, file];
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      inputPreviewUrls.value = [
+        ...inputPreviewUrls.value,
+        ev.target?.result as string,
+      ];
+    };
+    reader.readAsDataURL(previewFile);
+  } finally {
+    processingImageCount.value--;
+  }
 }
 
 function removeFile(index: number) {
@@ -275,11 +288,16 @@ function getRatioStyle(value: string): Record<string, string> {
           <button
             v-if="canAddMore"
             type="button"
-            class="size-20 flex-shrink-0 flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-600 text-zinc-400 dark:text-zinc-500 hover:border-primary/60 hover:text-primary transition-colors"
+            :disabled="isProcessingImage"
+            class="size-20 flex-shrink-0 flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-600 text-zinc-400 dark:text-zinc-500 hover:border-primary/60 hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             @click="fileInput?.click()"
           >
-            <UIcon name="i-lucide-plus" class="size-5 mb-0.5" />
-            <span class="text-[10px] font-medium">Add</span>
+            <UIcon
+              :name="isProcessingImage ? 'i-lucide-loader-2' : 'i-lucide-plus'"
+              class="size-5 mb-0.5"
+              :class="isProcessingImage ? 'animate-spin' : ''"
+            />
+            <span class="text-[10px] font-medium">{{ isProcessingImage ? 'Loading...' : 'Add' }}</span>
           </button>
         </div>
       </div>
@@ -348,7 +366,7 @@ function getRatioStyle(value: string): Record<string, string> {
           <!-- Attach image -->
           <button
             type="button"
-            :disabled="isGenerating || !canAddMore"
+            :disabled="isGenerating || !canAddMore || isProcessingImage"
             :title="
               canAddMore
                 ? 'Attach image'
@@ -357,7 +375,11 @@ function getRatioStyle(value: string): Record<string, string> {
             class="size-9 rounded-xl flex items-center justify-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-40 flex-shrink-0"
             @click="fileInput?.click()"
           >
-            <UIcon name="i-lucide-image-plus" class="size-[18px]" />
+            <UIcon
+              :name="isProcessingImage ? 'i-lucide-loader-2' : 'i-lucide-image-plus'"
+              class="size-[18px]"
+              :class="isProcessingImage ? 'animate-spin' : ''"
+            />
           </button>
 
           <!-- Prompt library -->

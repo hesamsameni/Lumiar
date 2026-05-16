@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { convertHeicToJpeg } from "~/utils/imageCompression";
 const props = defineProps<{
   modelValue: File | null
   previewUrl?: string | null
@@ -23,11 +24,22 @@ function onFileChange(e: Event) {
   if (file) handleFile(file)
 }
 
-function handleFile(file: File) {
-  emit('update:modelValue', file)
-  const reader = new FileReader()
-  reader.onload = (e) => emit('update:previewUrl', e.target?.result as string)
-  reader.readAsDataURL(file)
+const isProcessingImage = ref(false)
+
+async function handleFile(file: File) {
+  isProcessingImage.value = true
+  try {
+    emit('update:modelValue', file)
+    
+    // Convert HEIC to JPEG for the preview so the browser can render it
+    const previewFile = await convertHeicToJpeg(file)
+    
+    const reader = new FileReader()
+    reader.onload = (e) => emit('update:previewUrl', e.target?.result as string)
+    reader.readAsDataURL(previewFile)
+  } finally {
+    isProcessingImage.value = false
+  }
 }
 
 function clearFile() {
@@ -50,8 +62,15 @@ function clearFile() {
       @dragleave="isDragging = false"
       @drop.prevent="onDrop"
     >
-      <UIcon name="i-lucide-image-plus" class="size-10 mx-auto mb-3 text-zinc-400 dark:text-zinc-500" />
-      <p class="text-sm font-medium text-zinc-600 dark:text-zinc-400">
+      <UIcon
+        :name="isProcessingImage ? 'i-lucide-loader-2' : 'i-lucide-image-plus'"
+        class="size-10 mx-auto mb-3 text-zinc-400 dark:text-zinc-500"
+        :class="isProcessingImage ? 'animate-spin' : ''"
+      />
+      <p v-if="isProcessingImage" class="text-sm font-medium text-zinc-600 dark:text-zinc-400">
+        Processing image...
+      </p>
+      <p v-else class="text-sm font-medium text-zinc-600 dark:text-zinc-400">
         Drop an image here or <span class="text-primary">browse</span>
       </p>
       <p class="text-xs text-zinc-400 dark:text-zinc-500 mt-1">PNG, JPG, WEBP up to 10MB (optional — for image editing)</p>

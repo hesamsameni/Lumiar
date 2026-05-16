@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useAuthService } from "~/services/auth.service";
 import { useProfileService } from "~/services/profile.service";
+import { compressImage, convertHeicToJpeg } from "~/utils/imageCompression";
 
 const authService = useAuthService();
 const profileService = useProfileService();
@@ -42,46 +43,17 @@ onMounted(async () => {
   }
 });
 
-function compressImage(file: File, maxPx = 400, quality = 0.85): Promise<File> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      const scale = Math.min(
-        1,
-        maxPx / img.naturalWidth,
-        maxPx / img.naturalHeight,
-      );
-      const w = Math.round(img.naturalWidth * scale);
-      const h = Math.round(img.naturalHeight * scale);
-      const canvas = document.createElement("canvas");
-      canvas.width = w;
-      canvas.height = h;
-      canvas.getContext("2d")!.drawImage(img, 0, 0, w, h);
-      canvas.toBlob(
-        (blob) => {
-          if (!blob) return reject(new Error("Compression failed"));
-          resolve(new File([blob], "avatar.jpg", { type: "image/jpeg" }));
-        },
-        "image/jpeg",
-        quality,
-      );
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("Image load failed"));
-    };
-    img.src = url;
-  });
-}
 
-function handleAvatarChange(e: Event) {
+async function handleAvatarChange(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0];
   if (!file) return;
   avatarFile.value = file;
+  
+  // Convert HEIC to JPEG for the preview so the browser can render it
+  const previewFile = await convertHeicToJpeg(file);
+  
   if (avatarPreviewUrl.value) URL.revokeObjectURL(avatarPreviewUrl.value);
-  avatarPreviewUrl.value = URL.createObjectURL(file);
+  avatarPreviewUrl.value = URL.createObjectURL(previewFile);
 }
 
 const displayAvatarUrl = computed(
@@ -109,7 +81,7 @@ async function save() {
   try {
     let newAvatarUrl: string | undefined;
     if (avatarFile.value) {
-      const compressed = await compressImage(avatarFile.value);
+      const compressed = await compressImage(avatarFile.value, 400, 0.85);
       const formData = new FormData();
       formData.append("file", compressed);
       const { url } = await $fetch<{ url: string }>(
