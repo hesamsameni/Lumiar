@@ -46,6 +46,7 @@ export default defineNuxtConfig({
   runtimeConfig: {
     openrouterApiKey: process.env.OPENROUTER_API_KEY,
     openaiApiKey: process.env.OPENAI_API_KEY,
+    googleApiKey: process.env.GOOGLE_API_KEY,
     bunnyApiKey: process.env.BUNNY_API_KEY,
     bunnyStorageZone: process.env.BUNNY_STORAGE_ZONE,
     bunnyStorageHostname: process.env.BUNNY_STORAGE_HOSTNAME,

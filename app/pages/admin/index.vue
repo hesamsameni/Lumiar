@@ -24,6 +24,7 @@ type FormShape = {
   tokens_per_generation: number;
   price_estimate: string;
   supports_image_input: boolean;
+  max_image_inputs: number;
   max_resolution: string;
   recommended: boolean;
   is_active: boolean;
@@ -39,6 +40,7 @@ const emptyForm = (): FormShape => ({
   tokens_per_generation: 5,
   price_estimate: "",
   supports_image_input: true,
+  max_image_inputs: 1,
   max_resolution: "",
   recommended: false,
   is_active: true,
@@ -81,6 +83,7 @@ function openEdit(model: AIModel) {
     tokens_per_generation: model.tokens_per_generation,
     price_estimate: model.price_estimate,
     supports_image_input: model.supports_image_input,
+    max_image_inputs: model.max_image_inputs ?? 1,
     max_resolution: model.max_resolution ?? "",
     recommended: model.recommended ?? false,
     is_active: model.is_active,
@@ -105,6 +108,7 @@ async function saveModel() {
       tokens_per_generation: Number(form.value.tokens_per_generation),
       price_estimate: form.value.price_estimate.trim(),
       supports_image_input: Boolean(form.value.supports_image_input),
+      max_image_inputs: Number(form.value.max_image_inputs),
       max_resolution: form.value.max_resolution.trim() || null,
       recommended: Boolean(form.value.recommended),
       is_active: Boolean(form.value.is_active),
@@ -183,6 +187,7 @@ const providerOptions: { label: string; value: ModelProvider; icon: string }[] =
   [
     { label: "OpenRouter", value: "openrouter", icon: "i-lucide-waypoints" },
     { label: "OpenAI", value: "openai", icon: "i-lucide-sparkles" },
+    { label: "Google", value: "google", icon: "i-lucide-brain-circuit" },
   ];
 
 const activeTab = ref<"models" | "prompts">("models");
@@ -581,6 +586,23 @@ await fetchModels();
                   </div>
                   <USwitch v-model="form.supports_image_input" />
                 </label>
+              </div>
+
+              <div v-if="form.supports_image_input" class="flex flex-col gap-1">
+                <label
+                  class="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide"
+                  >Max reference images</label
+                >
+                <UInput
+                  v-model.number="form.max_image_inputs"
+                  type="number"
+                  :min="1"
+                  :max="8"
+                  placeholder="1"
+                />
+                <p class="text-xs text-zinc-400 dark:text-zinc-500">
+                  How many input images this model can handle (1–8)
+                </p>
               </div>
             </div>
           </div>

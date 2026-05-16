@@ -14,14 +14,19 @@ await fetchModels();
 
 const prompt = ref("");
 const selectedModel = ref<AIModel>(firstModel.value!);
-const inputFile = ref<File | null>(null);
-const inputPreviewUrl = ref<string | null>(null);
+const inputFiles = ref<File[]>([]);
+const inputPreviewUrls = ref<string[]>([]);
 const selectedAspectRatio = ref(ASPECT_RATIOS[0]!);
 const editingImageUrl = ref<string | null>(null);
 const editingGenerationId = ref<string | null>(null);
 const showPromptLibrary = ref(false);
 const showModelSelector = ref(false);
 const showRatioSelector = ref(false);
+
+const maxImages = computed(() => selectedModel.value.max_image_inputs ?? 1);
+const canAddMore = computed(
+  () => inputFiles.value.length < maxImages.value && !editingImageUrl.value,
+);
 
 // Composer state
 const isPolishing = ref(false);
@@ -35,7 +40,6 @@ onMounted(async () => {
     if (data) {
       const row = data as { output_image_url: string; prompt: string };
       editingImageUrl.value = row.output_image_url;
-      inputPreviewUrl.value = row.output_image_url;
       editingGenerationId.value = editId;
       prompt.value = "";
     }
@@ -49,7 +53,7 @@ onMounted(async () => {
 async function handleGenerate() {
   if (
     !selectedModel.value.supports_image_input &&
-    (inputFile.value || editingImageUrl.value)
+    (inputFiles.value.length > 0 || editingImageUrl.value)
   ) {
     toast.add({
       title: "Selected model does not support image input",
@@ -63,7 +67,7 @@ async function handleGenerate() {
   await generate({
     prompt: prompt.value,
     model: selectedModel.value,
-    inputImageFile: inputFile.value,
+    inputImageFiles: inputFiles.value.length > 0 ? inputFiles.value : null,
     inputImageUrl: editingImageUrl.value,
     aspectRatio: selectedAspectRatio.value.value,
     parentId: editingGenerationId.value,
@@ -73,8 +77,8 @@ async function handleGenerate() {
 function handleEditResult(imageUrl: string, generationId: string) {
   editingImageUrl.value = imageUrl;
   editingGenerationId.value = generationId;
-  inputFile.value = null;
-  inputPreviewUrl.value = imageUrl;
+  inputFiles.value = [];
+  inputPreviewUrls.value = [];
   prompt.value = "";
   result.value = null;
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -82,28 +86,46 @@ function handleEditResult(imageUrl: string, generationId: string) {
 
 function onDrop(e: DragEvent) {
   isDragging.value = false;
-  const file = e.dataTransfer?.files?.[0];
-  if (file && file.type.startsWith("image/")) handleFile(file);
+  const dropped = Array.from(e.dataTransfer?.files ?? []).filter((f) =>
+    f.type.startsWith("image/"),
+  );
+  for (const file of dropped) {
+    if (inputFiles.value.length < maxImages.value) handleFile(file);
+  }
 }
 
 function onFileChange(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0];
-  if (file) handleFile(file);
+  const selected = Array.from(
+    (e.target as HTMLInputElement).files ?? [],
+  ).filter((f) => f.type.startsWith("image/"));
+  for (const file of selected) {
+    if (inputFiles.value.length < maxImages.value) handleFile(file);
+  }
+  // Reset so the same file can be re-selected
+  (e.target as HTMLInputElement).value = "";
 }
 
 function handleFile(file: File) {
-  inputFile.value = file;
   editingImageUrl.value = null;
+  inputFiles.value = [...inputFiles.value, file];
   const reader = new FileReader();
   reader.onload = (ev) => {
-    inputPreviewUrl.value = ev.target?.result as string;
+    inputPreviewUrls.value = [
+      ...inputPreviewUrls.value,
+      ev.target?.result as string,
+    ];
   };
   reader.readAsDataURL(file);
 }
 
-function clearFile() {
-  inputFile.value = null;
-  inputPreviewUrl.value = null;
+function removeFile(index: number) {
+  inputFiles.value = inputFiles.value.filter((_, i) => i !== index);
+  inputPreviewUrls.value = inputPreviewUrls.value.filter((_, i) => i !== index);
+}
+
+function clearAll() {
+  inputFiles.value = [];
+  inputPreviewUrls.value = [];
   editingImageUrl.value = null;
   if (fileInput.value) fileInput.value.value = "";
 }
@@ -201,23 +223,65 @@ function getRatioStyle(value: string): Record<string, string> {
         Editing previous generation
       </div>
 
-      <!-- Attached image preview -->
+      <!-- Attached images preview -->
       <div
-        v-if="inputPreviewUrl"
-        class="relative border-b border-zinc-100 dark:border-zinc-800 overflow-hidden rounded-t-3xl"
+        v-if="inputPreviewUrls.length > 0 || editingImageUrl"
+        class="border-b border-zinc-100 dark:border-zinc-800 overflow-hidden rounded-t-3xl"
       >
-        <img
-          :src="inputPreviewUrl"
-          alt="Input image"
-          class="w-full max-h-48 object-cover"
-        />
-        <button
-          type="button"
-          class="absolute top-2 right-2 size-6 rounded-full bg-black/55 text-white flex items-center justify-center hover:bg-black/75 transition-colors"
-          @click="clearFile"
+        <!-- Editing banner shown inline when no uploaded files overlay it -->
+        <div
+          v-if="editingImageUrl && inputPreviewUrls.length === 0"
+          class="relative group"
         >
-          <UIcon name="i-lucide-x" class="size-3" />
-        </button>
+          <img
+            :src="editingImageUrl"
+            alt="Editing image"
+            class="w-full max-h-48 object-cover"
+          />
+          <button
+            type="button"
+            class="absolute top-2 right-2 size-6 rounded-full bg-black/55 text-white flex items-center justify-center hover:bg-black/75 transition-colors"
+            @click="clearAll"
+          >
+            <UIcon name="i-lucide-x" class="size-3" />
+          </button>
+        </div>
+
+        <!-- Multi-image thumbnail strip -->
+        <div
+          v-if="inputPreviewUrls.length > 0"
+          class="flex items-start gap-2 p-3 flex-wrap"
+        >
+          <div
+            v-for="(url, idx) in inputPreviewUrls"
+            :key="idx"
+            class="relative group flex-shrink-0"
+          >
+            <img
+              :src="url"
+              :alt="`Reference image ${idx + 1}`"
+              class="size-20 object-cover rounded-lg border border-zinc-200 dark:border-zinc-700"
+            />
+            <button
+              type="button"
+              class="absolute top-1 right-1 size-4 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors opacity-0 group-hover:opacity-100"
+              @click="removeFile(idx)"
+            >
+              <UIcon name="i-lucide-x" class="size-2.5" />
+            </button>
+          </div>
+
+          <!-- Add more slot -->
+          <button
+            v-if="canAddMore"
+            type="button"
+            class="size-20 flex-shrink-0 flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-600 text-zinc-400 dark:text-zinc-500 hover:border-primary/60 hover:text-primary transition-colors"
+            @click="fileInput?.click()"
+          >
+            <UIcon name="i-lucide-plus" class="size-5 mb-0.5" />
+            <span class="text-[10px] font-medium">Add</span>
+          </button>
+        </div>
       </div>
 
       <!-- Textarea -->
@@ -227,6 +291,8 @@ function getRatioStyle(value: string): Record<string, string> {
         placeholder="Describe the image you want to generate…"
         rows="4"
         class="w-full px-5 pt-5 pb-3 text-sm bg-transparent resize-none outline-none placeholder-zinc-400 dark:placeholder-zinc-600 text-zinc-900 dark:text-zinc-100 leading-relaxed rounded-t-3xl"
+        :style="rtlStyle(prompt)"
+        :dir="hasRtlChars(prompt) ? 'rtl' : 'ltr'"
       />
 
       <!-- Bottom controls -->
@@ -282,8 +348,12 @@ function getRatioStyle(value: string): Record<string, string> {
           <!-- Attach image -->
           <button
             type="button"
-            :disabled="isGenerating"
-            title="Attach image"
+            :disabled="isGenerating || !canAddMore"
+            :title="
+              canAddMore
+                ? 'Attach image'
+                : `Max ${maxImages} image${maxImages > 1 ? 's' : ''} reached`
+            "
             class="size-9 rounded-xl flex items-center justify-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-40 flex-shrink-0"
             @click="fileInput?.click()"
           >
@@ -514,6 +584,7 @@ function getRatioStyle(value: string): Record<string, string> {
       ref="fileInput"
       type="file"
       accept="image/*"
+      :multiple="maxImages > 1"
       class="hidden"
       @change="onFileChange"
     />

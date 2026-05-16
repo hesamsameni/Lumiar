@@ -39,7 +39,6 @@ const isTogglingLike = ref(false);
 const isShared = ref(props.generation.is_shared ?? false);
 const isTogglingShare = ref(false);
 const isDeleting = ref(false);
-const confirmingDelete = ref(false);
 
 async function checkLiked() {
   if (!authUser.value?.id) return;
@@ -100,13 +99,6 @@ async function toggleShare() {
 }
 
 async function deleteGeneration() {
-  if (!confirmingDelete.value) {
-    confirmingDelete.value = true;
-    setTimeout(() => {
-      confirmingDelete.value = false;
-    }, 3000);
-    return;
-  }
   isDeleting.value = true;
   try {
     await $fetch(`/api/generations/${props.generation.id}`, {
@@ -115,8 +107,14 @@ async function deleteGeneration() {
     });
     emit("deleted", props.generation.id);
     toast.add({ title: "Photo deleted", color: "success" });
-  } catch {
-    toast.add({ title: "Failed to delete photo", color: "error" });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    console.error("[deleteGeneration] failed:", err);
+    toast.add({
+      title: "Failed to delete photo",
+      description: msg,
+      color: "error",
+    });
   } finally {
     isDeleting.value = false;
     confirmingDelete.value = false;
@@ -167,6 +165,8 @@ onMounted(() => checkLiked());
       <div v-else class="flex-1 min-w-0">
         <p
           class="text-xs text-zinc-500 dark:text-zinc-400 truncate leading-tight"
+          :style="rtlStyle(generation.prompt)"
+          :dir="hasRtlChars(generation.prompt) ? 'rtl' : 'ltr'"
         >
           {{ generation.prompt }}
         </p>
@@ -185,9 +185,10 @@ onMounted(() => checkLiked());
           ],
           [
             {
-              label: confirmingDelete ? 'Confirm delete?' : 'Delete',
+              label: isDeleting ? 'Deleting…' : 'Delete',
               icon: 'i-lucide-trash-2',
               color: 'error',
+              disabled: isDeleting,
               onSelect: deleteGeneration,
             },
           ],

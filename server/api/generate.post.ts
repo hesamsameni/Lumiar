@@ -1,10 +1,9 @@
 import { serverSupabaseClient } from "#supabase/server";
 import {
-  OPENAI_GPT_IMAGE_MODELS,
   generateWithOpenAI,
   generateWithOpenRouter,
+  generateWithGoogle,
   resolveInputImageBase64,
-  resolveOpenRouterInputImage,
 } from "../utils/providers";
 import {
   buildCdnUrl,
@@ -27,8 +26,13 @@ export default defineEventHandler(async (event) => {
     prompt,
     modelId,
     modelName,
+    provider,
+    // Legacy single-image fields (backward compat)
     inputImageBase64,
     inputImageUrl,
+    // Multi-image fields
+    inputImagesBase64,
+    inputImageUrls,
     tokensUsed,
     aspectRatio,
     parentId,
@@ -53,17 +57,31 @@ export default defineEventHandler(async (event) => {
   if (trimmedPrompt.length > 2000) {
     throw createError({ statusCode: 400, message: "Prompt is too long" });
   }
-  if (inputImageBase64 != null) {
-    if (typeof inputImageBase64 !== "string") {
+
+  // Validate all submitted base64 images
+  const rawBase64Inputs: string[] = [
+    ...(Array.isArray(inputImagesBase64) ? inputImagesBase64 : []),
+    ...(typeof inputImageBase64 === "string" ? [inputImageBase64] : []),
+  ];
+  for (const img of rawBase64Inputs) {
+    if (typeof img !== "string") {
       throw createError({ statusCode: 400, message: "Invalid input image" });
     }
-    if (inputImageBase64.length > 20_000_000) {
+    if (img.length > 20_000_000) {
       throw createError({
         statusCode: 400,
         message: "Input image is too large",
       });
     }
   }
+  if (rawBase64Inputs.length > 8) {
+    throw createError({
+      statusCode: 400,
+      message: "Too many input images (max 8)",
+    });
+  }
+
+  // Validate the editing URL (legacy single, server-resolved)
   if (inputImageUrl != null) {
     if (typeof inputImageUrl !== "string") {
       throw createError({
@@ -92,15 +110,18 @@ export default defineEventHandler(async (event) => {
   }
 
   // --- Provider routing ---
-  const isOpenAI = modelId.startsWith("openai/");
-  const actualModelId = isOpenAI ? modelId.replace("openai/", "") : modelId;
-
-  if (isOpenAI && !OPENAI_GPT_IMAGE_MODELS.has(actualModelId)) {
-    throw createError({
-      statusCode: 400,
-      message: `Unsupported OpenAI model '${actualModelId}'.`,
-    });
-  }
+  const resolvedProvider: string =
+    typeof provider === "string" ? provider : "openrouter";
+  const isOpenAI = resolvedProvider === "openai";
+  const isGoogle = resolvedProvider === "google";
+  // Model IDs in the DB may carry a vendor prefix (e.g. "openai/gpt-image-1",
+  // "google/gemini-2.0-flash-preview-image-generation"). Strip the prefix before
+  // hitting the native API so the provider receives the bare model name.
+  const actualModelId = isOpenAI
+    ? modelId.replace(/^openai\//, "")
+    : isGoogle
+      ? modelId.replace(/^google\//, "")
+      : modelId;
 
   const bunnyConfig = {
     cdnUrl: String(config.public.bunnyCdnUrl),
@@ -110,52 +131,47 @@ export default defineEventHandler(async (event) => {
   };
 
   // --- Image generation ---
+  // Resolve the editing URL (if present) to base64 server-side, then combine
+  // with any directly-uploaded base64 images into a single ordered array.
   let imageBase64: string;
   try {
-    const resolvedInputBase64 = isOpenAI
-      ? await resolveInputImageBase64(
-          inputImageBase64 ?? null,
-          inputImageUrl ?? null,
-          INPUT_IMAGE_REQUEST_HEADERS,
-          bunnyConfig,
-        )
-      : null;
+    const resolvedEditingBase64 = await resolveInputImageBase64(
+      null,
+      inputImageUrl ?? null,
+      INPUT_IMAGE_REQUEST_HEADERS,
+      bunnyConfig,
+    ).catch(() => null);
 
-    let openRouterInputImage: string | null = null;
-    if (!isOpenAI) {
-      let resolvedForOpenRouter: string | null = null;
-      try {
-        resolvedForOpenRouter = await resolveInputImageBase64(
-          inputImageBase64 ?? null,
-          inputImageUrl ?? null,
-          INPUT_IMAGE_REQUEST_HEADERS,
-          bunnyConfig,
-        );
-      } catch {
-        resolvedForOpenRouter = null;
-      }
-      openRouterInputImage = resolveOpenRouterInputImage(
-        inputImageBase64 ?? null,
-        inputImageUrl ?? null,
-        resolvedForOpenRouter,
+    const allImagesBase64: string[] = [
+      ...(resolvedEditingBase64 ? [resolvedEditingBase64] : []),
+      ...rawBase64Inputs,
+    ];
+
+    if (isOpenAI) {
+      imageBase64 = await generateWithOpenAI(
+        config.openaiApiKey as string,
+        actualModelId,
+        trimmedPrompt,
+        aspectRatio ?? "1:1",
+        allImagesBase64,
+      );
+    } else if (isGoogle) {
+      imageBase64 = await generateWithGoogle(
+        config.googleApiKey as string,
+        actualModelId,
+        trimmedPrompt,
+        aspectRatio ?? "1:1",
+        allImagesBase64,
+      );
+    } else {
+      imageBase64 = await generateWithOpenRouter(
+        config.openrouterApiKey as string,
+        actualModelId,
+        trimmedPrompt,
+        aspectRatio ?? "1:1",
+        allImagesBase64,
       );
     }
-
-    imageBase64 = isOpenAI
-      ? await generateWithOpenAI(
-          config.openaiApiKey as string,
-          actualModelId,
-          trimmedPrompt,
-          aspectRatio ?? "1:1",
-          resolvedInputBase64,
-        )
-      : await generateWithOpenRouter(
-          config.openrouterApiKey as string,
-          actualModelId,
-          trimmedPrompt,
-          aspectRatio ?? "1:1",
-          openRouterInputImage,
-        );
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Image generation failed";
     throw createError({ statusCode: 500, message: msg });
@@ -217,6 +233,13 @@ export default defineEventHandler(async (event) => {
   }
 
   // --- Persist record (RLS satisfied via authenticated client) ---
+  // For multi-image: store first CDN URL in the dedicated column; all URLs in metadata.
+  const allInputCdnUrls: string[] = [
+    ...(inputImageUrl ? [inputImageUrl as string] : []),
+    ...(Array.isArray(inputImageUrls) ? (inputImageUrls as string[]) : []),
+  ];
+  const primaryInputUrl = allInputCdnUrls[0] ?? null;
+
   const supabase = await serverSupabaseClient(event);
   const { data: generation, error: dbError } = await supabase
     .from("generations")
@@ -225,12 +248,18 @@ export default defineEventHandler(async (event) => {
       prompt: trimmedPrompt,
       model_id: modelId,
       model_name: modelName,
-      input_image_url: inputImageUrl ?? null,
+      input_image_url: primaryInputUrl,
       output_image_url: outputImageUrl,
       tokens_used: typeof tokensUsed === "number" ? Math.max(0, tokensUsed) : 0,
       aspect_ratio: aspectRatio ?? "1:1",
       parent_id: parentId ?? null,
-      metadata: { tags: autoTags, prompt_chain: promptChain },
+      metadata: {
+        tags: autoTags,
+        prompt_chain: promptChain,
+        ...(allInputCdnUrls.length > 1
+          ? { input_image_urls: allInputCdnUrls }
+          : {}),
+      },
     } as never)
     .select("id")
     .single();
