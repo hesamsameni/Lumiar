@@ -21,7 +21,7 @@ useHead({
     { rel: "preconnect", href: "https://fonts.googleapis.com" },
     {
       rel: "stylesheet",
-      href: "https://fonts.googleapis.com/css2?family=Google+Sans:ital,opsz,wght@0,17..18,400..700;1,17..18,400..700&display=swap",
+      href: "https://fonts.googleapis.com/css2?family=Google+Sans:ital,opsz,wght@0,17..18,400..700;1,17..18,400..700&family=Vazirmatn:wght@100..900&display=swap",
       crossorigin: "",
     },
   ],
@@ -30,7 +30,7 @@ useHead({
 
 <style>
 body {
-  font-family: "Google Sans", sans-serif;
+  font-family: "Google Sans", "Vazirmatn", sans-serif;
   font-optical-sizing: auto;
   font-style: normal;
 }

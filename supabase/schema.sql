@@ -290,6 +290,7 @@ create table if not exists ai_models (
   tokens_per_generation integer not null default 5,
   price_estimate text not null default '',
   supports_image_input boolean not null default true,
+  max_image_inputs integer not null default 1,
   max_resolution text,
   recommended boolean not null default false,
   is_active boolean not null default true,

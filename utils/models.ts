@@ -10,6 +10,7 @@ export interface AIModel {
   tokens_per_generation: number;
   price_estimate: string;
   supports_image_input: boolean;
+  max_image_inputs: number;
   max_resolution?: string | null;
   recommended?: boolean;
   is_active: boolean;

@@ -12,7 +12,7 @@ export function useGeneration() {
   async function generate(opts: {
     prompt: string;
     model: AIModel;
-    inputImageFile?: File | null;
+    inputImageFiles?: File[] | null;
     inputImageUrl?: string | null;
     aspectRatio?: string;
     parentId?: string | null;
@@ -41,9 +41,9 @@ export function useGeneration() {
 
     try {
       let inputImageUrl: string | null = opts.inputImageUrl ?? null;
-      // Base64 data URL sent directly to /api/generate so the server never needs
-      // to re-fetch the image from the CDN (avoids 403 hotlink protection issues).
-      let inputImageBase64: string | null = null;
+      // Arrays for multi-image support
+      const inputImagesBase64: string[] = [];
+      const inputImageUrls: string[] = [];
 
       // Get a fresh token for every API call — do not rely on reactive ref
       const { data: sessionData } = await supabase.auth.getSession();
@@ -51,27 +51,30 @@ export function useGeneration() {
       if (!accessToken) throw new Error("Not authenticated");
       const authHeaders = { Authorization: `Bearer ${accessToken}` };
 
-      if (opts.inputImageFile) {
-        // Convert to base64 on the client — passed directly to the model
-        inputImageBase64 = await new Promise<string>((resolve, reject) => {
+      const files = opts.inputImageFiles?.filter(Boolean) ?? [];
+      for (const file of files) {
+        // Convert to base64 data URI for the AI provider
+        const base64 = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = () => resolve(reader.result as string);
           reader.onerror = reject;
-          reader.readAsDataURL(opts.inputImageFile!);
+          reader.readAsDataURL(file);
         });
-        // Also upload to CDN so we can store the URL in the DB record
+        inputImagesBase64.push(base64);
+
+        // Also upload to CDN for the DB record
         const fd = new FormData();
-        fd.append("file", opts.inputImageFile);
+        fd.append("file", file);
         const uploadRes = await $fetch<{ url: string }>("/api/upload", {
           method: "POST",
           body: fd,
           headers: authHeaders,
         });
-        inputImageUrl = uploadRes.url;
+        inputImageUrls.push(uploadRes.url);
       }
 
-      // Server handles: image generation, CDN upload, and DB insert.
-      // This avoids client-side RLS issues by running all DB writes server-side.
+      // For legacy single-file callers, keep inputImageUrl from opts as-is.
+
       const genRes = await $fetch<{
         imageUrl: string;
         generationId: string;
@@ -82,7 +85,10 @@ export function useGeneration() {
           modelId: opts.model.id,
           modelName: opts.model.name,
           provider: opts.model.provider,
-          inputImageBase64: inputImageBase64 ?? null,
+          inputImagesBase64:
+            inputImagesBase64.length > 0 ? inputImagesBase64 : undefined,
+          inputImageUrls:
+            inputImageUrls.length > 0 ? inputImageUrls : undefined,
           inputImageUrl: inputImageUrl,
           tokensUsed: opts.model.tokens_per_generation,
           aspectRatio: opts.aspectRatio ?? "1:1",

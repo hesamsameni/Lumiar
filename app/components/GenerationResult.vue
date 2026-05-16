@@ -68,7 +68,11 @@ onMounted(async () => {
     </div>
 
     <div class="p-4 space-y-3">
-      <p class="text-sm text-zinc-600 dark:text-zinc-400 line-clamp-2 italic">
+      <p
+        class="text-sm text-zinc-600 dark:text-zinc-400 line-clamp-2 italic"
+        :style="rtlStyle(prompt)"
+        :dir="hasRtlChars(prompt) ? 'rtl' : 'ltr'"
+      >
         "{{ prompt }}"
       </p>
 

@@ -416,6 +416,8 @@ onMounted(async () => {
                     </span>
                     <p
                       class="text-zinc-700 dark:text-zinc-300 leading-relaxed mt-0.5"
+                      :style="rtlStyle(p)"
+                      :dir="hasRtlChars(p) ? 'rtl' : 'ltr'"
                     >
                       {{ p }}
                     </p>
@@ -424,6 +426,10 @@ onMounted(async () => {
                 <p
                   v-else
                   class="text-zinc-700 dark:text-zinc-300 leading-relaxed"
+                  :style="rtlStyle(generation.prompt as string)"
+                  :dir="
+                    hasRtlChars(generation.prompt as string) ? 'rtl' : 'ltr'
+                  "
                 >
                   {{ generation.prompt }}
                 </p>

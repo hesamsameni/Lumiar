@@ -165,6 +165,8 @@ onMounted(() => checkLiked());
       <div v-else class="flex-1 min-w-0">
         <p
           class="text-xs text-zinc-500 dark:text-zinc-400 truncate leading-tight"
+          :style="rtlStyle(generation.prompt)"
+          :dir="hasRtlChars(generation.prompt) ? 'rtl' : 'ltr'"
         >
           {{ generation.prompt }}
         </p>

@@ -20,7 +20,7 @@ export async function generateWithGoogle(
   modelId: string,
   prompt: string,
   aspectRatio: string,
-  inputImageBase64: string | null,
+  inputImagesBase64: string[],
 ): Promise<string> {
   const client = new GoogleGenAI({ apiKey });
 
@@ -29,7 +29,7 @@ export async function generateWithGoogle(
     model: modelId,
     baseUrl: GOOGLE_BASE_URL,
     type: isImagenModel(modelId) ? "imagen" : "gemini",
-    hasImage: !!inputImageBase64,
+    imageCount: inputImagesBase64.length,
   });
 
   if (isImagenModel(modelId)) {
@@ -63,17 +63,13 @@ export async function generateWithGoogle(
     return `data:image/png;base64,${base64}`;
   }
 
-  // Gemini models with image output (e.g. gemini-2.0-flash-preview-image-generation)
+  // Gemini models with image output — supports multiple reference images
   const parts: Array<Record<string, unknown>> = [];
 
-  if (inputImageBase64) {
-    const match = inputImageBase64.match(
-      /^data:(image\/[a-zA-Z+]+);base64,(.+)$/,
-    );
+  for (const b64 of inputImagesBase64) {
+    const match = b64.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
     if (match) {
-      parts.push({
-        inlineData: { mimeType: match[1], data: match[2] },
-      });
+      parts.push({ inlineData: { mimeType: match[1], data: match[2] } });
     }
   }
 

@@ -7,13 +7,6 @@ const OPENROUTER_HEADERS = {
   "X-Title": "Lumiar",
 } as const;
 
-type MessageContent =
-  | string
-  | Array<
-      | { type: "text"; text: string }
-      | { type: "image_url"; image_url: { url: string } }
-    >;
-
 interface OpenRouterImageMessage {
   role: string;
   content: string | null;
@@ -44,14 +37,23 @@ export async function generateWithOpenRouter(
   modelId: string,
   prompt: string,
   aspectRatio: string,
-  inputImage: string | null,
+  inputImages: string[],
 ): Promise<string> {
-  const userContent: MessageContent = inputImage
-    ? [
-        { type: "image_url", image_url: { url: inputImage } },
-        { type: "text", text: prompt },
-      ]
-    : prompt;
+  type ImageUrlItem = { type: "image_url"; image_url: { url: string } };
+  type TextItem = { type: "text"; text: string };
+
+  const userContent: string | Array<ImageUrlItem | TextItem> =
+    inputImages.length > 0
+      ? [
+          ...inputImages.map(
+            (img): ImageUrlItem => ({
+              type: "image_url",
+              image_url: { url: img },
+            }),
+          ),
+          { type: "text", text: prompt },
+        ]
+      : prompt;
 
   const modalities = modelId.startsWith("google/")
     ? ["image", "text"]
@@ -61,7 +63,7 @@ export async function generateWithOpenRouter(
     provider: "openrouter",
     model: modelId,
     baseUrl: OPENROUTER_BASE_URL,
-    hasImage: !!inputImage,
+    imageCount: inputImages.length,
     modalities,
   });
 
@@ -116,8 +118,10 @@ export async function generateWithOpenRouter(
 }
 
 /**
- * Picks the best available input image representation for OpenRouter.
- * Prefers resolved base64 → original base64 → original URL.
+/**
+ * No longer needed — callers now pass a pre-built string[] of data URIs or URLs.
+ * Kept as a no-op export to avoid breaking any imports during migration.
+ * @deprecated Use the inputImages array parameter directly.
  */
 export function resolveOpenRouterInputImage(
   inputImageBase64: string | null,
