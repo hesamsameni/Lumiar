@@ -197,16 +197,6 @@ async function startCheckout() {
           "
         />
         <span
-          class="text-xs font-medium mb-1"
-          :class="
-            selectedPackId === pack.id
-              ? 'text-primary'
-              : 'text-zinc-400 dark:text-zinc-500'
-          "
-        >
-          {{ pack.label }}
-        </span>
-        <span
           class="text-2xl font-bold tracking-tight"
           :class="
             selectedPackId === pack.id
@@ -220,9 +210,13 @@ async function startCheckout() {
           {{ pack.tokens.toLocaleString() }} tokens
         </span>
         <UIcon
-          v-if="selectedPackId === pack.id"
           name="i-lucide-check-circle-2"
-          class="size-4 text-primary mt-2"
+          class="size-4 mt-2 transition-opacity"
+          :class="
+            selectedPackId === pack.id
+              ? 'text-primary opacity-100'
+              : 'opacity-0'
+          "
         />
       </button>
     </div>
