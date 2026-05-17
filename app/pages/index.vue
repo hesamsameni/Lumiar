@@ -2,13 +2,16 @@
 import type { AIModel } from "~/utils/models";
 import { ASPECT_RATIOS } from "~/utils/constants";
 import { useGenerationService } from "~/services/generation.service";
+import { useProfileService } from "~/services/profile.service";
 import { convertHeicToJpeg } from "~/utils/imageCompression";
 
 const route = useRoute();
 const { generate, isGenerating, result } = useGeneration();
 const generationService = useGenerationService();
 const toast = useToast();
-const { fetchModels, firstModel } = useModels();
+const { fetchModels, firstModel, getModelById } = useModels();
+const { profile } = useProfile();
+const profileService = useProfileService();
 const supabase = useSupabaseClient();
 
 await fetchModels();
@@ -24,10 +27,43 @@ const showPromptLibrary = ref(false);
 const showModelSelector = ref(false);
 const showRatioSelector = ref(false);
 
-const maxImages = computed(() => selectedModel.value.max_image_inputs ?? 1);
-const canAddMore = computed(
-  () => inputFiles.value.length < maxImages.value && !editingImageUrl.value,
+const defaultModelApplied = ref(false);
+watch(
+  () => profile.value?.default_model_id,
+  (defaultModelId) => {
+    if (defaultModelId && !defaultModelApplied.value) {
+      const model = getModelById(defaultModelId);
+      if (model) {
+        selectedModel.value = model;
+        defaultModelApplied.value = true;
+      }
+    }
+  },
+  { immediate: true },
 );
+
+async function handleSetDefault(modelId: string | null) {
+  if (!profile.value?.id) return;
+  const { error } = await profileService.setDefaultModel(
+    profile.value.id,
+    modelId,
+  );
+  if (error) {
+    toast.add({ title: "Failed to save default model", color: "error" });
+    return;
+  }
+  if (profile.value) profile.value.default_model_id = modelId;
+  toast.add({
+    title: modelId ? "Default model saved" : "Default model cleared",
+    color: "success",
+  });
+}
+
+const maxImages = computed(() => selectedModel.value.max_image_inputs ?? 1);
+const canAddMore = computed(() => {
+  const editingSlots = editingImageUrl.value ? 1 : 0;
+  return inputFiles.value.length + editingSlots < maxImages.value;
+});
 
 // Composer state
 const isPolishing = ref(false);
@@ -110,13 +146,12 @@ const processingImageCount = ref(0);
 const isProcessingImage = computed(() => processingImageCount.value > 0);
 
 async function handleFile(file: File) {
-  editingImageUrl.value = null;
   processingImageCount.value++;
-  
+
   try {
     // Convert HEIC to JPEG for the preview so the browser can render it
     const previewFile = await convertHeicToJpeg(file);
-    
+
     inputFiles.value = [...inputFiles.value, file];
     const reader = new FileReader();
     reader.onload = (ev) => {
@@ -140,7 +175,13 @@ function clearAll() {
   inputFiles.value = [];
   inputPreviewUrls.value = [];
   editingImageUrl.value = null;
+  editingGenerationId.value = null;
   if (fileInput.value) fileInput.value.value = "";
+}
+
+function clearEditingImage() {
+  editingImageUrl.value = null;
+  editingGenerationId.value = null;
 }
 
 async function polishPrompt() {
@@ -227,44 +268,35 @@ function getRatioStyle(value: string): Record<string, string> {
       @dragleave="isDragging = false"
       @drop.prevent="onDrop"
     >
-      <!-- Editing banner -->
-      <div
-        v-if="editingImageUrl"
-        class="flex items-center gap-2 px-4 py-2 bg-primary/8 dark:bg-primary/12 border-b border-primary/15 text-xs text-primary font-medium rounded-t-3xl overflow-hidden"
-      >
-        <UIcon name="i-lucide-pencil" class="size-3" />
-        Editing previous generation
-      </div>
-
       <!-- Attached images preview -->
       <div
         v-if="inputPreviewUrls.length > 0 || editingImageUrl"
-        class="border-b border-zinc-100 dark:border-zinc-800 overflow-hidden rounded-t-3xl"
+        class="border-b border-zinc-100 dark:border-zinc-800"
       >
-        <!-- Editing banner shown inline when no uploaded files overlay it -->
-        <div
-          v-if="editingImageUrl && inputPreviewUrls.length === 0"
-          class="relative group"
-        >
-          <img
-            :src="editingImageUrl"
-            alt="Editing image"
-            class="w-full max-h-48 object-cover"
-          />
-          <button
-            type="button"
-            class="absolute top-2 right-2 size-6 rounded-full bg-black/55 text-white flex items-center justify-center hover:bg-black/75 transition-colors"
-            @click="clearAll"
-          >
-            <UIcon name="i-lucide-x" class="size-3" />
-          </button>
-        </div>
+        <div class="flex items-start gap-2 p-3 flex-wrap">
+          <!-- Editing image thumbnail -->
+          <div v-if="editingImageUrl" class="relative group flex-shrink-0">
+            <img
+              :src="editingImageUrl"
+              alt="Editing image"
+              class="size-20 object-cover rounded-lg border-2 border-primary/50"
+            />
+            <button
+              type="button"
+              class="absolute top-1 right-1 size-4 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors opacity-0 group-hover:opacity-100"
+              @click="clearEditingImage"
+            >
+              <UIcon name="i-lucide-x" class="size-2.5" />
+            </button>
+            <div
+              class="absolute bottom-0 left-0 right-0 bg-primary/70 rounded-b-md py-0.5 flex items-center justify-center gap-1 pointer-events-none"
+            >
+              <UIcon name="i-lucide-pencil" class="size-2.5 text-white" />
+              <span class="text-[9px] text-white font-medium">Source</span>
+            </div>
+          </div>
 
-        <!-- Multi-image thumbnail strip -->
-        <div
-          v-if="inputPreviewUrls.length > 0"
-          class="flex items-start gap-2 p-3 flex-wrap"
-        >
+          <!-- Uploaded file thumbnails -->
           <div
             v-for="(url, idx) in inputPreviewUrls"
             :key="idx"
@@ -297,7 +329,9 @@ function getRatioStyle(value: string): Record<string, string> {
               class="size-5 mb-0.5"
               :class="isProcessingImage ? 'animate-spin' : ''"
             />
-            <span class="text-[10px] font-medium">{{ isProcessingImage ? 'Loading...' : 'Add' }}</span>
+            <span class="text-[10px] font-medium">{{
+              isProcessingImage ? "Loading..." : "Add"
+            }}</span>
           </button>
         </div>
       </div>
@@ -307,7 +341,7 @@ function getRatioStyle(value: string): Record<string, string> {
         v-model="prompt"
         :disabled="isGenerating"
         placeholder="Describe the image you want to generate…"
-        rows="4"
+        rows="6"
         class="w-full px-5 pt-5 pb-3 text-sm bg-transparent resize-none outline-none placeholder-zinc-400 dark:placeholder-zinc-600 text-zinc-900 dark:text-zinc-100 leading-relaxed rounded-t-3xl"
         :style="rtlStyle(prompt)"
         :dir="hasRtlChars(prompt) ? 'rtl' : 'ltr'"
@@ -376,7 +410,9 @@ function getRatioStyle(value: string): Record<string, string> {
             @click="fileInput?.click()"
           >
             <UIcon
-              :name="isProcessingImage ? 'i-lucide-loader-2' : 'i-lucide-image-plus'"
+              :name="
+                isProcessingImage ? 'i-lucide-loader-2' : 'i-lucide-image-plus'
+              "
               class="size-[18px]"
               :class="isProcessingImage ? 'animate-spin' : ''"
             />
@@ -441,9 +477,7 @@ function getRatioStyle(value: string): Record<string, string> {
             @click="showModelSelector = true"
           >
             <UIcon name="i-lucide-cpu" class="size-3.5 flex-shrink-0" />
-            <span class="hidden sm:inline truncate max-w-20">{{
-              selectedModel.name
-            }}</span>
+            <span class="hidden sm:inline">{{ selectedModel.name }}</span>
             <span
               class="text-[10px] px-1 py-0.5 rounded font-medium flex-shrink-0"
               :class="{
@@ -595,7 +629,9 @@ function getRatioStyle(value: string): Record<string, string> {
           <div class="flex-1 overflow-y-auto p-4">
             <ModelSelector
               v-model="selectedModel"
+              :default-model-id="profile?.default_model_id"
               @update:model-value="showModelSelector = false"
+              @set-default="handleSetDefault"
             />
           </div>
         </div>
@@ -619,11 +655,12 @@ function getRatioStyle(value: string): Record<string, string> {
 
     <GenerationResult
       v-if="result"
-      class="mt-8"
+      class="mt-12"
       :image-url="result.imageUrl"
       :generation-id="result.generationId"
       :prompt="prompt"
       @edit="handleEditResult"
+      @deleted="result = null"
     />
   </div>
 </template>

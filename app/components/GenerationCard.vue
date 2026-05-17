@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useSocialService } from "~/services/social.service";
 import { useGenerationService } from "~/services/generation.service";
+import { useCollectionService } from "~/services/collection.service";
 
 interface Generation {
   id: string;
@@ -19,16 +20,19 @@ const props = defineProps<{
   generation: Generation;
   showAuthor?: boolean;
   isOwner?: boolean;
+  collectionId?: string;
 }>();
 
 const emit = defineEmits<{
   deleted: [id: string];
   shareToggled: [id: string, isShared: boolean];
+  removedFromCollection: [id: string];
 }>();
 
 const { user: authUser, session } = useAuthState();
 const socialService = useSocialService();
 const generationService = useGenerationService();
+const collectionService = useCollectionService();
 const toast = useToast();
 
 const likesCount = ref(
@@ -41,6 +45,8 @@ const isTogglingShare = ref(false);
 const isDeleting = ref(false);
 const showDeleteModal = ref(false);
 const showUnshareModal = ref(false);
+const showCollectionPicker = ref(false);
+const isRemovingFromCollection = ref(false);
 
 async function checkLiked() {
   if (!authUser.value?.id) return;
@@ -132,6 +138,67 @@ async function deleteGeneration() {
   }
 }
 
+async function handleRemoveFromCollection() {
+  if (!props.collectionId) return;
+  isRemovingFromCollection.value = true;
+  try {
+    const { error } = await collectionService.removeFromCollection(
+      props.collectionId,
+      props.generation.id,
+    );
+    if (error) throw error;
+    emit("removedFromCollection", props.generation.id);
+    toast.add({ title: "Removed from collection", color: "success" });
+  } catch {
+    toast.add({ title: "Failed to remove", color: "error" });
+  } finally {
+    isRemovingFromCollection.value = false;
+  }
+}
+
+const dropdownItems = computed(() => {
+  const groups: any[][] = [
+    [
+      {
+        label: "Save to collection",
+        icon: "i-lucide-folder-plus",
+        onSelect: () => {
+          showCollectionPicker.value = true;
+        },
+      },
+      {
+        label: isShared.value ? "Unshare" : "Share to Explore",
+        icon: isShared.value ? "i-lucide-eye-off" : "i-lucide-share-2",
+        onSelect: handleShareClick,
+      },
+    ],
+  ];
+  if (props.collectionId) {
+    groups.push([
+      {
+        label: isRemovingFromCollection.value
+          ? "Removing…"
+          : "Remove from collection",
+        icon: "i-lucide-folder-minus",
+        disabled: isRemovingFromCollection.value,
+        onSelect: handleRemoveFromCollection,
+      },
+    ]);
+  }
+  groups.push([
+    {
+      label: isDeleting.value ? "Deleting…" : "Delete",
+      icon: "i-lucide-trash-2",
+      color: "error",
+      disabled: isDeleting.value,
+      onSelect: () => {
+        showDeleteModal.value = true;
+      },
+    },
+  ]);
+  return groups;
+});
+
 onMounted(() => checkLiked());
 </script>
 
@@ -184,27 +251,7 @@ onMounted(() => checkLiked());
       </div>
 
       <!-- Owner actions dropdown -->
-      <UDropdownMenu
-        v-if="isOwner"
-        :items="[
-          [
-            {
-              label: isShared ? 'Unshare' : 'Share to Explore',
-              icon: isShared ? 'i-lucide-eye-off' : 'i-lucide-share-2',
-              onSelect: handleShareClick,
-            },
-          ],
-          [
-            {
-              label: isDeleting ? 'Deleting…' : 'Delete',
-              icon: 'i-lucide-trash-2',
-              color: 'error',
-              disabled: isDeleting,
-              onSelect: () => showDeleteModal = true,
-            },
-          ],
-        ]"
-      >
+      <UDropdownMenu v-if="isOwner" :items="dropdownItems">
         <button
           class="size-6 rounded-md flex items-center justify-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex-shrink-0"
           @click.prevent
@@ -254,6 +301,12 @@ onMounted(() => checkLiked());
       icon="i-lucide-eye-off"
       :loading="isTogglingShare"
       @confirm="toggleShare"
+    />
+
+    <CollectionPickerModal
+      v-model:open="showCollectionPicker"
+      :generation-id="generation.id"
+      :generation-image-url="generation.output_image_url"
     />
   </div>
 </template>

@@ -9,6 +9,7 @@ export interface UserProfile {
   bio: string | null;
   token_balance: number;
   is_admin: boolean;
+  default_model_id: string | null;
 }
 
 /**

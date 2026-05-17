@@ -43,15 +43,14 @@ onMounted(async () => {
   }
 });
 
-
 async function handleAvatarChange(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0];
   if (!file) return;
   avatarFile.value = file;
-  
+
   // Convert HEIC to JPEG for the preview so the browser can render it
   const previewFile = await convertHeicToJpeg(file);
-  
+
   if (avatarPreviewUrl.value) URL.revokeObjectURL(avatarPreviewUrl.value);
   avatarPreviewUrl.value = URL.createObjectURL(previewFile);
 }
@@ -107,9 +106,15 @@ async function save() {
     const { error } = await profileService.upsertProfile(upsertInput);
 
     if (error) {
+      const msg = (error as { message?: string; code?: string }).message ?? "";
+      const code = (error as { code?: string }).code ?? "";
+      const isUsernameTaken =
+        code === "23505" || msg.toLowerCase().includes("username");
       toast.add({
-        title: "Failed to save",
-        description: (error as { message?: string }).message,
+        title: isUsernameTaken ? "Username already taken" : "Failed to save",
+        description: isUsernameTaken
+          ? `"${nextUsername}" is already in use. Please choose a different username.`
+          : msg,
         color: "error",
       });
       return;

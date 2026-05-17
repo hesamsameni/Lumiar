@@ -3,10 +3,12 @@ import type { AIModel } from "~/utils/models";
 
 const props = defineProps<{
   modelValue: AIModel;
+  defaultModelId?: string | null;
 }>();
 
 const emit = defineEmits<{
   "update:modelValue": [model: AIModel];
+  "set-default": [modelId: string | null];
 }>();
 
 const { models } = useModels();
@@ -230,6 +232,36 @@ const tierLabel: Record<string, string> = {
               </span>
             </div>
           </div>
+
+          <!-- Set as default button -->
+          <button
+            :title="
+              props.defaultModelId === model.id
+                ? 'Remove default'
+                : 'Set as default'
+            "
+            class="shrink-0 p-1 rounded-md transition-colors"
+            :class="
+              props.defaultModelId === model.id
+                ? 'text-primary'
+                : 'text-zinc-300 dark:text-zinc-600 hover:text-zinc-400 dark:hover:text-zinc-400'
+            "
+            @click.stop="
+              emit(
+                'set-default',
+                props.defaultModelId === model.id ? null : model.id,
+              )
+            "
+          >
+            <UIcon
+              :name="
+                props.defaultModelId === model.id
+                  ? 'i-lucide-bookmark-check'
+                  : 'i-lucide-bookmark'
+              "
+              class="size-4"
+            />
+          </button>
         </div>
       </div>
     </div>
