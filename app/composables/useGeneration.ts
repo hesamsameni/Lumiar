@@ -1,6 +1,112 @@
 import type { AIModel } from "~/utils/models";
 import { compressImage } from "~/utils/imageCompression";
 
+function friendlyErrorMessage(err: unknown): {
+  title: string;
+  description: string;
+} {
+  // $fetch wraps H3 errors as FetchError; real message lives in err.data.message
+  const raw: string =
+    ((err as any)?.data?.message ??
+      (err as any)?.data?.statusMessage ??
+      (err instanceof Error ? err.message : "")) ||
+    "Generation failed";
+
+  const lower = raw.toLowerCase();
+
+  if (
+    lower.includes("content policy") ||
+    lower.includes("safety") ||
+    lower.includes("inappropriate") ||
+    lower.includes("violat")
+  )
+    return {
+      title: "Prompt blocked",
+      description:
+        "Your prompt was flagged by the AI's content policy. Try rephrasing it.",
+    };
+  if (
+    lower.includes("rate limit") ||
+    lower.includes("too many requests") ||
+    lower.includes("quota") ||
+    lower.includes("429")
+  )
+    return {
+      title: "Service busy",
+      description:
+        "The AI service is at capacity right now. Please wait a moment and try again.",
+    };
+  if (
+    lower.includes("prompt is too long") ||
+    lower.includes("context length") ||
+    lower.includes("max_tokens") ||
+    lower.includes("token limit")
+  )
+    return {
+      title: "Prompt too long",
+      description: "Your prompt exceeds the model's limit. Try shortening it.",
+    };
+  if (
+    lower.includes("not authenticated") ||
+    lower.includes("unauthorized") ||
+    lower.includes("session")
+  )
+    return {
+      title: "Session expired",
+      description: "Please sign in again and retry.",
+    };
+  if (
+    lower.includes("does not support image") ||
+    lower.includes("no image input")
+  )
+    return {
+      title: "Model limitation",
+      description:
+        "This model doesn't support image inputs. Remove the image or switch to a model that supports it.",
+    };
+  if (lower.includes("failed to upload"))
+    return {
+      title: "Upload failed",
+      description:
+        "The image was generated but couldn't be saved. Please try again.",
+    };
+  if (lower.includes("failed to save"))
+    return {
+      title: "Save failed",
+      description:
+        "The image was generated but couldn't be recorded. Please try again.",
+    };
+  if (
+    lower.includes("image is too large") ||
+    lower.includes("payload too large") ||
+    lower.includes("413")
+  )
+    return {
+      title: "Image too large",
+      description:
+        "The input image exceeds the size limit. Try using a smaller image.",
+    };
+  if (lower.includes("not authenticated") || lower.includes("sign in"))
+    return {
+      title: "Sign in required",
+      description: "Please sign in to generate images.",
+    };
+  if (lower.includes("invalid") && lower.includes("prompt"))
+    return { title: "Invalid prompt", description: raw };
+  if (
+    lower.includes("500") ||
+    lower.includes("internal server") ||
+    lower.includes("image generation failed")
+  )
+    return {
+      title: "Generation failed",
+      description:
+        "The AI service encountered an error. Try again or switch to a different model.",
+    };
+
+  return { title: "Generation failed", description: raw };
+}
+
 export function useGeneration() {
   const { profile } = useProfile();
   const supabase = useSupabaseClient();
@@ -115,12 +221,8 @@ export function useGeneration() {
       toast.add({ title: "Image generated!", color: "success" });
       return result.value;
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Generation failed";
-      toast.add({
-        title: "Generation failed",
-        description: msg,
-        color: "error",
-      });
+      const { title, description } = friendlyErrorMessage(err);
+      toast.add({ title, description, color: "error" });
       return null;
     } finally {
       isGenerating.value = false;

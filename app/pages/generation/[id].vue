@@ -39,9 +39,11 @@ const referenceImages = computed(() => {
   if (generation.value.input_image_url) {
     urls.push(generation.value.input_image_url as string);
   }
-  const metadataUrls = (generation.value.metadata as { input_image_urls?: string[] })?.input_image_urls;
+  const metadataUrls = (
+    generation.value.metadata as { input_image_urls?: string[] }
+  )?.input_image_urls;
   if (Array.isArray(metadataUrls)) {
-    metadataUrls.forEach(url => {
+    metadataUrls.forEach((url) => {
       if (!urls.includes(url)) urls.push(url);
     });
   }
@@ -174,7 +176,7 @@ async function downloadImage() {
   if (!generation.value) return;
   await downloadImageToDevice(
     generation.value.output_image_url as string,
-    `lumiar-${id.value}.png`
+    `lumiar-${id.value}.png`,
   );
 }
 
@@ -272,7 +274,9 @@ onMounted(async () => {
             <button
               class="absolute top-3 right-3 size-9 rounded-xl bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors backdrop-blur-sm"
               title="View fullscreen"
-              @click="fullscreenImageUrl = generation.output_image_url as string"
+              @click="
+                fullscreenImageUrl = generation.output_image_url as string
+              "
             >
               <UIcon name="i-lucide-maximize-2" class="size-4" />
             </button>
@@ -309,12 +313,14 @@ onMounted(async () => {
             </Transition>
           </Teleport>
 
-          <div class="flex flex-wrap gap-2 mt-4">
+          <!-- Primary actions -->
+          <div class="flex gap-2 mt-4">
             <UButton
               icon="i-lucide-download"
-              variant="outline"
+              variant="solid"
               color="neutral"
               size="sm"
+              class="flex-1"
               @click="downloadImage"
             >
               Download
@@ -324,40 +330,52 @@ onMounted(async () => {
               variant="outline"
               color="neutral"
               size="sm"
+              class="flex-1"
               @click="useAsBase"
             >
-              Edit this image
+              Edit
             </UButton>
+          </div>
+
+          <!-- Secondary actions -->
+          <div
+            class="flex items-center gap-1 mt-2 pt-2 border-t border-zinc-100 dark:border-zinc-800"
+          >
             <UButton
-              :icon="isLiked ? 'i-lucide-heart' : 'i-lucide-heart'"
-              :variant="isLiked ? 'solid' : 'outline'"
+              icon="i-lucide-heart"
+              size="xs"
+              :variant="isLiked ? 'soft' : 'ghost'"
               :color="isLiked ? 'error' : 'neutral'"
-              size="sm"
               :loading="isTogglingLike"
               @click="toggleLike"
             >
-              {{ likesCount }} {{ likesCount === 1 ? "like" : "likes" }}
+              <span class="hidden sm:inline">
+                {{ likesCount }} {{ likesCount === 1 ? "like" : "likes" }}
+              </span>
             </UButton>
             <template v-if="isOwner">
               <UButton
                 :icon="isShared ? 'i-lucide-eye-off' : 'i-lucide-share-2'"
-                :variant="isShared ? 'solid' : 'outline'"
+                size="xs"
+                :variant="isShared ? 'soft' : 'ghost'"
                 color="primary"
-                size="sm"
                 :loading="isTogglingShare"
                 @click="handleShareClick"
               >
-                {{ isShared ? "Unshare" : "Share to Explore" }}
+                <span class="hidden sm:inline">{{
+                  isShared ? "Unshare" : "Share to Explore"
+                }}</span>
               </UButton>
               <UButton
-                :icon="isDeleting ? 'i-lucide-loader-circle' : 'i-lucide-trash-2'"
-                variant="outline"
-                color="neutral"
-                size="sm"
+                icon="i-lucide-trash-2"
+                size="xs"
+                variant="ghost"
+                color="error"
                 :loading="isDeleting"
+                class="ml-auto"
                 @click="showDeleteModal = true"
               >
-                Delete
+                <span class="hidden sm:inline">Delete</span>
               </UButton>
             </template>
           </div>
@@ -392,10 +410,14 @@ onMounted(async () => {
             <div class="space-y-3 text-sm">
               <div v-if="isOwner && referenceImages.length > 0" class="mb-4">
                 <div class="flex items-center gap-2 mb-2">
-                  <p class="text-xs text-zinc-400 dark:text-zinc-500 uppercase tracking-wide">
+                  <p
+                    class="text-xs text-zinc-400 dark:text-zinc-500 uppercase tracking-wide"
+                  >
                     Reference Images
                   </p>
-                  <span class="flex items-center gap-1 text-[10px] text-zinc-400 dark:text-zinc-500 bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">
+                  <span
+                    class="flex items-center gap-1 text-[10px] text-zinc-400 dark:text-zinc-500 bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded"
+                  >
                     <UIcon name="i-lucide-lock" class="size-3" />
                     Only visible to you
                   </span>
@@ -412,8 +434,13 @@ onMounted(async () => {
                       alt="Reference image"
                       class="w-full h-full object-cover"
                     />
-                    <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                      <UIcon name="i-lucide-maximize-2" class="size-4 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-md" />
+                    <div
+                      class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center"
+                    >
+                      <UIcon
+                        name="i-lucide-maximize-2"
+                        class="size-4 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-md"
+                      />
                     </div>
                   </button>
                 </div>

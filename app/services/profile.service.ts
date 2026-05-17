@@ -37,7 +37,7 @@ export function useProfileService() {
     return supabase
       .from("profiles")
       .select(
-        "id, username, full_name, avatar_url, bio, token_balance, is_admin",
+        "id, username, full_name, avatar_url, bio, token_balance, is_admin, default_model_id",
       )
       .eq("id", id)
       .maybeSingle();
@@ -47,7 +47,7 @@ export function useProfileService() {
     return supabase
       .from("profiles")
       .select(
-        "id, username, full_name, avatar_url, bio, token_balance, is_admin",
+        "id, username, full_name, avatar_url, bio, token_balance, is_admin, default_model_id",
       )
       .eq("username", username)
       .maybeSingle();
@@ -173,12 +173,22 @@ export function useProfileService() {
     return { error: balErr || txErr || updateErr || null };
   }
 
+  async function setDefaultModel(userId: string, modelId: string | null) {
+    return (supabase.from("profiles") as any)
+      .update({
+        default_model_id: modelId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", userId);
+  }
+
   return {
     getProfileById,
     getProfileByUsername,
     getProfilesLiteByIds,
     ensureProfileForUser,
     upsertProfile,
+    setDefaultModel,
     sanitizeUsernamePart,
     deductTokens,
   };
