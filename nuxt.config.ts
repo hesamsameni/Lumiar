@@ -39,7 +39,7 @@ export default defineNuxtConfig({
     redirectOptions: {
       login: "/auth/login",
       callback: "/auth/callback",
-      include: ["/profile(/*)?", "/generation/new", "/admin(/*)?"],
+      include: ["/profile(/*)?", "/generation/new", "/admin(/*)?", "/credits"],
       exclude: ["/", "/explore", "/generation/*", "/auth/*", "/prompt-library"],
     },
   },
@@ -51,6 +51,9 @@ export default defineNuxtConfig({
     bunnyApiKey: process.env.BUNNY_API_KEY,
     bunnyStorageZone: process.env.BUNNY_STORAGE_ZONE,
     bunnyStorageHostname: process.env.BUNNY_STORAGE_HOSTNAME,
+    stripeSecretKey: process.env.STRIPE_SECRET_KEY,
+    stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
+    supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
     public: {
       bunnyCdnUrl: process.env.BUNNY_CDN_URL,
     },
