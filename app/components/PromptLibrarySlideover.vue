@@ -19,13 +19,9 @@ watch(
 );
 
 const search = ref("");
-const selectedCategory = ref<string | null>(null);
 
-const filtered = computed(() => {
+const filteredCards = computed(() => {
   let list = promptCards.value;
-  if (selectedCategory.value) {
-    list = list.filter((p) => p.category.id === selectedCategory.value);
-  }
   if (search.value.trim()) {
     const q = search.value.toLowerCase();
     list = list.filter(
@@ -34,6 +30,26 @@ const filtered = computed(() => {
     );
   }
   return list;
+});
+
+const groupedByCategory = computed(() => {
+  const groups = new Map<
+    string,
+    { category: (typeof categories.value)[0]; cards: typeof promptCards.value }
+  >();
+
+  for (const card of filteredCards.value) {
+    const catId = card.category.id;
+    if (!groups.has(catId)) {
+      groups.set(catId, { category: card.category, cards: [] });
+    }
+    groups.get(catId)!.cards.push(card);
+  }
+
+  // Sort by category sort_order
+  return Array.from(groups.values()).sort(
+    (a, b) => a.category.sort_order - b.category.sort_order,
+  );
 });
 
 function usePrompt(prompt: string) {
@@ -57,7 +73,7 @@ function usePrompt(prompt: string) {
           <div>
             <h2 class="font-semibold text-base">Prompt Library</h2>
             <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-              {{ filtered.length }} prompts
+              {{ filteredCards.length }} prompts
             </p>
           </div>
           <UButton
@@ -69,47 +85,18 @@ function usePrompt(prompt: string) {
           />
         </div>
 
-        <div class="px-5 pt-4 space-y-3 flex-shrink-0">
+        <div class="px-5 pt-4 flex-shrink-0">
           <UInput
             v-model="search"
             icon="i-lucide-search"
             placeholder="Search prompts…"
             size="sm"
           />
-
-          <div class="flex gap-2 flex-wrap">
-            <button
-              class="text-xs px-3 py-1 rounded-full border transition-all"
-              :class="
-                selectedCategory === null
-                  ? 'border-primary bg-primary/10 text-primary font-medium'
-                  : 'border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:border-zinc-300'
-              "
-              @click="selectedCategory = null"
-            >
-              All
-            </button>
-            <button
-              v-for="cat in categories"
-              :key="cat.id"
-              class="text-xs px-3 py-1 rounded-full border transition-all"
-              :class="
-                selectedCategory === cat.id
-                  ? 'border-primary bg-primary/10 text-primary font-medium'
-                  : 'border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:border-zinc-300'
-              "
-              @click="
-                selectedCategory = selectedCategory === cat.id ? null : cat.id
-              "
-            >
-              {{ cat.name }}
-            </button>
-          </div>
         </div>
 
         <div class="flex-1 overflow-y-auto px-5 py-4">
           <div
-            v-if="!filtered.length"
+            v-if="!filteredCards.length"
             class="text-center py-16 text-zinc-400 dark:text-zinc-500"
           >
             <UIcon
@@ -119,13 +106,39 @@ function usePrompt(prompt: string) {
             <p class="text-sm">No prompts found</p>
           </div>
 
-          <div v-else class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <PromptLibraryCard
-              v-for="item in filtered"
-              :key="item.cardId"
-              :card="item"
-              @use="usePrompt"
-            />
+          <div v-else class="space-y-6">
+            <section
+              v-for="group in groupedByCategory"
+              :key="group.category.id"
+              class="space-y-3"
+            >
+              <div class="flex items-center gap-2">
+                <UIcon
+                  v-if="group.category.icon"
+                  :name="group.category.icon"
+                  class="size-4"
+                  :style="{ color: group.category.color }"
+                />
+                <h3
+                  class="text-xs font-semibold uppercase tracking-wider"
+                  :style="{ color: group.category.color }"
+                >
+                  {{ group.category.name }}
+                </h3>
+                <div class="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
+              </div>
+              <div
+                class="flex gap-3 overflow-x-auto pb-2 scrollbar-hide snap-x snap-mandatory"
+              >
+                <div
+                  v-for="item in group.cards"
+                  :key="item.cardId"
+                  class="flex-shrink-0 w-[calc(50%-6px)] sm:w-[calc(33.333%-8px)] snap-start"
+                >
+                  <PromptLibraryCard :card="item" @use="usePrompt" />
+                </div>
+              </div>
+            </section>
           </div>
         </div>
 

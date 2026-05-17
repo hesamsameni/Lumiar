@@ -784,11 +784,12 @@ await Promise.all([fetchCategories(), fetchPrompts()]);
             >
               Content
             </p>
-            <UFormField label="Prompt">
+            <UFormField label="Prompt" class="w-full">
               <UTextarea
                 v-model="promptForm.prompt"
                 placeholder="Write the full prompt text here…"
-                :rows="5"
+                :rows="10"
+                class="w-full"
               />
             </UFormField>
           </div>
