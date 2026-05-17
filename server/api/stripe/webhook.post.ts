@@ -35,14 +35,30 @@ export default defineEventHandler(async (event) => {
     const sessionId = session.id;
 
     if (!userId || !tokens) {
-      throw createError({ statusCode: 400, message: "Missing session metadata" });
+      throw createError({
+        statusCode: 400,
+        message: "Missing session metadata",
+      });
     }
 
-    const supabase = createClient(
-      process.env.SUPABASE_URL!,
-      config.supabaseServiceRoleKey as string,
-      { auth: { persistSession: false } },
-    );
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const serviceRoleKey =
+      process.env.SUPABASE_SERVICE_ROLE_KEY ??
+      (config.supabaseServiceRoleKey as string | undefined);
+
+    if (!supabaseUrl || !serviceRoleKey) {
+      console.error(
+        "[webhook] Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY",
+      );
+      throw createError({
+        statusCode: 500,
+        message: "Server misconfiguration",
+      });
+    }
+
+    const supabase = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false },
+    });
 
     // Idempotency: skip if this session was already processed
     const { data: existing } = await supabase
@@ -66,7 +82,11 @@ export default defineEventHandler(async (event) => {
       });
 
     if (txError) {
-      throw createError({ statusCode: 500, message: "Failed to log transaction" });
+      console.error("[webhook] Failed to log transaction:", txError);
+      throw createError({
+        statusCode: 500,
+        message: "Failed to log transaction",
+      });
     }
 
     // Atomically increment the token balance
@@ -76,8 +96,14 @@ export default defineEventHandler(async (event) => {
     });
 
     if (rpcError) {
-      throw createError({ statusCode: 500, message: "Failed to update token balance" });
+      console.error("[webhook] Failed to update token balance:", rpcError);
+      throw createError({
+        statusCode: 500,
+        message: "Failed to update token balance",
+      });
     }
+
+    console.info(`[webhook] Added ${tokens} tokens to user ${userId}`);
   }
 
   return { ok: true };

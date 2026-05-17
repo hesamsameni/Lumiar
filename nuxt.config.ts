@@ -40,7 +40,14 @@ export default defineNuxtConfig({
       login: "/auth/login",
       callback: "/auth/callback",
       include: ["/profile(/*)?", "/generation/new", "/admin(/*)?", "/credits"],
-      exclude: ["/", "/explore", "/generation/*", "/auth/*", "/prompt-library"],
+      exclude: [
+        "/",
+        "/explore",
+        "/generation/*",
+        "/auth/*",
+        "/prompt-library",
+        "/api/stripe/webhook",
+      ],
     },
   },
 
