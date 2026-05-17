@@ -46,7 +46,7 @@ export default defineNuxtConfig({
         "/generation/*",
         "/auth/*",
         "/prompt-library",
-        "/api/stripe/webhook",
+        "/api/**",
       ],
     },
   },
