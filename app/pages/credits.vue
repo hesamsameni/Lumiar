@@ -26,6 +26,7 @@ const router = useRouter();
 const supabase = useSupabaseClient();
 const toast = useToast();
 const { balance, fetchBalance } = useTokens();
+const posthog = usePostHog();
 
 const selectedPackId = ref<string | null>(null);
 const customEuros = ref("");
@@ -83,6 +84,11 @@ function onCustomInput() {
 async function startCheckout() {
   if (!isValid.value || !finalEuros.value) return;
   isLoading.value = true;
+  posthog?.capture("checkout_initiated", {
+    amount_euros: finalEuros.value,
+    credits: finalCredits.value,
+    pack_id: selectedPackId.value ?? "custom",
+  });
   try {
     const { data: sessionData } = await supabase.auth.getSession();
     const accessToken = sessionData.session?.access_token;

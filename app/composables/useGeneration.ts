@@ -112,6 +112,7 @@ export function useGeneration() {
   const supabase = useSupabaseClient();
   const toast = useToast();
   const { deductTokens, fetchBalance } = useTokens();
+  const posthog = usePostHog();
 
   const isGenerating = ref(false);
   const result = ref<{ imageUrl: string; generationId: string } | null>(null);
@@ -145,6 +146,17 @@ export function useGeneration() {
 
     isGenerating.value = true;
     result.value = null;
+
+    posthog?.capture("image_generation_started", {
+      model_name: opts.model.name,
+      model_id: opts.model.id,
+      provider: opts.model.provider,
+      tokens_required: opts.model.tokens_per_generation,
+      has_input_images:
+        (opts.inputImageFiles?.length ?? 0) > 0 || !!opts.inputImageUrl,
+      aspect_ratio: opts.aspectRatio ?? "1:1",
+      is_edit: !!opts.parentId,
+    });
 
     try {
       let inputImageUrl: string | null = opts.inputImageUrl ?? null;
@@ -218,10 +230,27 @@ export function useGeneration() {
         imageUrl: genRes.imageUrl,
         generationId: genRes.generationId,
       };
+      posthog?.capture("image_generation_completed", {
+        model_name: opts.model.name,
+        model_id: opts.model.id,
+        provider: opts.model.provider,
+        tokens_used: opts.model.tokens_per_generation,
+        has_input_images:
+          (opts.inputImageFiles?.length ?? 0) > 0 || !!opts.inputImageUrl,
+        aspect_ratio: opts.aspectRatio ?? "1:1",
+        is_edit: !!opts.parentId,
+        generation_id: genRes.generationId,
+      });
       toast.add({ title: "Image generated!", color: "success" });
       return result.value;
     } catch (err: unknown) {
       const { title, description } = friendlyErrorMessage(err);
+      posthog?.capture("image_generation_failed", {
+        model_name: opts.model.name,
+        model_id: opts.model.id,
+        provider: opts.model.provider,
+        error_title: title,
+      });
       toast.add({ title, description, color: "error" });
       return null;
     } finally {

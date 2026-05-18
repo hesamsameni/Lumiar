@@ -11,6 +11,7 @@ import {
   uploadToBunny,
 } from "../utils/bunny";
 import { inferTagsFromPrompt } from "../utils/tags";
+import { useServerPostHog } from "../utils/posthog";
 
 const INPUT_IMAGE_REQUEST_HEADERS = {
   Referer: "https://lumiar.app",
@@ -271,8 +272,30 @@ export default defineEventHandler(async (event) => {
     });
   }
 
+  const generationId = (generation as { id: string }).id;
+
+  const sessionId = getHeader(event, "x-posthog-session-id");
+  const distinctId = getHeader(event, "x-posthog-distinct-id");
+  const posthog = useServerPostHog();
+  posthog.capture({
+    distinctId: distinctId ?? user.id,
+    event: "image_generated",
+    properties: {
+      $session_id: sessionId,
+      model_id: modelId,
+      model_name: modelName,
+      provider: resolvedProvider,
+      tokens_used: typeof tokensUsed === "number" ? Math.max(0, tokensUsed) : 0,
+      aspect_ratio: aspectRatio ?? "1:1",
+      has_input_images:
+        rawBase64Inputs.length > 0 || !!inputImageUrl,
+      is_edit: !!parentId,
+      generation_id: generationId,
+    },
+  });
+
   return {
     imageUrl: outputImageUrl,
-    generationId: (generation as { id: string }).id,
+    generationId,
   };
 });

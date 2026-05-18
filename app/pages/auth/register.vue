@@ -6,6 +6,7 @@ definePageMeta({ layout: false });
 const authService = useAuthService();
 const toast = useToast();
 const router = useRouter();
+const posthog = usePostHog();
 
 const email = ref("");
 const password = ref("");
@@ -31,6 +32,8 @@ async function register() {
       color: "error",
     });
   } else {
+    posthog?.identify(email.value);
+    posthog?.capture("user_signed_up", { method: "password" });
     toast.add({
       title: "Check your email",
       description: "We sent you a confirmation link.",

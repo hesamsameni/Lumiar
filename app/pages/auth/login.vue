@@ -7,6 +7,7 @@ const authService = useAuthService();
 const supabase = useSupabaseClient();
 const { session } = useAuthState();
 const toast = useToast();
+const posthog = usePostHog();
 
 const email = ref("");
 const password = ref("");
@@ -36,6 +37,8 @@ async function signInWithPassword() {
     // Populate profile before navigating so the header renders authenticated
     const { fetchProfile } = useProfile();
     await fetchProfile();
+    posthog?.identify(email.value);
+    posthog?.capture("user_logged_in", { method: "password" });
     await navigateTo("/", { replace: true });
   }
 }
