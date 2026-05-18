@@ -128,14 +128,18 @@ function usePrompt(prompt: string) {
                 <div class="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
               </div>
               <div
-                class="flex gap-3 overflow-x-auto pb-2 scrollbar-hide snap-x snap-mandatory"
+                class="flex items-stretch gap-3 overflow-x-auto pb-2 scrollbar-hide snap-x snap-mandatory"
               >
                 <div
                   v-for="item in group.cards"
                   :key="item.cardId"
-                  class="flex-shrink-0 w-[calc(50%-6px)] sm:w-[calc(33.333%-8px)] snap-start"
+                  class="flex-shrink-0 w-[calc(50%-6px)] sm:w-[calc(33.333%-8px)] snap-start flex flex-col"
                 >
-                  <PromptLibraryCard :card="item" @use="usePrompt" />
+                  <PromptLibraryCard
+                    :card="item"
+                    class="flex-1"
+                    @use="usePrompt"
+                  />
                 </div>
               </div>
             </section>

@@ -3,6 +3,12 @@ import { dirname, resolve } from "path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+const SITE_URL = process.env.NUXT_PUBLIC_SITE_URL || "https://www.lumiar.site";
+const OG_TITLE = "Lumiar – AI Image Generator & Photo Editor";
+const OG_DESCRIPTION =
+  "Generate stunning images and edit photos with GPT, Gemini, Flux and more. Powered by the world's best AI models.";
+const OG_IMAGE = `${SITE_URL}/og-image.png`;
+
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   app: {
@@ -22,10 +28,22 @@ export default defineNuxtConfig({
       ],
       meta: [
         { name: "theme-color", content: "#0f172a" },
-        {
-          name: "description",
-          content: "Lumiar – AI-powered photo editing and generation.",
-        },
+        { name: "description", content: OG_DESCRIPTION },
+        // Open Graph — WhatsApp, Telegram, Facebook, LinkedIn
+        { property: "og:type", content: "website" },
+        { property: "og:site_name", content: "Lumiar" },
+        { property: "og:title", content: OG_TITLE },
+        { property: "og:description", content: OG_DESCRIPTION },
+        { property: "og:url", content: SITE_URL },
+        { property: "og:image", content: OG_IMAGE },
+        { property: "og:image:width", content: "1200" },
+        { property: "og:image:height", content: "630" },
+        { property: "og:image:type", content: "image/png" },
+        // Twitter / X Card
+        { name: "twitter:card", content: "summary_large_image" },
+        { name: "twitter:title", content: OG_TITLE },
+        { name: "twitter:description", content: OG_DESCRIPTION },
+        { name: "twitter:image", content: OG_IMAGE },
       ],
     },
   },
@@ -73,8 +91,7 @@ export default defineNuxtConfig({
 
   posthogConfig: {
     publicKey: process.env.NUXT_PUBLIC_POSTHOG_PROJECT_TOKEN || "",
-    host:
-      process.env.NUXT_PUBLIC_POSTHOG_HOST || "https://us.i.posthog.com",
+    host: process.env.NUXT_PUBLIC_POSTHOG_HOST || "https://us.i.posthog.com",
     clientConfig: {
       capture_exceptions: true,
       __add_tracing_headers: ["localhost", "lumiar.app"],
