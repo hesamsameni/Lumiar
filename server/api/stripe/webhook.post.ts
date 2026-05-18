@@ -1,5 +1,6 @@
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
+import { useServerPostHog } from "../../utils/posthog";
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig();
@@ -104,6 +105,17 @@ export default defineEventHandler(async (event) => {
     }
 
     console.info(`[webhook] Added ${tokens} tokens to user ${userId}`);
+
+    const posthog = useServerPostHog();
+    posthog.capture({
+      distinctId: userId,
+      event: "payment_completed",
+      properties: {
+        tokens_purchased: tokens,
+        amount_euros: tokens / 100,
+        stripe_session_id: sessionId,
+      },
+    });
   }
 
   return { ok: true };

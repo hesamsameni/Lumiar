@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { useServerPostHog } from "../posthog";
 
 export const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 
@@ -59,6 +60,8 @@ export async function generateWithOpenRouter(
     ? ["image", "text"]
     : ["image"];
 
+  const startTime = Date.now();
+
   console.log("[AI] OpenRouter request", {
     provider: "openrouter",
     model: modelId,
@@ -106,6 +109,8 @@ export async function generateWithOpenRouter(
     result.choices[0]?.message?.images?.[0]?.image_url?.url ?? null;
   if (!imageUrl) throw new Error("No image returned by OpenRouter");
 
+  const latencySeconds = (Date.now() - startTime) / 1000;
+
   if (result.usage) {
     console.log("[AI] OpenRouter response", {
       provider: "openrouter",
@@ -113,6 +118,20 @@ export async function generateWithOpenRouter(
       usage: result.usage,
     });
   }
+
+  const posthog = useServerPostHog();
+  posthog.capture({
+    distinctId: "server",
+    event: "$ai_generation",
+    properties: {
+      $ai_provider: "openrouter",
+      $ai_model: modelId,
+      $ai_input_tokens: result.usage?.prompt_tokens ?? undefined,
+      $ai_output_tokens: result.usage?.completion_tokens ?? undefined,
+      $ai_latency: latencySeconds,
+      $ai_base_url: OPENROUTER_BASE_URL,
+    },
+  });
 
   return imageUrl;
 }

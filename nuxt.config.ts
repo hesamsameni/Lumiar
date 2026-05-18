@@ -32,7 +32,7 @@ export default defineNuxtConfig({
   compatibilityDate: "2025-07-15",
   devtools: { enabled: true },
 
-  modules: ["@nuxt/ui", "@nuxtjs/supabase"],
+  modules: ["@nuxt/ui", "@nuxtjs/supabase", "@posthog/nuxt"],
 
   supabase: {
     types: resolve(__dirname, "app/types/database.types.ts"),
@@ -63,6 +63,24 @@ export default defineNuxtConfig({
     supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
     public: {
       bunnyCdnUrl: process.env.BUNNY_CDN_URL,
+      posthog: {
+        publicKey: process.env.NUXT_PUBLIC_POSTHOG_PROJECT_TOKEN || "",
+        host:
+          process.env.NUXT_PUBLIC_POSTHOG_HOST || "https://us.i.posthog.com",
+      },
+    },
+  },
+
+  posthogConfig: {
+    publicKey: process.env.NUXT_PUBLIC_POSTHOG_PROJECT_TOKEN || "",
+    host:
+      process.env.NUXT_PUBLIC_POSTHOG_HOST || "https://us.i.posthog.com",
+    clientConfig: {
+      capture_exceptions: true,
+      __add_tracing_headers: ["localhost", "lumiar.app"],
+    },
+    serverConfig: {
+      enableExceptionAutocapture: true,
     },
   },
 

@@ -13,6 +13,7 @@ const { fetchModels, firstModel, getModelById } = useModels();
 const { profile } = useProfile();
 const profileService = useProfileService();
 const supabase = useSupabaseClient();
+const posthog = usePostHog();
 
 await fetchModels();
 
@@ -202,6 +203,7 @@ async function polishPrompt() {
       },
     );
     prompt.value = polished;
+    posthog?.capture("prompt_polished");
     toast.add({
       title: "Prompt polished!",
       description: "AI has enhanced your prompt.",
