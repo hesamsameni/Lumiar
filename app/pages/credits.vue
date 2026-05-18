@@ -3,14 +3,23 @@ const PACKS: Array<{
   id: string;
   label: string;
   euros: number;
-  tokens: number;
+  credits: number;
   featured?: boolean;
 }> = [
-  { id: "starter", label: "Starter", euros: 2, tokens: 200 },
-  { id: "basic", label: "Basic", euros: 5, tokens: 500 },
-  { id: "popular", label: "Popular", euros: 10, tokens: 1000, featured: true },
-  { id: "pro", label: "Pro", euros: 25, tokens: 2500 },
+  { id: "starter", label: "Starter", euros: 2, credits: 200 },
+  { id: "basic", label: "Basic", euros: 5, credits: 500 },
+  { id: "popular", label: "Popular", euros: 10, credits: 1000, featured: true },
+  { id: "pro", label: "Pro", euros: 25, credits: 2500 },
 ];
+
+const PREMIUM_CREDITS_PER_GEN = 12; // GPT Image 2
+const STANDARD_CREDITS_PER_GEN = 7; // GPT Image 1
+
+function packHint(credits: number) {
+  const premium = Math.floor(credits / PREMIUM_CREDITS_PER_GEN);
+  const standard = Math.floor(credits / STANDARD_CREDITS_PER_GEN);
+  return { premium, standard };
+}
 
 const route = useRoute();
 const router = useRouter();
@@ -46,7 +55,7 @@ const finalEuros = computed(() => {
   return customEurosNum.value;
 });
 
-const finalTokens = computed(() => {
+const finalCredits = computed(() => {
   if (finalEuros.value === null) return null;
   return Math.floor(finalEuros.value * 100);
 });
@@ -125,7 +134,7 @@ async function startCheckout() {
             Payment successful!
           </p>
           <p class="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">
-            Your tokens have been added to your account.
+            Your credits have been added to your account.
           </p>
         </div>
       </div>
@@ -153,7 +162,7 @@ async function startCheckout() {
 
     <!-- Hero -->
     <div class="mb-10 text-center">
-      <h1 class="text-3xl font-semibold tracking-tight mb-1.5">Buy Tokens</h1>
+      <h1 class="text-3xl font-semibold tracking-tight mb-1.5">Buy Credits</h1>
       <p class="text-sm text-zinc-400 dark:text-zinc-500">
         No subscriptions. Pay once, use whenever.
       </p>
@@ -164,7 +173,7 @@ async function startCheckout() {
         <UIcon name="i-lucide-zap" class="size-4 text-amber-500" />
         <span
           >Current balance:
-          <strong>{{ balance.toLocaleString() }}</strong> tokens</span
+          <strong>{{ balance.toLocaleString() }}</strong> credits</span
         >
       </div>
     </div>
@@ -207,7 +216,12 @@ async function startCheckout() {
           €{{ pack.euros }}
         </span>
         <span class="text-xs text-zinc-400 dark:text-zinc-500 mt-1.5">
-          {{ pack.tokens.toLocaleString() }} tokens
+          {{ pack.credits.toLocaleString() }} credits
+        </span>
+        <span
+          class="text-[11px] text-zinc-400 dark:text-zinc-500 mt-1 leading-tight"
+        >
+          ~{{ packHint(pack.credits).premium }} premium images
         </span>
         <UIcon
           name="i-lucide-check-circle-2"
@@ -219,6 +233,23 @@ async function startCheckout() {
           "
         />
       </button>
+    </div>
+
+    <!-- Generation hint callout -->
+    <div
+      class="mb-6 px-4 py-3 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 flex items-start gap-2.5"
+    >
+      <UIcon
+        name="i-lucide-zap"
+        class="size-4 text-amber-500 flex-shrink-0 mt-0.5"
+      />
+      <p class="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+        <strong>€10</strong> gets you
+        <strong>~{{ packHint(1000).premium }} images</strong> with premium
+        models (GPT Image 2) or
+        <strong>~{{ packHint(1000).standard }} images</strong> with standard
+        models. Credits never expire — use them at your own pace.
+      </p>
     </div>
 
     <!-- Custom amount -->
@@ -253,7 +284,7 @@ async function startCheckout() {
           v-if="customEurosNum && customEurosNum >= 2"
           class="text-xs text-zinc-400 dark:text-zinc-500 flex-shrink-0"
         >
-          = {{ Math.floor(customEurosNum * 100).toLocaleString() }} tokens
+          = {{ Math.floor(customEurosNum * 100).toLocaleString() }} credits
         </span>
       </div>
       <p v-if="customTooLow" class="text-xs text-red-500 mt-1.5 ml-1">
@@ -269,8 +300,8 @@ async function startCheckout() {
         <div class="flex items-center justify-between text-sm">
           <span class="text-zinc-500 dark:text-zinc-400">You'll receive</span>
           <span class="font-semibold">
-            <template v-if="finalTokens">
-              {{ finalTokens.toLocaleString() }} tokens
+            <template v-if="finalCredits">
+              {{ finalCredits.toLocaleString() }} credits
             </template>
             <span v-else class="text-zinc-300 dark:text-zinc-600">—</span>
           </span>
@@ -307,7 +338,7 @@ async function startCheckout() {
 
     <!-- Rate info -->
     <p class="text-center text-xs text-zinc-400 dark:text-zinc-500 mt-6">
-      100 tokens = €1 · Tokens never expire
+      100 credits = €1 · Credits never expire
     </p>
   </div>
 </template>

@@ -218,7 +218,7 @@ const tierLabel: Record<string, string> = {
                 class="flex items-center gap-1 text-[11px] text-zinc-400 dark:text-zinc-500"
               >
                 <UIcon name="i-lucide-zap" class="size-3 text-amber-500" />
-                {{ model.tokens_per_generation }} tokens
+                {{ model.tokens_per_generation }} credits
               </span>
               <span class="text-[11px] text-zinc-400 dark:text-zinc-500">{{
                 model.price_estimate
