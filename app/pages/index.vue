@@ -496,7 +496,6 @@ function getRatioStyle(value: string): Record<string, string> {
           <UButton
             class="ml-auto flex-shrink-0"
             size="sm"
-            icon="i-lucide-sparkles"
             :loading="isGenerating"
             :disabled="!prompt.trim()"
             @click="handleGenerate"
@@ -504,7 +503,7 @@ function getRatioStyle(value: string): Record<string, string> {
             {{
               isGenerating
                 ? "Generating…"
-                : `Generate · ${selectedModel.tokens_per_generation}`
+                : `Generate · ${selectedModel.tokens_per_generation} Credits`
             }}
           </UButton>
         </div>

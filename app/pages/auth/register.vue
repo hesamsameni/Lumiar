@@ -68,7 +68,7 @@ async function signInWithGoogle() {
         </NuxtLink>
         <h1 class="text-2xl font-bold">Create an account</h1>
         <p class="text-zinc-500 dark:text-zinc-400 text-sm mt-1">
-          Start with 10 free tokens
+          Start with 25 free credits
         </p>
       </div>
 
