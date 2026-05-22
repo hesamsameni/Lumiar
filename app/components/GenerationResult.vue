@@ -138,8 +138,16 @@ onMounted(async () => {
 
       <!-- Secondary actions -->
       <div
-        class="flex items-center gap-1 pt-2 border-t border-zinc-100 dark:border-zinc-800"
+        class="flex items-center gap-0.5 pt-2 border-t border-zinc-100 dark:border-zinc-800"
       >
+        <SocialShareMenu
+          :generation-id="generationId"
+          :image-url="imageUrl"
+          :prompt="prompt"
+          :is-shared="isShared"
+          size="xs"
+          @shared-to-explore="isShared = true"
+        />
         <UButton
           :icon="isShared ? 'i-lucide-eye-off' : 'i-lucide-share-2'"
           size="xs"
@@ -148,9 +156,7 @@ onMounted(async () => {
           :loading="isSaving"
           @click="toggleShare"
         >
-          <span class="hidden sm:inline">{{
-            isShared ? "Unshare" : "Share to Explore"
-          }}</span>
+          {{ isShared ? "Unshare" : "Explore" }}
         </UButton>
         <UButton
           :icon="
@@ -161,32 +167,27 @@ onMounted(async () => {
           size="xs"
           :variant="isSavedToCollection ? 'soft' : 'ghost'"
           :color="isSavedToCollection ? 'primary' : 'neutral'"
+          :title="isSavedToCollection ? 'In collection' : 'Save to collection'"
           @click="showCollectionPicker = true"
-        >
-          <span class="hidden sm:inline">{{
-            isSavedToCollection ? "In collection" : "Save to collection"
-          }}</span>
-        </UButton>
+        />
         <UButton
           icon="i-lucide-arrow-up-right"
           size="xs"
           variant="ghost"
           color="neutral"
+          title="View detail"
           :to="`/generation/${generationId}`"
-        >
-          <span class="hidden sm:inline">View detail</span>
-        </UButton>
+        />
         <UButton
           icon="i-lucide-trash-2"
           size="xs"
           variant="ghost"
           color="error"
           :loading="isDeleting"
+          title="Delete"
           class="ml-auto"
           @click="showDeleteModal = true"
-        >
-          <span class="hidden sm:inline">Delete</span>
-        </UButton>
+        />
       </div>
     </div>
   </div>

@@ -5,6 +5,34 @@ import { useSocialService } from "~/services/social.service";
 import { downloadImageToDevice } from "~/utils/download";
 
 const route = useRoute();
+
+type GenerationMeta = {
+  imageUrl: string;
+  prompt: string;
+  username: string | null;
+};
+
+const { data: ogMeta } = await useAsyncData<GenerationMeta>(
+  `gen-meta-${route.params.id}`,
+  () =>
+    $fetch<GenerationMeta>(
+      `/api/generations/${route.params.id as string}/meta`,
+    ),
+  { server: true },
+);
+
+useSeoMeta({
+  title: () => (ogMeta.value ? `${ogMeta.value.prompt} — Lumiar` : "Lumiar"),
+  ogTitle: () => (ogMeta.value ? `${ogMeta.value.prompt} — Lumiar` : "Lumiar"),
+  ogDescription: () =>
+    ogMeta.value
+      ? `AI image by @${ogMeta.value.username ?? "a user"}, made with Lumiar`
+      : "AI-generated image on Lumiar",
+  ogImage: () => ogMeta.value?.imageUrl ?? undefined,
+  twitterCard: "summary_large_image",
+  twitterImage: () => ogMeta.value?.imageUrl ?? undefined,
+});
+
 const { user: authUser, session } = useAuthState();
 const toast = useToast();
 const router = useRouter();
@@ -366,6 +394,14 @@ onMounted(async () => {
                   isShared ? "Unshare" : "Share to Explore"
                 }}</span>
               </UButton>
+              <SocialShareMenu
+                :generation-id="id"
+                :image-url="generation.output_image_url as string"
+                :prompt="generation.prompt as string"
+                :is-shared="isShared"
+                size="xs"
+                @shared-to-explore="isShared = true"
+              />
               <UButton
                 icon="i-lucide-trash-2"
                 size="xs"

@@ -45,8 +45,40 @@ const isTogglingShare = ref(false);
 const isDeleting = ref(false);
 const showDeleteModal = ref(false);
 const showUnshareModal = ref(false);
+const showShareConfirmModal = ref(false);
+const dontShowShareWarning = ref(false);
+const pendingShareAction = ref<(() => Promise<void>) | null>(null);
 const showCollectionPicker = ref(false);
 const isRemovingFromCollection = ref(false);
+
+const SUPPRESS_KEY = "lumiar_share_explore_suppress";
+
+function isShareSuppressed(): boolean {
+  if (typeof window === "undefined") return false;
+  return localStorage.getItem(SUPPRESS_KEY) === "true";
+}
+
+function withExploreCheck(fn: () => Promise<void>) {
+  if (isShared.value || isShareSuppressed()) {
+    fn();
+    return;
+  }
+  pendingShareAction.value = fn;
+  showShareConfirmModal.value = true;
+}
+
+async function handleShareModalConfirm() {
+  if (dontShowShareWarning.value) localStorage.setItem(SUPPRESS_KEY, "true");
+  showShareConfirmModal.value = false;
+  await pendingShareAction.value?.();
+  pendingShareAction.value = null;
+}
+
+function handleShareModalCancel() {
+  showShareConfirmModal.value = false;
+  pendingShareAction.value = null;
+  dontShowShareWarning.value = false;
+}
 
 async function checkLiked() {
   if (!authUser.value?.id) return;
@@ -156,8 +188,87 @@ async function handleRemoveFromCollection() {
   }
 }
 
+async function ensureExploreShared() {
+  if (isShared.value) return;
+  const { error } = await generationService.setGenerationShared(
+    props.generation.id,
+    true,
+  );
+  if (!error) {
+    isShared.value = true;
+    emit("shareToggled", props.generation.id, true);
+    toast.add({
+      title: "Your image is now public on Explore too",
+      icon: "i-lucide-globe",
+      color: "success",
+    });
+  }
+}
+
+async function copyGenerationLink() {
+  await ensureExploreShared();
+  const url = `${window.location.origin}/generation/${props.generation.id}`;
+  await navigator.clipboard.writeText(url);
+  toast.add({ title: "Link copied!", icon: "i-lucide-link", color: "success" });
+}
+
+async function shareOnX() {
+  await ensureExploreShared();
+  const url = `${window.location.origin}/generation/${props.generation.id}`;
+  const text = `✨ AI art I made with Lumiar → ${url} #AIart #lumiar`;
+  window.open(
+    `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`,
+    "_blank",
+    "noopener,noreferrer,width=550,height=420",
+  );
+}
+
+async function shareOnWhatsApp() {
+  await ensureExploreShared();
+  const url = `${window.location.origin}/generation/${props.generation.id}`;
+  const text = `✨ AI art I made with Lumiar → ${url} #AIart #lumiar`;
+  window.open(
+    `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`,
+    "_blank",
+    "noopener,noreferrer",
+  );
+}
+
+async function shareOnTelegram() {
+  await ensureExploreShared();
+  const url = `${window.location.origin}/generation/${props.generation.id}`;
+  const text = `✨ AI art I made with Lumiar #AIart #lumiar`;
+  window.open(
+    `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`,
+    "_blank",
+    "noopener,noreferrer",
+  );
+}
+
 const dropdownItems = computed(() => {
   const groups: any[][] = [
+    [
+      {
+        label: "Copy link",
+        icon: "i-lucide-link",
+        onSelect: () => withExploreCheck(copyGenerationLink),
+      },
+      {
+        label: "Share on X",
+        icon: "i-lucide-external-link",
+        onSelect: () => withExploreCheck(shareOnX),
+      },
+      {
+        label: "Share on WhatsApp",
+        icon: "i-lucide-message-circle",
+        onSelect: () => withExploreCheck(shareOnWhatsApp),
+      },
+      {
+        label: "Share on Telegram",
+        icon: "i-lucide-send",
+        onSelect: () => withExploreCheck(shareOnTelegram),
+      },
+    ],
     [
       {
         label: "Save to collection",
@@ -308,5 +419,67 @@ onMounted(() => checkLiked());
       :generation-id="generation.id"
       :generation-image-url="generation.output_image_url"
     />
+
+    <UModal v-model:open="showShareConfirmModal">
+      <template #content>
+        <div>
+          <div
+            class="px-4 py-5 sm:px-6 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between"
+          >
+            <h3
+              class="text-base font-semibold text-zinc-900 dark:text-white flex items-center gap-2"
+            >
+              <UIcon name="i-lucide-globe" class="size-5 text-primary" />
+              Share this image?
+            </h3>
+            <UButton
+              color="neutral"
+              variant="ghost"
+              icon="i-lucide-x"
+              class="-my-1"
+              @click="handleShareModalCancel"
+            />
+          </div>
+
+          <div class="px-4 py-5 sm:p-6 space-y-4">
+            <p class="text-sm text-zinc-500 dark:text-zinc-400">
+              Sharing this image will also make it
+              <span class="font-medium text-zinc-700 dark:text-zinc-300"
+                >publicly visible on Explore</span
+              >
+              so anyone with the link can view it.
+            </p>
+            <label
+              class="flex items-center gap-2.5 cursor-pointer select-none group"
+            >
+              <input
+                v-model="dontShowShareWarning"
+                type="checkbox"
+                class="size-4 rounded border-zinc-300 dark:border-zinc-600 accent-primary cursor-pointer"
+              />
+              <span
+                class="text-sm text-zinc-500 dark:text-zinc-400 group-hover:text-zinc-700 dark:group-hover:text-zinc-300 transition-colors"
+                >Don't show this again</span
+              >
+            </label>
+          </div>
+
+          <div
+            class="px-4 py-4 sm:px-6 border-t border-zinc-100 dark:border-zinc-800 flex justify-end gap-3"
+          >
+            <UButton
+              color="neutral"
+              variant="outline"
+              @click="handleShareModalCancel"
+            >
+              Cancel
+            </UButton>
+            <UButton color="primary" @click="handleShareModalConfirm">
+              Continue & Share
+            </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
   </div>
 </template>
