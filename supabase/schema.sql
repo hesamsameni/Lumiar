@@ -236,7 +236,7 @@ begin
     final_username := base_username || '_' || attempt;
   end loop;
 
-  insert into profiles (id, username, full_name, avatar_url, token_balance)
+  insert into profiles (id, username, full_name, avatar_url, token_balance, referral_code)
   values (
     new.id,
     final_username,
@@ -245,7 +245,8 @@ begin
       new.raw_user_meta_data->>'name'
     ),
     new.raw_user_meta_data->>'avatar_url',
-    10
+    10,
+    substr(replace(gen_random_uuid()::text, '-', ''), 1, 8)
   )
   on conflict (id) do nothing;
 
