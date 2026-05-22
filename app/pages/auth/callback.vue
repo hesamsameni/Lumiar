@@ -8,6 +8,8 @@ onMounted(async () => {
   const supabase = useSupabaseClient();
   const { session: authSession } = useAuthState();
   const { fetchProfile } = useProfile();
+  const refCookie = useCookie("lumiar_ref");
+  const toast = useToast();
 
   // Fast path: session already available
   const {
@@ -48,6 +50,32 @@ onMounted(async () => {
         },
       );
     });
+  }
+
+  // Claim referral if a code was stored before signup
+  const refCode = refCookie.value;
+  if (refCode && authSession.value?.access_token) {
+    refCookie.value = null;
+    try {
+      const result = await $fetch<{
+        ok: boolean;
+        credits_each?: number;
+        error?: string;
+      }>("/api/referrals/claim", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authSession.value.access_token}` },
+        body: { code: refCode },
+      });
+      if (result.ok) {
+        toast.add({
+          title: `Welcome! You and your friend each got ${result.credits_each ?? 50} free credits 🎉`,
+          color: "success",
+          duration: 6000,
+        });
+      }
+    } catch {
+      // silently ignore — invalid code, self-referral, already claimed etc.
+    }
   }
 
   const nextQuery = route.query.next as string | undefined;
