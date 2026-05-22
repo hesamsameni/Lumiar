@@ -3,13 +3,13 @@ definePageMeta({ layout: false });
 
 const router = useRouter();
 const route = useRoute();
+const refCookie = useCookie("lumiar_ref");
+const toast = useToast();
 
 onMounted(async () => {
   const supabase = useSupabaseClient();
   const { session: authSession } = useAuthState();
   const { fetchProfile } = useProfile();
-  const refCookie = useCookie("lumiar_ref");
-  const toast = useToast();
 
   // Fast path: session already available
   const {
@@ -54,6 +54,12 @@ onMounted(async () => {
 
   // Claim referral if a code was stored before signup
   const refCode = refCookie.value;
+  console.log(
+    "[referral] stored code:",
+    refCode,
+    "| has token:",
+    !!authSession.value?.access_token,
+  );
   if (refCode && authSession.value?.access_token) {
     refCookie.value = null;
     try {
@@ -66,15 +72,18 @@ onMounted(async () => {
         headers: { Authorization: `Bearer ${authSession.value.access_token}` },
         body: { code: refCode },
       });
+      console.log("[referral] claim result:", result);
       if (result.ok) {
         toast.add({
           title: `Welcome! You and your friend each got ${result.credits_each ?? 50} free credits 🎉`,
           color: "success",
           duration: 6000,
         });
+      } else {
+        console.warn("[referral] claim not ok:", result.error);
       }
-    } catch {
-      // silently ignore — invalid code, self-referral, already claimed etc.
+    } catch (err) {
+      console.error("[referral] claim failed:", err);
     }
   }
 
