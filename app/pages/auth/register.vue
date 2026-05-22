@@ -12,6 +12,7 @@ const email = ref("");
 const password = ref("");
 const confirmPassword = ref("");
 const loading = ref(false);
+const refCookie = useCookie("lumiar_ref");
 
 async function register() {
   if (password.value !== confirmPassword.value) {
@@ -19,10 +20,17 @@ async function register() {
     return;
   }
   loading.value = true;
+  // Embed the referral code in the redirect URL so it survives the email
+  // confirmation link (the cookie is browser-local and would be lost if the
+  // user opens the confirmation email on a different device).
+  const refCode = refCookie.value;
+  const callbackUrl = refCode
+    ? `${window.location.origin}/auth/callback?ref=${encodeURIComponent(refCode)}`
+    : `${window.location.origin}/auth/callback`;
   const { error } = await authService.signUpWithPassword(
     email.value,
     password.value,
-    `${window.location.origin}/auth/callback`,
+    callbackUrl,
   );
   loading.value = false;
   if (error) {
@@ -44,9 +52,11 @@ async function register() {
 }
 
 async function signInWithGoogle() {
-  const { error } = await authService.signInWithGoogle(
-    `${window.location.origin}/auth/callback`,
-  );
+  const refCode = refCookie.value;
+  const callbackUrl = refCode
+    ? `${window.location.origin}/auth/callback?ref=${encodeURIComponent(refCode)}`
+    : `${window.location.origin}/auth/callback`;
+  const { error } = await authService.signInWithGoogle(callbackUrl);
   if (error)
     toast.add({
       title: "Google sign in failed",

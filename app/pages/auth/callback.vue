@@ -52,12 +52,16 @@ onMounted(async () => {
     });
   }
 
-  // Claim referral if a code was stored before signup
-  const refCode = refCookie.value;
+  // Claim referral if a code was stored — prefer URL query param (survives
+  // email confirmation links across devices), fall back to cookie.
+  const refCode =
+    (route.query.ref as string | undefined) || refCookie.value || null;
   console.log(
     "[referral] stored code:",
     refCode,
-    "| has token:",
+    "(source:",
+    route.query.ref ? "url" : refCookie.value ? "cookie" : "none",
+    ") | has token:",
     !!authSession.value?.access_token,
   );
   if (refCode && authSession.value?.access_token) {
