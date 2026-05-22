@@ -10,6 +10,7 @@ export interface UserProfile {
   token_balance: number;
   is_admin: boolean;
   default_model_id: string | null;
+  referral_code: string | null;
 }
 
 /**

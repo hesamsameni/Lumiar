@@ -346,5 +346,10 @@ async function startCheckout() {
     <p class="text-center text-xs text-zinc-400 dark:text-zinc-500 mt-6">
       100 credits = €1 · Credits never expire
     </p>
+
+    <!-- Referral -->
+    <div class="mt-8">
+      <ReferralWidget />
+    </div>
   </div>
 </template>

@@ -10,6 +10,7 @@ export interface Database {
           bio: string | null;
           token_balance: number;
           is_admin: boolean;
+          referral_code: string | null;
           updated_at: string;
           created_at: string;
         };
@@ -68,6 +69,23 @@ export interface Database {
         };
         Insert: { follower_id: string; following_id: string };
         Update: never;
+      };
+      referrals: {
+        Row: {
+          id: string;
+          referrer_id: string;
+          referred_id: string;
+          created_at: string;
+          credits_awarded_at: string | null;
+        };
+        Insert: Omit<
+          Database["public"]["Tables"]["referrals"]["Row"],
+          "id" | "created_at"
+        >;
+        Update: Pick<
+          Database["public"]["Tables"]["referrals"]["Row"],
+          "credits_awarded_at"
+        >;
       };
       token_transactions: {
         Row: {

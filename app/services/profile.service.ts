@@ -6,13 +6,14 @@ export interface ProfileRow {
   bio: string | null;
   token_balance: number;
   is_admin: boolean;
+  referral_code: string | null;
 }
 
 export interface TokenTransactionRow {
   id: string;
   user_id: string;
   amount: number;
-  type: "generation" | "purchase" | "welcome" | "refund";
+  type: "generation" | "purchase" | "welcome" | "refund" | "referral";
   reference_id?: string | null;
   description?: string | null;
   created_at: string;
@@ -37,7 +38,7 @@ export function useProfileService() {
     return supabase
       .from("profiles")
       .select(
-        "id, username, full_name, avatar_url, bio, token_balance, is_admin, default_model_id",
+        "id, username, full_name, avatar_url, bio, token_balance, is_admin, default_model_id, referral_code",
       )
       .eq("id", id)
       .maybeSingle();
@@ -47,7 +48,7 @@ export function useProfileService() {
     return supabase
       .from("profiles")
       .select(
-        "id, username, full_name, avatar_url, bio, token_balance, is_admin, default_model_id",
+        "id, username, full_name, avatar_url, bio, token_balance, is_admin, default_model_id, referral_code",
       )
       .eq("username", username)
       .maybeSingle();
