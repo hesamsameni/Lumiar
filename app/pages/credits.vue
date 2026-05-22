@@ -7,18 +7,19 @@ const PACKS: Array<{
   featured?: boolean;
 }> = [
   { id: "starter", label: "Starter", euros: 2, credits: 200 },
-  { id: "basic", label: "Basic", euros: 5, credits: 500 },
-  { id: "popular", label: "Popular", euros: 10, credits: 1000, featured: true },
-  { id: "pro", label: "Pro", euros: 25, credits: 2500 },
+  { id: "basic", label: "Basic", euros: 5, credits: 550 },
+  { id: "popular", label: "Popular", euros: 10, credits: 1200, featured: true },
+  { id: "pro", label: "Pro", euros: 25, credits: 3250 },
 ];
 
-const PREMIUM_CREDITS_PER_GEN = 12; // GPT Image 2
-const STANDARD_CREDITS_PER_GEN = 7; // GPT Image 1
+const FAST_MODEL_COST = 3; // GPT Image 1 Mini — cheapest active model
+const PREMIUM_MODEL_COST = 15; // GPT Image 2 — most expensive active model
 
 function packHint(credits: number) {
-  const premium = Math.floor(credits / PREMIUM_CREDITS_PER_GEN);
-  const standard = Math.floor(credits / STANDARD_CREDITS_PER_GEN);
-  return { premium, standard };
+  return {
+    fast: Math.floor(credits / FAST_MODEL_COST),
+    premium: Math.floor(credits / PREMIUM_MODEL_COST),
+  };
 }
 
 const route = useRoute();
@@ -57,6 +58,7 @@ const finalEuros = computed(() => {
 });
 
 const finalCredits = computed(() => {
+  if (selectedPack.value) return selectedPack.value.credits;
   if (finalEuros.value === null) return null;
   return Math.floor(finalEuros.value * 100);
 });
@@ -94,7 +96,7 @@ async function startCheckout() {
     const accessToken = sessionData.session?.access_token;
     const { url } = await $fetch<{ url: string }>("/api/stripe/checkout", {
       method: "POST",
-      body: { amountEuros: finalEuros.value },
+      body: { amountEuros: finalEuros.value, credits: finalCredits.value },
       headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
     });
     window.location.href = url!;
@@ -227,7 +229,10 @@ async function startCheckout() {
         <span
           class="text-[11px] text-zinc-400 dark:text-zinc-500 mt-1 leading-tight"
         >
-          ~{{ packHint(pack.credits).premium }} premium images
+          ~{{ packHint(pack.credits).premium }} premium · ~{{
+            packHint(pack.credits).fast
+          }}
+          fast
         </span>
         <UIcon
           name="i-lucide-check-circle-2"
@@ -250,11 +255,9 @@ async function startCheckout() {
         class="size-4 text-amber-500 flex-shrink-0 mt-0.5"
       />
       <p class="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
-        <strong>€10</strong> gets you
-        <strong>~{{ packHint(1000).premium }} images</strong> with premium
-        models (GPT Image 2) or
-        <strong>~{{ packHint(1000).standard }} images</strong> with standard
-        models. Credits never expire — use them at your own pace.
+        <strong>€10</strong> gets you ~{{ packHint(1200).premium }} images with
+        premium models, or ~{{ packHint(1200).fast }} images with fast models.
+        Credits never expire — use them at your own pace.
       </p>
     </div>
 
@@ -345,6 +348,9 @@ async function startCheckout() {
     <!-- Rate info -->
     <p class="text-center text-xs text-zinc-400 dark:text-zinc-500 mt-6">
       100 credits = €1 · Credits never expire
+    </p>
+    <p class="text-center text-[11px] text-zinc-400 dark:text-zinc-500 mt-2">
+      Different AI models use different amounts of credits.
     </p>
 
     <!-- Referral -->

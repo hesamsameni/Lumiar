@@ -5,13 +5,16 @@ export default defineEventHandler(async (event) => {
   const user = await requireUser(event);
   const config = useRuntimeConfig();
 
-  const { amountEuros } = await readBody<{ amountEuros: number }>(event);
+  const { amountEuros, credits: creditsFromClient } = await readBody<{
+    amountEuros: number;
+    credits?: number;
+  }>(event);
 
   if (!amountEuros || amountEuros < 2) {
     throw createError({ statusCode: 400, message: "Minimum amount is €2" });
   }
 
-  const tokens = Math.floor(amountEuros * 100);
+  const tokens = creditsFromClient ?? Math.floor(amountEuros * 100);
   const amountCents = Math.round(amountEuros * 100);
 
   if (!config.stripeSecretKey) {
@@ -30,7 +33,7 @@ export default defineEventHandler(async (event) => {
           price_data: {
             currency: "eur",
             product_data: {
-              name: `${tokens.toLocaleString()} Lumiar Tokens`,
+              name: `${tokens.toLocaleString()} Lumiar Credits`,
               description: "AI image generation credits — no expiry",
             },
             unit_amount: amountCents,
