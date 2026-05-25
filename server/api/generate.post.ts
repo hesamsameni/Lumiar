@@ -278,6 +278,43 @@ export default defineEventHandler(async (event) => {
 
   const generationId = (generation as { id: string }).id;
 
+  // --- Token deduction (server-side so it survives client timeouts) ---
+  const tokensToDeduct =
+    typeof tokensUsed === "number" ? Math.max(0, tokensUsed) : 0;
+  if (tokensToDeduct > 0) {
+    try {
+      const { data: profileRow } = await (supabase as any)
+        .from("profiles")
+        .select("token_balance, is_admin")
+        .eq("id", user.id)
+        .single();
+      if (profileRow && !profileRow.is_admin) {
+        const newBalance = Math.max(
+          0,
+          (profileRow.token_balance ?? 0) - tokensToDeduct,
+        );
+        await Promise.all([
+          (supabase as any)
+            .from("profiles")
+            .update({
+              token_balance: newBalance,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", user.id),
+          (supabase as any).from("token_transactions").insert({
+            user_id: user.id,
+            amount: -tokensToDeduct,
+            type: "generation",
+            reference_id: generationId,
+            description: `Generation with ${modelName}`,
+          }),
+        ]);
+      }
+    } catch (err) {
+      console.error("[generate] Token deduction failed (non-fatal):", err);
+    }
+  }
+
   const sessionId = getHeader(event, "x-posthog-session-id");
   const distinctId = getHeader(event, "x-posthog-distinct-id");
   const posthog = useServerPostHog();

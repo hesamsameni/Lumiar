@@ -6,7 +6,8 @@ import { useProfileService } from "~/services/profile.service";
 import { convertHeicToJpeg } from "~/utils/imageCompression";
 
 const route = useRoute();
-const { generate, isGenerating, result } = useGeneration();
+const { generate, isGenerating, isPendingInBackground, result } =
+  useGeneration();
 const generationService = useGenerationService();
 const toast = useToast();
 const { fetchModels, firstModel, getModelById } = useModels();
@@ -653,6 +654,19 @@ function getRatioStyle(value: string): Record<string, string> {
       @update:open="showPromptLibrary = $event"
       @select="prompt = $event"
     />
+
+    <div
+      v-if="isPendingInBackground"
+      class="mt-6 flex items-center gap-3 rounded-2xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/40 px-4 py-3 text-sm text-blue-700 dark:text-blue-300"
+    >
+      <span
+        class="size-2 rounded-full bg-blue-500 animate-pulse flex-shrink-0"
+      />
+      <span
+        >Your image is being generated in the background. It'll appear here
+        automatically when ready.</span
+      >
+    </div>
 
     <GenerationResult
       v-if="result"

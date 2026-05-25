@@ -111,10 +111,11 @@ export function useGeneration() {
   const { profile } = useProfile();
   const supabase = useSupabaseClient();
   const toast = useToast();
-  const { deductTokens, fetchBalance } = useTokens();
+  const { fetchBalance } = useTokens();
   const posthog = usePostHog();
 
   const isGenerating = ref(false);
+  const isPendingInBackground = ref(false);
   const result = ref<{ imageUrl: string; generationId: string } | null>(null);
 
   async function generate(opts: {
@@ -145,7 +146,9 @@ export function useGeneration() {
     }
 
     isGenerating.value = true;
+    isPendingInBackground.value = false;
     result.value = null;
+    const requestStartedAt = new Date();
 
     posthog?.capture("image_generation_started", {
       model_name: opts.model.name,
@@ -219,11 +222,6 @@ export function useGeneration() {
         headers: authHeaders,
       });
 
-      await deductTokens(
-        opts.model.tokens_per_generation,
-        genRes.generationId,
-        `Generation with ${opts.model.name}`,
-      );
       await fetchBalance();
 
       result.value = {
@@ -244,6 +242,29 @@ export function useGeneration() {
       toast.add({ title: "Image generated!", color: "success" });
       return result.value;
     } catch (err: unknown) {
+      const statusCode =
+        (err as any)?.status ??
+        (err as any)?.statusCode ??
+        (err as any)?.data?.status;
+      const isGatewayTimeout =
+        statusCode === 524 ||
+        statusCode === 504 ||
+        (err as any)?.data?.cloudflare_error === true;
+
+      if (isGatewayTimeout) {
+        isPendingInBackground.value = true;
+        isGenerating.value = false;
+        toast.add({
+          title: "Still generating…",
+          description:
+            "This model is taking a while. Your image will appear here and in your profile when ready — you can browse other pages.",
+          color: "info",
+          duration: 8000,
+        });
+        pollForGeneration(requestStartedAt);
+        return null;
+      }
+
       const { title, description } = friendlyErrorMessage(err);
       posthog?.capture("image_generation_failed", {
         model_name: opts.model.name,
@@ -258,5 +279,45 @@ export function useGeneration() {
     }
   }
 
-  return { generate, isGenerating, result };
+  async function pollForGeneration(since: Date) {
+    const MAX_ATTEMPTS = 24; // 24 × 15 s = 6 min
+    let attempts = 0;
+
+    const check = async () => {
+      if (!isPendingInBackground.value || attempts >= MAX_ATTEMPTS) {
+        isPendingInBackground.value = false;
+        return;
+      }
+      attempts++;
+
+      try {
+        const { data } = await (supabase as any)
+          .from("generations")
+          .select("id, output_image_url")
+          .eq("user_id", profile.value?.id)
+          .gte("created_at", since.toISOString())
+          .order("created_at", { ascending: false })
+          .limit(1);
+
+        if (data && data.length > 0) {
+          isPendingInBackground.value = false;
+          result.value = {
+            imageUrl: data[0].output_image_url,
+            generationId: data[0].id,
+          };
+          await fetchBalance();
+          toast.add({ title: "Image ready!", color: "success" });
+          return;
+        }
+      } catch {
+        // silently retry
+      }
+
+      setTimeout(check, 15_000);
+    };
+
+    setTimeout(check, 20_000); // first check after 20 s
+  }
+
+  return { generate, isGenerating, isPendingInBackground, result };
 }
