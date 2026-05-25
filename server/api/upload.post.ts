@@ -1,8 +1,4 @@
-import {
-  buildCdnUrl,
-  generateStorageFilename,
-  uploadToBunny,
-} from "../utils/bunny";
+import { buildCdnUrl, generateStorageFilename, uploadToR2 } from "../utils/r2";
 
 const ALLOWED_MIME_TYPES: Record<string, string> = {
   "image/jpeg": "jpg",
@@ -11,16 +7,22 @@ const ALLOWED_MIME_TYPES: Record<string, string> = {
 };
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
-const ALLOWED_FOLDERS = ["generations", "profile-pictures"] as const;
+const FOLDER_MAP: Record<string, string> = {
+  generations: "lumiar-original-images",
+  "profile-pictures": "lumiar-profile-pics",
+};
+const ALLOWED_FOLDERS = Object.keys(FOLDER_MAP) as string[];
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig();
   const user = await requireUser(event);
 
   const { folder: folderParam } = getQuery(event) as { folder?: string };
-  const folder = ALLOWED_FOLDERS.includes(folderParam as never)
-    ? (folderParam as string)
-    : "generations";
+  const folderKey =
+    folderParam && ALLOWED_FOLDERS.includes(folderParam)
+      ? folderParam
+      : "generations";
+  const folder = FOLDER_MAP[folderKey]!;
 
   const formData = await readFormData(event);
   const file = formData.get("file");
@@ -40,13 +42,18 @@ export default defineEventHandler(async (event) => {
 
   const ext = ALLOWED_MIME_TYPES[file.type] ?? "png";
   const path = `${folder}/${user.id}/${generateStorageFilename(ext)}`;
+
   const buffer = Buffer.from(await file.arrayBuffer());
 
   try {
-    await uploadToBunny(
-      config.bunnyStorageHostname as string,
-      config.bunnyStorageZone as string,
-      config.bunnyApiKey as string,
+    await uploadToR2(
+      {
+        cdnUrl: String(config.public.r2PublicUrl),
+        accountId: String(config.r2AccountId),
+        accessKeyId: String(config.r2AccessKeyId),
+        secretAccessKey: String(config.r2SecretAccessKey),
+        bucketName: String(config.r2BucketName),
+      },
       path,
       buffer,
     );
@@ -55,5 +62,5 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 500, message: msg });
   }
 
-  return { url: buildCdnUrl(config.public.bunnyCdnUrl as string, path), path };
+  return { url: buildCdnUrl(config.public.r2PublicUrl as string, path), path };
 });

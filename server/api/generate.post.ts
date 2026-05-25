@@ -8,8 +8,9 @@ import {
 import {
   buildCdnUrl,
   generateStorageFilename,
-  uploadToBunny,
-} from "../utils/bunny";
+  uploadToR2,
+  type R2Config,
+} from "../utils/r2";
 import { inferTagsFromPrompt } from "../utils/tags";
 import { useServerPostHog } from "../utils/posthog";
 
@@ -124,11 +125,12 @@ export default defineEventHandler(async (event) => {
       ? modelId.replace(/^google\//, "")
       : modelId;
 
-  const bunnyConfig = {
-    cdnUrl: String(config.public.bunnyCdnUrl),
-    storageHostname: String(config.bunnyStorageHostname),
-    storageZone: String(config.bunnyStorageZone),
-    accessKey: String(config.bunnyApiKey),
+  const r2Config: R2Config = {
+    cdnUrl: String(config.public.r2PublicUrl),
+    accountId: String(config.r2AccountId),
+    accessKeyId: String(config.r2AccessKeyId),
+    secretAccessKey: String(config.r2SecretAccessKey),
+    bucketName: String(config.r2BucketName),
   };
 
   // --- Image generation ---
@@ -140,7 +142,7 @@ export default defineEventHandler(async (event) => {
       null,
       inputImageUrl ?? null,
       INPUT_IMAGE_REQUEST_HEADERS,
-      bunnyConfig,
+      r2Config,
     ).catch(() => null);
 
     const allImagesBase64: string[] = [
@@ -208,21 +210,15 @@ export default defineEventHandler(async (event) => {
     imageBase64.replace(/^data:image\/[a-z]+;base64,/, ""),
     "base64",
   );
-  const outputPath = `generations/${user.id}/${generateStorageFilename("png")}`;
+  const outputPath = `lumiar-generations/${user.id}/${generateStorageFilename("png")}`;
 
   let outputImageUrl: string;
   let autoTags: string[];
   try {
     [outputImageUrl, autoTags] = await Promise.all([
       (async () => {
-        await uploadToBunny(
-          bunnyConfig.storageHostname,
-          bunnyConfig.storageZone,
-          bunnyConfig.accessKey,
-          outputPath,
-          imageBuffer,
-        );
-        return buildCdnUrl(bunnyConfig.cdnUrl, outputPath);
+        await uploadToR2(r2Config, outputPath, imageBuffer, "image/png");
+        return buildCdnUrl(r2Config.cdnUrl, outputPath);
       })(),
       inferTagsFromPrompt(config.openrouterApiKey as string, trimmedPrompt),
     ]);
@@ -287,8 +283,7 @@ export default defineEventHandler(async (event) => {
       provider: resolvedProvider,
       tokens_used: typeof tokensUsed === "number" ? Math.max(0, tokensUsed) : 0,
       aspect_ratio: aspectRatio ?? "1:1",
-      has_input_images:
-        rawBase64Inputs.length > 0 || !!inputImageUrl,
+      has_input_images: rawBase64Inputs.length > 0 || !!inputImageUrl,
       is_edit: !!parentId,
       generation_id: generationId,
     },

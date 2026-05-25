@@ -73,14 +73,15 @@ export default defineNuxtConfig({
     openrouterApiKey: process.env.OPENROUTER_API_KEY,
     openaiApiKey: process.env.OPENAI_API_KEY,
     googleApiKey: process.env.GOOGLE_API_KEY,
-    bunnyApiKey: process.env.BUNNY_API_KEY,
-    bunnyStorageZone: process.env.BUNNY_STORAGE_ZONE,
-    bunnyStorageHostname: process.env.BUNNY_STORAGE_HOSTNAME,
+    r2AccountId: process.env.R2_ACCOUNT_ID,
+    r2AccessKeyId: process.env.R2_ACCESS_KEY_ID,
+    r2SecretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+    r2BucketName: process.env.R2_BUCKET_NAME,
     stripeSecretKey: process.env.STRIPE_SECRET_KEY,
     stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
     supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
     public: {
-      bunnyCdnUrl: process.env.BUNNY_CDN_URL,
+      r2PublicUrl: process.env.R2_PUBLIC_URL,
       posthog: {
         publicKey: process.env.NUXT_PUBLIC_POSTHOG_PROJECT_TOKEN || "",
         host:

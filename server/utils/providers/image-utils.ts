@@ -2,11 +2,12 @@
 // Shared types
 // ---------------------------------------------------------------------------
 
-export interface BunnyConfig {
+export interface StorageConfig {
   cdnUrl: string;
-  storageHostname: string;
-  storageZone: string;
-  accessKey: string;
+  accountId: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  bucketName: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -39,13 +40,13 @@ function isSafeUrl(url: URL): boolean {
 /**
  * Resolves an input image to a base64 data URI.
  * Prefers a pre-supplied base64 string, then fetches the URL.
- * Falls back to the Bunny storage API when the CDN returns a non-OK response.
+ * R2 public buckets are always publicly readable, so a plain CDN fetch suffices.
  */
 export async function resolveInputImageBase64(
   inputImageBase64: string | null,
   inputImageUrl: string | null,
   requestHeaders?: Record<string, string>,
-  bunnyConfig?: BunnyConfig,
+  _storageConfig?: StorageConfig,
 ): Promise<string | null> {
   if (inputImageBase64) return inputImageBase64;
   if (!inputImageUrl) return null;
@@ -66,21 +67,6 @@ export async function resolveInputImageBase64(
     });
   } catch {
     response = new Response(null, { status: 599 });
-  }
-
-  if (!response.ok && bunnyConfig) {
-    const inputUrl = new URL(inputImageUrl);
-    const cdnOrigin = bunnyConfig.cdnUrl.startsWith("http")
-      ? new URL(bunnyConfig.cdnUrl)
-      : new URL(`https://${bunnyConfig.cdnUrl}`);
-
-    if (inputUrl.host === cdnOrigin.host) {
-      const inputPath = inputUrl.pathname.replace(/^\/+/, "");
-      const storageUrl = `https://${bunnyConfig.storageHostname}/${bunnyConfig.storageZone}/${inputPath}`;
-      response = await fetch(storageUrl, {
-        headers: { AccessKey: bunnyConfig.accessKey },
-      });
-    }
   }
 
   if (!response.ok) throw new Error("Failed to fetch input image");
