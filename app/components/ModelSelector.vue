@@ -18,7 +18,8 @@ type CompanyKey =
   | "google"
   | "recraft"
   | "black-forest-labs"
-  | "bytedance";
+  | "bytedance"
+  | "x-ai";
 
 const companyMeta: Record<
   CompanyKey,
@@ -49,6 +50,11 @@ const companyMeta: Record<
     subtitle: "Bytedance family",
     logo: "/ai-logos/bytedance.svg",
   },
+  "x-ai": {
+    label: "xAI",
+    subtitle: "Grok Imagine family",
+    logo: "/ai-logos/xai.svg",
+  },
 };
 
 const companyOrder: CompanyKey[] = [
@@ -57,6 +63,7 @@ const companyOrder: CompanyKey[] = [
   "recraft",
   "black-forest-labs",
   "bytedance",
+  "x-ai",
 ];
 
 const COMPANY_ID_MAP: Partial<Record<string, CompanyKey>> = {
@@ -70,6 +77,7 @@ const groupedModels = computed(() => {
     recraft: [],
     "black-forest-labs": [],
     bytedance: [],
+    "x-ai": [],
   };
   for (const model of models.value) {
     const prefix = model.id.split("/")[0] ?? "";
