@@ -1,8 +1,8 @@
 import {
   buildCdnUrl,
   generateStorageFilename,
-  uploadToBunny,
-} from "../../../utils/bunny";
+  uploadToR2,
+} from "../../../utils/r2";
 
 const ALLOWED_MIME_TYPES: Record<string, string> = {
   "image/jpeg": "jpg",
@@ -33,14 +33,18 @@ export default defineEventHandler(async (event) => {
   }
 
   const ext = ALLOWED_MIME_TYPES[file.type] ?? "jpg";
-  const path = `prompt-library/${promptId}/${generateStorageFilename(ext)}`;
+  const path = `lumiar-thumbnails/${promptId}/${generateStorageFilename(ext)}`;
   const buffer = Buffer.from(await file.arrayBuffer());
 
   try {
-    await uploadToBunny(
-      config.bunnyStorageHostname as string,
-      config.bunnyStorageZone as string,
-      config.bunnyApiKey as string,
+    await uploadToR2(
+      {
+        cdnUrl: String(config.public.r2PublicUrl),
+        accountId: String(config.r2AccountId),
+        accessKeyId: String(config.r2AccessKeyId),
+        secretAccessKey: String(config.r2SecretAccessKey),
+        bucketName: String(config.r2BucketName),
+      },
       path,
       buffer,
     );
@@ -49,5 +53,5 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 500, message: msg });
   }
 
-  return { url: buildCdnUrl(config.public.bunnyCdnUrl as string, path) };
+  return { url: buildCdnUrl(config.public.r2PublicUrl as string, path) };
 });

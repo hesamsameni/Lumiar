@@ -1,5 +1,5 @@
 import { serverSupabaseClient } from "#supabase/server";
-import { buildCdnUrl, deleteFromBunny } from "../../utils/bunny";
+import { buildCdnUrl, deleteFromR2 } from "../../utils/r2";
 
 export default defineEventHandler(async (event) => {
   const user = await requireUser(event);
@@ -33,19 +33,23 @@ export default defineEventHandler(async (event) => {
 
   const config = useRuntimeConfig();
   try {
-    const cdnBase = buildCdnUrl(config.public.bunnyCdnUrl as string, "");
+    const cdnBase = buildCdnUrl(config.public.r2PublicUrl as string, "");
     const imageUrl = gen.output_image_url as string;
     if (imageUrl.startsWith(cdnBase)) {
       const path = imageUrl.slice(cdnBase.length);
-      await deleteFromBunny(
-        config.bunnyStorageHostname as string,
-        config.bunnyStorageZone as string,
-        config.bunnyApiKey as string,
+      await deleteFromR2(
+        {
+          cdnUrl: String(config.public.r2PublicUrl),
+          accountId: String(config.r2AccountId),
+          accessKeyId: String(config.r2AccessKeyId),
+          secretAccessKey: String(config.r2SecretAccessKey),
+          bucketName: String(config.r2BucketName),
+        },
         path,
       );
     }
   } catch (err) {
-    console.error("[delete generation] Bunny delete failed (non-fatal):", err);
+    console.error("[delete generation] R2 delete failed (non-fatal):", err);
   }
 
   return { success: true };
