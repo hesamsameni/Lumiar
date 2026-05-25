@@ -133,7 +133,15 @@ export default defineEventHandler(async (event) => {
     bucketName: String(config.r2BucketName),
   };
 
-  // --- Image generation ---
+  // --- Image generation + tag inference (in parallel) ---
+  // Tag inference only needs the prompt text and finishes in ~2-3 s.
+  // Running it concurrently with the AI image call (which takes 30-120 s)
+  // means tags are ready before the image is, adding 0 s to the critical path.
+  const tagsPromise = inferTagsFromPrompt(
+    config.openrouterApiKey as string,
+    trimmedPrompt,
+  );
+
   // Resolve the editing URL (if present) to base64 server-side, then combine
   // with any directly-uploaded base64 images into a single ordered array.
   let imageBase64: string;
@@ -205,7 +213,7 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  // --- Upload + tag inference (parallel) ---
+  // --- Upload to R2 (tags are already resolving in background) ---
   const imageBuffer = Buffer.from(
     imageBase64.replace(/^data:image\/[a-z]+;base64,/, ""),
     "base64",
@@ -220,7 +228,7 @@ export default defineEventHandler(async (event) => {
         await uploadToR2(r2Config, outputPath, imageBuffer, "image/png");
         return buildCdnUrl(r2Config.cdnUrl, outputPath);
       })(),
-      inferTagsFromPrompt(config.openrouterApiKey as string, trimmedPrompt),
+      tagsPromise,
     ]);
   } catch {
     throw createError({

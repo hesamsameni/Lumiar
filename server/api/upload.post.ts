@@ -1,4 +1,9 @@
-import { buildCdnUrl, generateStorageFilename, uploadToR2 } from "../utils/r2";
+import {
+  buildCdnUrl,
+  deleteFromR2,
+  generateStorageFilename,
+  uploadToR2,
+} from "../utils/r2";
 
 const ALLOWED_MIME_TYPES: Record<string, string> = {
   "image/jpeg": "jpg",
@@ -17,7 +22,10 @@ export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig();
   const user = await requireUser(event);
 
-  const { folder: folderParam } = getQuery(event) as { folder?: string };
+  const { folder: folderParam, oldUrl } = getQuery(event) as {
+    folder?: string;
+    oldUrl?: string;
+  };
   const folderKey =
     folderParam && ALLOWED_FOLDERS.includes(folderParam)
       ? folderParam
@@ -62,5 +70,26 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 500, message: msg });
   }
 
-  return { url: buildCdnUrl(config.public.r2PublicUrl as string, path), path };
+  const newUrl = buildCdnUrl(config.public.r2PublicUrl as string, path);
+
+  if (oldUrl) {
+    const cdnBase = buildCdnUrl(config.public.r2PublicUrl as string, "");
+    if (oldUrl.startsWith(cdnBase)) {
+      const oldPath = oldUrl.slice(cdnBase.length);
+      deleteFromR2(
+        {
+          cdnUrl: String(config.public.r2PublicUrl),
+          accountId: String(config.r2AccountId),
+          accessKeyId: String(config.r2AccessKeyId),
+          secretAccessKey: String(config.r2SecretAccessKey),
+          bucketName: String(config.r2BucketName),
+        },
+        oldPath,
+      ).catch((err) =>
+        console.error("[upload] old R2 object delete failed (non-fatal):", err),
+      );
+    }
+  }
+
+  return { url: newUrl, path };
 });

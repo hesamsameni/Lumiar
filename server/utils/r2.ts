@@ -12,15 +12,23 @@ export interface R2Config {
   cdnUrl: string;
 }
 
-function createR2Client(config: R2Config): S3Client {
-  return new S3Client({
-    region: "auto",
-    endpoint: `https://${config.accountId}.r2.cloudflarestorage.com`,
-    credentials: {
-      accessKeyId: config.accessKeyId,
-      secretAccessKey: config.secretAccessKey,
-    },
-  });
+let _cachedClient: S3Client | null = null;
+let _cachedEndpoint: string | null = null;
+
+function getR2Client(config: R2Config): S3Client {
+  const endpoint = `https://${config.accountId}.r2.cloudflarestorage.com`;
+  if (!_cachedClient || _cachedEndpoint !== endpoint) {
+    _cachedClient = new S3Client({
+      region: "auto",
+      endpoint,
+      credentials: {
+        accessKeyId: config.accessKeyId,
+        secretAccessKey: config.secretAccessKey,
+      },
+    });
+    _cachedEndpoint = endpoint;
+  }
+  return _cachedClient;
 }
 
 export function buildCdnUrl(publicUrl: string, path: string): string {
@@ -40,7 +48,7 @@ export async function uploadToR2(
   buffer: Buffer,
   contentType: string = "application/octet-stream",
 ): Promise<void> {
-  const client = createR2Client(config);
+  const client = getR2Client(config);
   const command = new PutObjectCommand({
     Bucket: config.bucketName,
     Key: path,
@@ -59,7 +67,7 @@ export async function deleteFromR2(
   config: R2Config,
   path: string,
 ): Promise<void> {
-  const client = createR2Client(config);
+  const client = getR2Client(config);
   const command = new DeleteObjectCommand({
     Bucket: config.bucketName,
     Key: path,

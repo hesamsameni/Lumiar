@@ -83,8 +83,11 @@ async function save() {
       const compressed = await compressImage(avatarFile.value, 400, 0.85);
       const formData = new FormData();
       formData.append("file", compressed);
+      const oldAvatarParam = currentAvatarUrl.value
+        ? `&oldUrl=${encodeURIComponent(currentAvatarUrl.value)}`
+        : "";
       const { url } = await $fetch<{ url: string }>(
-        "/api/upload?folder=profile-pictures",
+        `/api/upload?folder=profile-pictures${oldAvatarParam}`,
         {
           method: "POST",
           headers: {
