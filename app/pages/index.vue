@@ -4,10 +4,12 @@ import { ASPECT_RATIOS } from "~/utils/constants";
 import { useGenerationService } from "~/services/generation.service";
 import { useProfileService } from "~/services/profile.service";
 import { convertHeicToJpeg } from "~/utils/imageCompression";
+import { useHints } from "~/composables/useHints";
 
 const route = useRoute();
 const { generate, isGenerating, isPendingInBackground, result } =
   useGeneration();
+const { isVisible, dismiss } = useHints();
 const generationService = useGenerationService();
 const toast = useToast();
 const { fetchModels, firstModel, getModelById } = useModels();
@@ -655,6 +657,45 @@ function getRatioStyle(value: string): Record<string, string> {
       @select="prompt = $event"
     />
 
+    <!-- New-joiner hints: pre-generation (model & prompt library) -->
+    <Transition
+      enter-active-class="transition-all duration-300 ease-out"
+      enter-from-class="opacity-0 translate-y-2"
+      enter-to-class="opacity-100 translate-y-0"
+      leave-active-class="transition-all duration-200 ease-in"
+      leave-from-class="opacity-100 translate-y-0"
+      leave-to-class="opacity-0 translate-y-2"
+    >
+      <div
+        v-if="
+          !result &&
+          !isGenerating &&
+          !isPendingInBackground &&
+          (isVisible('model-selector') || isVisible('prompt-library'))
+        "
+        class="mt-4 grid grid-cols-2 gap-2.5"
+      >
+        <HintCard
+          v-if="isVisible('model-selector')"
+          icon="i-lucide-cpu"
+          title="Try different models"
+          description="Each AI model has a unique style. Switch models to explore different results."
+          action-label="Change model"
+          @action="showModelSelector = true"
+          @dismiss="dismiss('model-selector')"
+        />
+        <HintCard
+          v-if="isVisible('prompt-library')"
+          icon="i-lucide-library"
+          title="Need inspiration?"
+          description="Browse curated prompts from the library to get started quickly."
+          action-label="Open library"
+          @action="showPromptLibrary = true"
+          @dismiss="dismiss('prompt-library')"
+        />
+      </div>
+    </Transition>
+
     <div
       v-if="isPendingInBackground"
       class="mt-6 flex items-center gap-3 rounded-2xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/40 px-4 py-3 text-sm text-blue-700 dark:text-blue-300"
@@ -677,5 +718,124 @@ function getRatioStyle(value: string): Record<string, string> {
       @edit="handleEditResult"
       @deleted="result = null"
     />
+
+    <!-- New-joiner hints: post-generation -->
+    <Transition
+      enter-active-class="transition-all duration-500 ease-out"
+      enter-from-class="opacity-0 translate-y-2"
+      enter-to-class="opacity-100 translate-y-0"
+    >
+      <div
+        v-if="result && isVisible('post-gen-tips')"
+        class="mt-5 rounded-2xl border border-zinc-200/70 dark:border-zinc-700/50 bg-white/60 dark:bg-zinc-900/50 backdrop-blur-md overflow-hidden"
+      >
+        <!-- Header -->
+        <div class="flex items-center justify-between px-4 pt-3.5 pb-2">
+          <span
+            class="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500"
+          >
+            What's next?
+          </span>
+          <button
+            type="button"
+            class="flex items-center justify-center rounded-lg p-1 text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400 transition-colors"
+            title="Dismiss"
+            @click="dismiss('post-gen-tips')"
+          >
+            <UIcon name="i-lucide-x" class="size-3.5" />
+          </button>
+        </div>
+
+        <!-- Rows -->
+        <div class="divide-y divide-zinc-100 dark:divide-zinc-800/60">
+          <!-- Share to Explore -->
+          <button
+            type="button"
+            class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/40 transition-colors group"
+            @click="dismiss('post-gen-tips')"
+          >
+            <div
+              class="flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"
+            >
+              <UIcon name="i-lucide-share-2" class="size-3.5" />
+            </div>
+            <div class="flex-1 min-w-0">
+              <p
+                class="text-xs font-semibold text-zinc-800 dark:text-zinc-100 leading-snug"
+              >
+                Share your creation
+              </p>
+              <p
+                class="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5 leading-snug"
+              >
+                Share to Explore so the community can see your work
+              </p>
+            </div>
+            <UIcon
+              name="i-lucide-arrow-right"
+              class="size-3.5 text-zinc-300 dark:text-zinc-600 group-hover:text-primary group-hover:translate-x-0.5 transition-all shrink-0"
+            />
+          </button>
+
+          <!-- Earn credits -->
+          <NuxtLink
+            to="/profile"
+            class="flex items-center gap-3 px-4 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-800/40 transition-colors group"
+            @click="dismiss('post-gen-tips')"
+          >
+            <div
+              class="flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"
+            >
+              <UIcon name="i-lucide-users" class="size-3.5" />
+            </div>
+            <div class="flex-1 min-w-0">
+              <p
+                class="text-xs font-semibold text-zinc-800 dark:text-zinc-100 leading-snug"
+              >
+                Earn free credits
+              </p>
+              <p
+                class="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5 leading-snug"
+              >
+                Invite friends and both of you get free credits
+              </p>
+            </div>
+            <UIcon
+              name="i-lucide-arrow-right"
+              class="size-3.5 text-zinc-300 dark:text-zinc-600 group-hover:text-primary group-hover:translate-x-0.5 transition-all shrink-0"
+            />
+          </NuxtLink>
+
+          <!-- Explore -->
+          <NuxtLink
+            to="/explore"
+            class="flex items-center gap-3 px-4 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-800/40 transition-colors group"
+            @click="dismiss('post-gen-tips')"
+          >
+            <div
+              class="flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"
+            >
+              <UIcon name="i-lucide-compass" class="size-3.5" />
+            </div>
+            <div class="flex-1 min-w-0">
+              <p
+                class="text-xs font-semibold text-zinc-800 dark:text-zinc-100 leading-snug"
+              >
+                Explore the community
+              </p>
+              <p
+                class="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5 leading-snug"
+              >
+                See what others are creating for endless inspiration
+              </p>
+            </div>
+            <UIcon
+              name="i-lucide-arrow-right"
+              class="size-3.5 text-zinc-300 dark:text-zinc-600 group-hover:text-primary group-hover:translate-x-0.5 transition-all shrink-0"
+            />
+          </NuxtLink>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
