@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { PromptCard } from "~/utils/promptLibrary";
+
 useHead({ title: "Prompt Library — Lumiar" });
 
 const router = useRouter();
@@ -9,6 +11,7 @@ await fetchLibrary();
 
 const search = ref("");
 const selectedCategory = ref<string | null>(null);
+const customizingCard = ref<PromptCard | null>(null);
 
 const groupedCards = computed(() => {
   let filtered = promptCards.value;
@@ -51,6 +54,15 @@ function handleUsePrompt(prompt: string) {
     description: "Your prompt has been pre-filled on the generate page.",
     color: "success",
   });
+}
+
+function handleCustomizePrompt(card: PromptCard) {
+  customizingCard.value = card;
+}
+
+function handleCustomized(prompt: string) {
+  customizingCard.value = null;
+  handleUsePrompt(prompt);
 }
 </script>
 
@@ -152,9 +164,22 @@ function handleUsePrompt(prompt: string) {
             :key="card.cardId"
             :card="card"
             @use="handleUsePrompt"
+            @customize="handleCustomizePrompt"
           />
         </div>
       </section>
     </div>
   </div>
+
+  <PromptCustomizerModal
+    v-if="customizingCard"
+    :open="!!customizingCard"
+    :card="customizingCard"
+    @update:open="
+      (v: boolean) => {
+        if (!v) customizingCard = null;
+      }
+    "
+    @use="handleCustomized"
+  />
 </template>

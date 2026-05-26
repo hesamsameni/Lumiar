@@ -1,5 +1,9 @@
 <script setup lang="ts">
-import type { PromptCategory, PromptItem } from "~/utils/promptLibrary";
+import type {
+  PromptCategory,
+  PromptItem,
+  PromptPlaceholder,
+} from "~/utils/promptLibrary";
 import { compressImage } from "~/utils/imageCompression";
 
 const { session } = useAuthState();
@@ -162,6 +166,7 @@ type PromptForm = {
   title: string;
   prompt: string;
   image_urls: string[];
+  placeholders: PromptPlaceholder[];
   sort_order: number;
   is_active: boolean;
 };
@@ -172,6 +177,7 @@ const emptyPromptForm = (): PromptForm => ({
   title: "",
   prompt: "",
   image_urls: [],
+  placeholders: [],
   sort_order: 0,
   is_active: true,
 });
@@ -225,6 +231,7 @@ function openEditPrompt(p: PromptItem) {
     title: p.title,
     prompt: p.prompt,
     image_urls: [...(p.image_urls ?? [])],
+    placeholders: (p.placeholders ?? []).map((ph) => ({ ...ph })),
     sort_order: p.sort_order,
     is_active: p.is_active,
   };
@@ -281,6 +288,7 @@ async function savePrompt() {
       title: promptForm.value.title.trim(),
       prompt: promptForm.value.prompt.trim(),
       image_urls: promptForm.value.image_urls,
+      placeholders: promptForm.value.placeholders.filter((p) => p.key.trim()),
       sort_order: Number(promptForm.value.sort_order),
       is_active: Boolean(promptForm.value.is_active),
     };
@@ -553,7 +561,7 @@ await Promise.all([fetchCategories(), fetchPrompts()]);
                     v-for="(url, i) in p.image_urls.slice(0, 3)"
                     :key="i"
                     :src="url"
-                    class="size-8 rounded object-cover border border-zinc-200 dark:border-zinc-700"
+                    class="size-16 rounded-lg object-cover border border-zinc-200 dark:border-zinc-700"
                   />
                   <span
                     v-if="p.image_urls.length > 3"
@@ -792,6 +800,105 @@ await Promise.all([fetchCategories(), fetchPrompts()]);
                 class="w-full"
               />
             </UFormField>
+          </div>
+
+          <USeparator />
+
+          <!-- Placeholders -->
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <div>
+                <p
+                  class="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider"
+                >
+                  Placeholders
+                </p>
+                <p class="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
+                  Use
+                  <code
+                    class="font-mono bg-zinc-100 dark:bg-zinc-800 px-1 rounded"
+                    >&#123;&#123;key&#125;&#125;</code
+                  >
+                  in the prompt text to mark fill-in spots
+                </p>
+              </div>
+              <UButton
+                size="xs"
+                variant="outline"
+                color="neutral"
+                icon="i-lucide-plus"
+                @click="
+                  promptForm.placeholders.push({ key: '', label: '', hint: '' })
+                "
+              >
+                Add
+              </UButton>
+            </div>
+
+            <div
+              v-if="promptForm.placeholders.length === 0"
+              class="text-xs text-zinc-400 dark:text-zinc-500 italic py-1"
+            >
+              No placeholders — prompt will be used as-is.
+            </div>
+
+            <div
+              v-for="(ph, i) in promptForm.placeholders"
+              :key="i"
+              class="flex items-start gap-2 p-3 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/40"
+            >
+              <div class="flex-1 space-y-2 min-w-0">
+                <div class="grid grid-cols-3 gap-2">
+                  <UFormField label="Key">
+                    <UInput
+                      v-model="ph.key"
+                      placeholder="subject"
+                      class="font-mono text-xs"
+                      size="sm"
+                    />
+                  </UFormField>
+                  <UFormField label="Label">
+                    <UInput
+                      v-model="ph.label"
+                      placeholder="Subject"
+                      size="sm"
+                    />
+                  </UFormField>
+                  <UFormField label="Default">
+                    <UInput
+                      v-model="ph.default"
+                      placeholder="Used when skipped"
+                      size="sm"
+                    />
+                  </UFormField>
+                </div>
+                <UFormField
+                  label="Options (one per line — leave empty for free text)"
+                >
+                  <UTextarea
+                    :model-value="(ph.options ?? []).join('\n')"
+                    placeholder="30cm silver beauty dish&#10;large octabox&#10;ring light"
+                    :rows="3"
+                    size="sm"
+                    class="font-mono text-xs w-full"
+                    @update:model-value="
+                      (v: string) =>
+                        (ph.options = v
+                          .split('\n')
+                          .map((s) => s.trim())
+                          .filter(Boolean))
+                    "
+                  />
+                </UFormField>
+              </div>
+              <button
+                type="button"
+                class="mt-5 flex-shrink-0 p-1.5 rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                @click="promptForm.placeholders.splice(i, 1)"
+              >
+                <UIcon name="i-lucide-trash-2" class="size-3.5" />
+              </button>
+            </div>
           </div>
 
           <USeparator />

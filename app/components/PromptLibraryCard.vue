@@ -7,6 +7,7 @@ defineProps<{
 
 const emit = defineEmits<{
   use: [prompt: string];
+  customize: [card: PromptCard];
 }>();
 </script>
 
@@ -40,6 +41,14 @@ const emit = defineEmits<{
       >
         {{ card.category.name }}
       </span>
+      <!-- Customizable badge -->
+      <span
+        v-if="card.placeholders?.length"
+        class="absolute top-2 left-2 flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md font-medium bg-primary/80 text-white backdrop-blur-sm"
+      >
+        <UIcon name="i-lucide-sliders-horizontal" class="size-2.5" />
+        Customizable
+      </span>
     </div>
 
     <!-- Bottom section -->
@@ -57,10 +66,19 @@ const emit = defineEmits<{
         {{ card.prompt }}
       </p>
       <button
+        v-if="!card.placeholders?.length"
         class="mt-auto w-full text-xs py-1.5 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 active:bg-primary/30 transition-colors font-medium"
         @click.stop="emit('use', card.prompt)"
       >
         Use Prompt
+      </button>
+      <button
+        v-else
+        class="mt-auto w-full text-xs py-1.5 rounded-xl bg-primary text-white hover:bg-primary/90 active:bg-primary/80 transition-colors font-medium flex items-center justify-center gap-1.5"
+        @click.stop="emit('customize', card)"
+      >
+        <UIcon name="i-lucide-sliders-horizontal" class="size-3" />
+        Customize &amp; Use
       </button>
     </div>
   </div>

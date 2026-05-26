@@ -1,9 +1,18 @@
+export interface PromptPlaceholder {
+  key: string;
+  label: string;
+  hint?: string;
+  default?: string;
+  options?: string[];
+}
+
 export interface PromptItem {
   id: string;
   category_id: string;
   title: string;
   prompt: string;
   image_urls: string[];
+  placeholders: PromptPlaceholder[];
   sort_order: number;
   is_active: boolean;
   created_at?: string;
@@ -28,4 +37,5 @@ export interface PromptCard {
   prompt: string;
   image: string | null;
   category: PromptCategory;
+  placeholders: PromptPlaceholder[];
 }

@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import type { PromptCard } from "~/utils/promptLibrary";
+
+const customizingCard = ref<PromptCard | null>(null);
+
 const props = defineProps<{
   open: boolean;
 }>();
@@ -55,6 +59,15 @@ const groupedByCategory = computed(() => {
 function usePrompt(prompt: string) {
   emit("select", prompt);
   emit("update:open", false);
+}
+
+function handleCustomize(card: PromptCard) {
+  customizingCard.value = card;
+}
+
+function handleCustomized(prompt: string) {
+  customizingCard.value = null;
+  usePrompt(prompt);
 }
 </script>
 
@@ -139,6 +152,7 @@ function usePrompt(prompt: string) {
                     :card="item"
                     class="flex-1"
                     @use="usePrompt"
+                    @customize="handleCustomize"
                   />
                 </div>
               </div>
@@ -164,4 +178,16 @@ function usePrompt(prompt: string) {
       </div>
     </template>
   </USlideover>
+
+  <PromptCustomizerModal
+    v-if="customizingCard"
+    :open="!!customizingCard"
+    :card="customizingCard"
+    @update:open="
+      (v: boolean) => {
+        if (!v) customizingCard = null;
+      }
+    "
+    @use="handleCustomized"
+  />
 </template>
