@@ -13,6 +13,7 @@ import {
 } from "../utils/r2";
 import { inferTagsFromPrompt } from "../utils/tags";
 import { useServerPostHog } from "../utils/posthog";
+import { condensePrompt } from "../utils/polishPrompt";
 
 const INPUT_IMAGE_REQUEST_HEADERS = {
   Referer: "https://lumiar.app",
@@ -52,12 +53,35 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  const trimmedPrompt = prompt.trim();
+  let trimmedPrompt = prompt.trim();
   if (!trimmedPrompt) {
     throw createError({ statusCode: 400, message: "Prompt cannot be empty" });
   }
+
+  const openrouterKey = config.openrouterApiKey as string;
   if (trimmedPrompt.length > 2000) {
-    throw createError({ statusCode: 400, message: "Prompt is too long" });
+    if (!openrouterKey) {
+      throw createError({
+        statusCode: 400,
+        message:
+          "Prompt exceeds 2,000 characters and cannot be summarized because the API key is missing",
+      });
+    }
+
+    const condensed = await condensePrompt(trimmedPrompt, openrouterKey);
+    trimmedPrompt = condensed.trim();
+    if (!trimmedPrompt) {
+      throw createError({
+        statusCode: 400,
+        message: "Prompt could not be condensed into a usable version",
+      });
+    }
+    if (trimmedPrompt.length > 2000) {
+      throw createError({
+        statusCode: 400,
+        message: "Prompt is too long even after summarization",
+      });
+    }
   }
 
   // Validate all submitted base64 images
