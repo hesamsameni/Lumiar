@@ -82,7 +82,7 @@ function usePrompt() {
 <template>
   <UModal v-model:open="isOpen">
     <template #content>
-      <div class="flex flex-col">
+      <div class="flex flex-col max-h-[85vh] overflow-hidden">
         <!-- Header -->
         <div
           class="px-5 py-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between gap-3"
@@ -119,7 +119,7 @@ function usePrompt() {
         </div>
 
         <!-- Scrollable body -->
-        <div class="overflow-y-auto max-h-[55vh] px-4 py-3">
+        <div class="flex-1 overflow-y-auto px-4 py-3 space-y-4">
           <!-- 2-column grid of collapsible cards -->
           <div class="grid grid-cols-1 gap-2">
             <div
@@ -200,22 +200,20 @@ function usePrompt() {
               </div>
             </div>
           </div>
-        </div>
-
-        <!-- Preview strip -->
-        <div
-          class="mx-4 my-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200/70 dark:border-zinc-700/50 px-3 py-2.5 text-xs leading-relaxed max-h-40 overflow-y-auto"
-        >
-          <template v-for="(part, i) in previewParts" :key="i">
-            <span
-              :class="
-                part.filled
-                  ? 'text-primary font-medium'
-                  : 'text-zinc-400 dark:text-zinc-500'
-              "
-              >{{ part.text }}</span
-            >
-          </template>
+          <div
+            class="rounded-xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200/70 dark:border-zinc-700/50 px-3 py-2.5 text-xs leading-relaxed max-h-40 overflow-y-auto"
+          >
+            <template v-for="(part, i) in previewParts" :key="i">
+              <span
+                :class="
+                  part.filled
+                    ? 'text-primary font-medium'
+                    : 'text-zinc-400 dark:text-zinc-500'
+                "
+                >{{ part.text }}</span
+              >
+            </template>
+          </div>
         </div>
 
         <!-- Footer -->
