@@ -19,7 +19,8 @@ type CompanyKey =
   | "recraft"
   | "black-forest-labs"
   | "bytedance"
-  | "x-ai";
+  | "x-ai"
+  | "microsoft";
 
 const companyMeta: Record<
   CompanyKey,
@@ -55,11 +56,17 @@ const companyMeta: Record<
     subtitle: "Grok Imagine family",
     logo: "/ai-logos/xai.svg",
   },
+  microsoft: {
+    label: "Microsoft",
+    subtitle: "MAI Image family",
+    logo: "/ai-logos/microsoft.svg",
+  },
 };
 
 const companyOrder: CompanyKey[] = [
   "google",
   "openai",
+  "microsoft",
   "recraft",
   "black-forest-labs",
   "bytedance",
@@ -74,6 +81,7 @@ const groupedModels = computed(() => {
   const groups: Record<CompanyKey, AIModel[]> = {
     openai: [],
     google: [],
+    microsoft: [],
     recraft: [],
     "black-forest-labs": [],
     bytedance: [],
