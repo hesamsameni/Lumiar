@@ -45,6 +45,7 @@ const newCollectionName = ref("");
 const isCreatingCollection = ref(false);
 const collectionFilter = ref<"all" | "in" | "out">("all");
 const collectionsVersion = useState("collectionsVersion", () => 0);
+const likedIds = ref<Set<string>>(new Set());
 
 async function fetchProfile() {
   const { data } = await profileService.getProfileByUsername(username.value);
@@ -59,6 +60,17 @@ async function fetchGenerations() {
     !isOwn,
   );
   generations.value = data ?? [];
+
+  if (authUser.value?.id && generations.value.length) {
+    const generationIds = (generations.value as { id: string }[]).map(
+      (g) => g.id,
+    );
+    const { data: likedRows } = await socialService.getBulkLikedByUser(
+      authUser.value.id,
+      generationIds,
+    );
+    likedIds.value = new Set((likedRows ?? []).map((r) => r.generation_id));
+  }
 }
 
 async function fetchFollowCounts() {
@@ -681,6 +693,7 @@ const firstSelectedImageUrl = computed(() => {
                       :generation="gen as never"
                       :show-author="false"
                       :is-owner="isOwnProfile"
+                      :initial-is-liked="likedIds.has((gen as any).id)"
                       @deleted="handleDeleted"
                       @share-toggled="handleShareToggled"
                       @preview="openPreview"
