@@ -3,9 +3,14 @@ import { GENERATION_TAGS } from "~/utils/constants";
 import { watchDebounced } from "@vueuse/core";
 import { useGenerationService } from "~/services/generation.service";
 import { useProfileService } from "~/services/profile.service";
+import { useSocialService } from "~/services/social.service";
 
 const generationService = useGenerationService();
 const profileService = useProfileService();
+const socialService = useSocialService();
+const { user: authUser } = useAuthState();
+
+const likedIds = ref<Set<string>>(new Set());
 
 const searchQuery = ref("");
 const selectedTag = ref<string | null>(null);
@@ -77,6 +82,17 @@ async function fetchGenerations(reset = false) {
         : undefined,
     };
   });
+
+  if (authUser.value?.id && rows.length) {
+    const generationIds = rows.map((g) => g.id);
+    const { data: likedRows } = await socialService.getBulkLikedByUser(
+      authUser.value.id,
+      generationIds,
+    );
+    const newLiked = new Set(likedIds.value);
+    (likedRows ?? []).forEach((r) => newLiked.add(r.generation_id));
+    likedIds.value = newLiked;
+  }
 
   if (rows.length < pageSize) hasMore.value = false;
   generations.value = reset ? hydrated : [...generations.value, ...hydrated];
@@ -170,6 +186,7 @@ function openPreview(id: string) {
           :key="(gen as { id: string }).id"
           :generation="gen as never"
           :show-author="true"
+          :initial-is-liked="likedIds.has((gen as { id: string }).id)"
           @preview="openPreview"
         />
       </div>

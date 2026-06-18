@@ -21,6 +21,7 @@ const props = defineProps<{
   showAuthor?: boolean;
   isOwner?: boolean;
   collectionId?: string;
+  initialIsLiked?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -39,7 +40,7 @@ const toast = useToast();
 const likesCount = ref(
   props.generation._count?.likes ?? props.generation.likes?.length ?? 0,
 );
-const isLiked = ref(false);
+const isLiked = ref(props.initialIsLiked ?? false);
 const isTogglingLike = ref(false);
 const isShared = ref(props.generation.is_shared ?? false);
 const isTogglingShare = ref(false);
@@ -311,7 +312,9 @@ const dropdownItems = computed(() => {
   return groups;
 });
 
-onMounted(() => checkLiked());
+onMounted(() => {
+  if (props.initialIsLiked === undefined) checkLiked();
+});
 </script>
 
 <template>
