@@ -135,6 +135,10 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: "Invalid aspect ratio" });
   }
 
+  // --- Dev mode: return mock image without calling AI providers ---
+  const DEV_MODE_PREFIX = "dev mode hesam";
+  const isDevMode = trimmedPrompt.toLowerCase().startsWith(DEV_MODE_PREFIX);
+
   // --- Provider routing ---
   const resolvedProvider: string =
     typeof provider === "string" ? provider : "openrouter";
@@ -170,6 +174,15 @@ export default defineEventHandler(async (event) => {
   // with any directly-uploaded base64 images into a single ordered array.
   let imageBase64: string;
   try {
+    if (isDevMode) {
+      // Return a 1x1 pink PNG as a mock result — skip R2, DB, and token deduction
+      return {
+        generationId: "dev-mock-" + Date.now(),
+        imageUrl:
+          "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
+      };
+    }
+
     const resolvedEditingBase64 = await resolveInputImageBase64(
       null,
       inputImageUrl ?? null,

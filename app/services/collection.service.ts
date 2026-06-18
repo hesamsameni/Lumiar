@@ -76,10 +76,10 @@ export function useCollectionService() {
     generationId: string,
     imageUrl?: string,
   ) {
-    const result = await (supabase.from("collection_items") as any).insert({
-      collection_id: collectionId,
-      generation_id: generationId,
-    });
+    const result = await (supabase.from("collection_items") as any).upsert(
+      { collection_id: collectionId, generation_id: generationId },
+      { onConflict: "collection_id,generation_id", ignoreDuplicates: true },
+    );
 
     if (!result.error && imageUrl) {
       await (supabase.from("collections") as any)

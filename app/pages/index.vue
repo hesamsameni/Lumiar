@@ -125,6 +125,16 @@ function handleEditResult(imageUrl: string, generationId: string) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+function handleStartOver() {
+  prompt.value = "";
+  inputFiles.value = [];
+  inputPreviewUrls.value = [];
+  editingImageUrl.value = null;
+  editingGenerationId.value = null;
+  result.value = null;
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
 function onDrop(e: DragEvent) {
   isDragging.value = false;
   const dropped = Array.from(e.dataTransfer?.files ?? []).filter((f) =>
@@ -717,6 +727,7 @@ function getRatioStyle(value: string): Record<string, string> {
       :prompt="prompt"
       @edit="handleEditResult"
       @deleted="result = null"
+      @start-over="handleStartOver"
     />
 
     <!-- New-joiner hints: post-generation -->

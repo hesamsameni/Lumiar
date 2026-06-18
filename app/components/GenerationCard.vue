@@ -27,6 +27,7 @@ const emit = defineEmits<{
   deleted: [id: string];
   shareToggled: [id: string, isShared: boolean];
   removedFromCollection: [id: string];
+  preview: [id: string];
 }>();
 
 const { user: authUser, session } = useAuthState();
@@ -271,7 +272,7 @@ const dropdownItems = computed(() => {
     ],
     [
       {
-        label: "Save to collection",
+        label: "Add to collection",
         icon: "i-lucide-folder-plus",
         onSelect: () => {
           showCollectionPicker.value = true;
@@ -318,7 +319,10 @@ onMounted(() => checkLiked());
     class="rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 transition-all hover:shadow-md"
   >
     <!-- Image -->
-    <NuxtLink :to="`/generation/${generation.id}`" class="block">
+    <button
+      class="block w-full text-left"
+      @click="emit('preview', generation.id)"
+    >
       <div class="aspect-square overflow-hidden bg-zinc-100 dark:bg-zinc-800">
         <img
           :src="generation.output_image_url"
@@ -327,7 +331,7 @@ onMounted(() => checkLiked());
           loading="lazy"
         />
       </div>
-    </NuxtLink>
+    </button>
 
     <!-- Bottom bar -->
     <div class="px-3 py-2.5 flex items-center gap-2">

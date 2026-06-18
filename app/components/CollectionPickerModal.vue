@@ -3,8 +3,12 @@ import { useCollectionService } from "~/services/collection.service";
 
 const props = defineProps<{
   open: boolean;
-  generationId: string;
+  generationId?: string;
   generationImageUrl?: string;
+  // Bulk mode: pass multiple IDs instead of a single generationId
+  generationIds?: string[];
+  // Optional cover image URL to use when no cover is set yet (bulk mode)
+  coverImageUrl?: string;
 }>();
 
 const emit = defineEmits<{
@@ -43,13 +47,20 @@ async function load() {
   if (!authUser.value?.id) return;
   isLoading.value = true;
   try {
-    const [{ data: cols }, { data: memberships }] = await Promise.all([
+    const queries: [Promise<any>, Promise<any>?] = [
       collectionService.getCollectionsByUser(authUser.value.id),
-      collectionService.getCollectionsForGeneration(props.generationId),
-    ]);
+    ];
+    if (props.generationId) {
+      queries.push(
+        collectionService.getCollectionsForGeneration(props.generationId),
+      );
+    }
+    const [{ data: cols }, membershipsRes] = await Promise.all(queries);
     collections.value = (cols ?? []) as CollectionListItem[];
     memberSet.value = new Set(
-      (memberships ?? []).map((m: any) => m.collection_id),
+      membershipsRes
+        ? (membershipsRes.data ?? []).map((m: any) => m.collection_id)
+        : [],
     );
   } finally {
     isLoading.value = false;
@@ -57,6 +68,44 @@ async function load() {
 }
 
 async function toggle(col: CollectionListItem) {
+  // Bulk mode: add all IDs and close
+  if (props.generationIds && props.generationIds.length > 0) {
+    isToggling.value = col.id;
+    try {
+      const results = await Promise.allSettled(
+        props.generationIds.map((id) =>
+          collectionService.addToCollection(col.id, id),
+        ),
+      );
+      const failures = results.filter((r) => r.status === "rejected");
+      if (failures.length > 0) {
+        toast.add({
+          title: "Failed to add some images to collection",
+          color: "error",
+        });
+      } else {
+        // Set cover image if the collection has none
+        const coverUrl = props.coverImageUrl ?? props.generationImageUrl;
+        if (coverUrl && !col.cover_image_url) {
+          await (useSupabaseClient().from("collections") as any)
+            .update({ cover_image_url: coverUrl })
+            .eq("id", col.id)
+            .is("cover_image_url", null);
+        }
+        collectionsVersion.value++;
+        toast.add({
+          title: `Added ${props.generationIds.length} image${props.generationIds.length > 1 ? "s" : ""} to "${col.name}"`,
+          color: "success",
+        });
+        isOpen.value = false;
+      }
+    } catch {
+      toast.add({ title: "Failed to update collection", color: "error" });
+    } finally {
+      isToggling.value = null;
+    }
+    return;
+  }
   isToggling.value = col.id;
   const removing = memberSet.value.has(col.id);
   try {
@@ -78,7 +127,7 @@ async function toggle(col: CollectionListItem) {
     } else {
       await collectionService.addToCollection(
         col.id,
-        props.generationId,
+        props.generationId!,
         props.generationImageUrl,
       );
       memberSet.value = new Set([...memberSet.value, col.id]);
@@ -115,7 +164,7 @@ async function createAndAdd() {
     collections.value.unshift(col);
     await collectionService.addToCollection(
       col.id,
-      props.generationId,
+      props.generationId!,
       props.generationImageUrl,
     );
     memberSet.value = new Set([...memberSet.value, col.id]);
@@ -126,13 +175,13 @@ async function createAndAdd() {
         ...existing,
         cover_image_url:
           existing.cover_image_url ?? props.generationImageUrl ?? null,
-        collection_items: [{ generation_id: props.generationId }],
+        collection_items: [{ generation_id: props.generationId! }],
       };
     }
     collectionsVersion.value++;
     newName.value = "";
     showNewForm.value = false;
-    toast.add({ title: `Saved to "${col.name}"`, color: "success" });
+    toast.add({ title: `Added to "${col.name}"`, color: "success" });
   } catch {
     toast.add({ title: "Failed to create collection", color: "error" });
   } finally {
@@ -173,7 +222,7 @@ watch(showNewForm, (val) => {
             class="text-base font-semibold text-zinc-900 dark:text-white flex items-center gap-2"
           >
             <UIcon name="i-lucide-folder" class="size-5 text-primary" />
-            Save to collection
+            Add to collection
           </h3>
           <UButton
             color="neutral"

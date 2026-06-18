@@ -20,8 +20,10 @@ export default defineEventHandler(async (event) => {
   const [profilesResult, countsResult] = await Promise.all([
     (supabase as any)
       .from("profiles")
-      .select("id, username, full_name, avatar_url, token_balance, is_admin")
-      .order("username", { ascending: true }),
+      .select(
+        "id, username, full_name, avatar_url, token_balance, is_admin, created_at",
+      )
+      .order("created_at", { ascending: false }),
     (supabase as any)
       .from("generations")
       .select("user_id")
@@ -60,5 +62,6 @@ export default defineEventHandler(async (event) => {
     token_balance: p.token_balance as number,
     is_admin: p.is_admin as boolean,
     generation_count: generationCounts[p.id] ?? 0,
+    created_at: p.created_at as string,
   }));
 });

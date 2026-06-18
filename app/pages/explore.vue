@@ -87,6 +87,14 @@ watchDebounced([selectedTag, searchQuery], () => fetchGenerations(true), {
   debounce: 300,
 });
 onMounted(() => fetchGenerations(true));
+
+const previewGenerationId = ref<string | null>(null);
+const showPreviewModal = ref(false);
+
+function openPreview(id: string) {
+  previewGenerationId.value = id;
+  showPreviewModal.value = true;
+}
 </script>
 
 <template>
@@ -162,6 +170,7 @@ onMounted(() => fetchGenerations(true));
           :key="(gen as { id: string }).id"
           :generation="gen as never"
           :show-author="true"
+          @preview="openPreview"
         />
       </div>
 
@@ -176,5 +185,10 @@ onMounted(() => fetchGenerations(true));
         </UButton>
       </div>
     </div>
+
+    <GenerationDetailModal
+      v-model:open="showPreviewModal"
+      :generation-id="previewGenerationId"
+    />
   </div>
 </template>

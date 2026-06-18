@@ -110,6 +110,14 @@ async function deleteCollection() {
 }
 
 onMounted(loadCollection);
+
+const previewGenerationId = ref<string | null>(null);
+const showPreviewModal = ref(false);
+
+function openPreview(id: string) {
+  previewGenerationId.value = id;
+  showPreviewModal.value = true;
+}
 </script>
 
 <template>
@@ -204,6 +212,7 @@ onMounted(loadCollection);
           @deleted="handleDeleted"
           @share-toggled="handleShareToggled"
           @removed-from-collection="handleRemovedFromCollection"
+          @preview="openPreview"
         />
       </div>
     </template>
@@ -219,6 +228,10 @@ onMounted(loadCollection);
       :loading="isDeletingCollection"
       @confirm="deleteCollection"
       @cancel="showDeleteModal = false"
+    />
+    <GenerationDetailModal
+      v-model:open="showPreviewModal"
+      :generation-id="previewGenerationId"
     />
   </div>
 </template>

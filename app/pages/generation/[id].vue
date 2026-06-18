@@ -59,6 +59,7 @@ const isTogglingShare = ref(false);
 const isDeleting = ref(false);
 const showDeleteModal = ref(false);
 const showUnshareModal = ref(false);
+const showCollectionPicker = ref(false);
 const fullscreenImageUrl = ref<string | null>(null);
 
 const referenceImages = computed(() => {
@@ -95,7 +96,7 @@ async function fetchProfilesMap(userIds: string[]) {
   );
 }
 
-const { getModelById } = useModels();
+const { models, getModelById, fetchModels } = useModels();
 const model = computed(() =>
   generation.value ? getModelById(generation.value.model_id as string) : null,
 );
@@ -261,6 +262,7 @@ async function deleteGeneration() {
 }
 
 onMounted(async () => {
+  if (models.value.length === 0) fetchModels();
   await Promise.all([fetchGeneration(), fetchComments()]);
   isShared.value = (generation.value?.is_shared as boolean) ?? false;
   loading.value = false;
@@ -393,6 +395,15 @@ onMounted(async () => {
                 <span class="hidden sm:inline">{{
                   isShared ? "Unshare" : "Share to Explore"
                 }}</span>
+              </UButton>
+              <UButton
+                icon="i-lucide-folder-plus"
+                size="xs"
+                variant="ghost"
+                color="neutral"
+                @click="showCollectionPicker = true"
+              >
+                <span class="hidden sm:inline">Collection</span>
               </UButton>
               <SocialShareMenu
                 :generation-id="id"
@@ -681,6 +692,12 @@ onMounted(async () => {
       icon="i-lucide-trash-2"
       :loading="isDeleting"
       @confirm="deleteGeneration"
+    />
+
+    <CollectionPickerModal
+      v-model:open="showCollectionPicker"
+      :generation-id="id"
+      :generation-image-url="(generation?.output_image_url as string) ?? ''"
     />
 
     <ConfirmModal

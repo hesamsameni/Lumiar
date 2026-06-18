@@ -280,6 +280,112 @@ watch(
   },
   { immediate: true },
 );
+
+const previewGenerationId = ref<string | null>(null);
+const showPreviewModal = ref(false);
+
+function openPreview(id: string) {
+  if (isSelectMode.value) {
+    toggleSelect(id);
+    return;
+  }
+  previewGenerationId.value = id;
+  showPreviewModal.value = true;
+}
+
+// ─── Multi-select ─────────────────────────────────────────────────────────────
+const isSelectMode = ref(false);
+const selectedIds = ref<Set<string>>(new Set());
+
+function enterSelectMode() {
+  isSelectMode.value = true;
+  selectedIds.value = new Set();
+}
+
+function exitSelectMode() {
+  isSelectMode.value = false;
+  selectedIds.value = new Set();
+}
+
+function toggleSelect(id: string) {
+  const next = new Set(selectedIds.value);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  selectedIds.value = next;
+}
+
+function selectAll() {
+  selectedIds.value = new Set(
+    filteredGenerations.value.map((g) => (g as any).id as string),
+  );
+
+  // ─── Long-press to enter select mode (mobile) ─────────────────────────────────
+  let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function onCardTouchStart(id: string) {
+    if (isSelectMode.value) return;
+    longPressTimer = setTimeout(() => {
+      enterSelectMode();
+      toggleSelect(id);
+      // Haptic feedback if supported
+      if (navigator.vibrate) navigator.vibrate(30);
+    }, 500);
+  }
+
+  function onCardTouchEnd() {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+    }
+  }
+}
+
+const selectedCount = computed(() => selectedIds.value.size);
+
+// Bulk delete
+const isBulkDeleting = ref(false);
+const showBulkDeleteModal = ref(false);
+const { session } = useAuthState();
+
+async function bulkDelete() {
+  isBulkDeleting.value = true;
+  const ids = [...selectedIds.value];
+  try {
+    await Promise.all(
+      ids.map((id) =>
+        $fetch(`/api/generations/${id}`, {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${session.value?.access_token ?? ""}`,
+          },
+        }),
+      ),
+    );
+    generations.value = generations.value.filter(
+      (g) => !ids.includes((g as any).id),
+    );
+    toast.add({
+      title: `${ids.length} image${ids.length > 1 ? "s" : ""} deleted`,
+      color: "success",
+    });
+  } catch {
+    toast.add({ title: "Failed to delete some images", color: "error" });
+  } finally {
+    isBulkDeleting.value = false;
+    showBulkDeleteModal.value = false;
+    exitSelectMode();
+  }
+}
+
+// Bulk add to collection
+const showBulkCollectionPicker = ref(false);
+
+const firstSelectedImageUrl = computed(() => {
+  const firstId = [...selectedIds.value][0];
+  if (!firstId) return undefined;
+  const gen = filteredGenerations.value.find((g) => (g as any).id === firstId);
+  return gen ? ((gen as any).output_image_url as string) : undefined;
+});
 </script>
 
 <template>
@@ -366,7 +472,7 @@ watch(
 
       <div
         v-if="isOwnProfile"
-        class="flex gap-1 border-b border-zinc-200 dark:border-zinc-800 mb-6"
+        class="flex items-center gap-1 border-b border-zinc-200 dark:border-zinc-800 mb-6"
       >
         <button
           v-for="tab in tabs"
@@ -390,6 +496,73 @@ watch(
             }}
           </span>
         </button>
+
+        <!-- Select controls: desktop only (inline in tab bar) -->
+        <div
+          v-if="activeTab !== 'collections'"
+          class="ml-auto hidden sm:flex items-center gap-1 pb-px"
+        >
+          <template v-if="!isSelectMode">
+            <UButton
+              size="xs"
+              variant="ghost"
+              color="neutral"
+              icon="i-lucide-check-square"
+              @click="enterSelectMode"
+            >
+              Select
+            </UButton>
+          </template>
+          <template v-else>
+            <UButton
+              size="xs"
+              variant="ghost"
+              color="neutral"
+              @click="selectAll"
+            >
+              Select All
+            </UButton>
+            <UButton
+              size="xs"
+              variant="ghost"
+              color="primary"
+              @click="exitSelectMode"
+            >
+              Done
+            </UButton>
+          </template>
+        </div>
+      </div>
+
+      <!-- Select controls: mobile only (row below tab bar) -->
+      <div
+        v-if="isOwnProfile && activeTab !== 'collections'"
+        class="flex sm:hidden justify-end items-center gap-1 mb-4 -mt-4"
+      >
+        <template v-if="!isSelectMode">
+          <UButton
+            size="xs"
+            variant="ghost"
+            color="neutral"
+            icon="i-lucide-check-square"
+            @click="enterSelectMode"
+          >
+            Select
+          </UButton>
+        </template>
+        <template v-else>
+          <UButton size="xs" variant="ghost" color="neutral" @click="selectAll">
+            Select All
+          </UButton>
+          <UButton
+            size="xs"
+            variant="ghost"
+            color="primary"
+            @click="exitSelectMode"
+          >
+            Done
+          </UButton>
+        </template>
       </div>
 
       <!-- Generations / Shared tab content -->
@@ -461,31 +634,79 @@ watch(
                 :key="(gen as any).id"
                 class="relative"
               >
-                <GenerationCard
-                  :generation="gen as never"
-                  :show-author="false"
-                  :is-owner="isOwnProfile"
-                  @deleted="handleDeleted"
-                  @share-toggled="handleShareToggled"
-                />
-                <div
-                  v-if="
-                    isOwnProfile && generationCollections.has((gen as any).id)
-                  "
-                  class="absolute top-2 left-2 pointer-events-none max-w-[calc(100%-1rem)]"
-                >
-                  <div
-                    class="bg-black/50 backdrop-blur-sm rounded px-1.5 py-0.5 flex items-center gap-1"
+                <!-- Selection overlay -->
+                <template v-if="isSelectMode">
+                  <button
+                    class="block w-full rounded-2xl overflow-hidden focus:outline-none"
+                    @click="toggleSelect((gen as any).id)"
                   >
-                    <UIcon
-                      name="i-lucide-folder"
-                      class="size-2.5 text-white flex-shrink-0"
+                    <img
+                      :src="(gen as any).output_image_url"
+                      :alt="(gen as any).prompt"
+                      class="w-full aspect-square object-cover transition-opacity duration-150"
+                      :class="
+                        selectedIds.has((gen as any).id)
+                          ? 'opacity-70'
+                          : 'opacity-100'
+                      "
                     />
-                    <span class="text-white text-[10px] leading-tight truncate">
-                      {{ generationCollectionLabel((gen as any).id) }}
-                    </span>
+                  </button>
+                  <!-- Checkbox indicator -->
+                  <div class="absolute top-2 right-2 pointer-events-none">
+                    <div
+                      class="size-6 rounded-full border-2 flex items-center justify-center transition-all duration-150"
+                      :class="
+                        selectedIds.has((gen as any).id)
+                          ? 'bg-primary border-primary'
+                          : 'bg-black/30 border-white/80 backdrop-blur-sm'
+                      "
+                    >
+                      <UIcon
+                        v-if="selectedIds.has((gen as any).id)"
+                        name="i-lucide-check"
+                        class="size-3.5 text-white"
+                      />
+                    </div>
                   </div>
-                </div>
+                </template>
+
+                <template v-else>
+                  <div
+                    @touchstart.passive="onCardTouchStart((gen as any).id)"
+                    @touchend="onCardTouchEnd"
+                    @touchcancel="onCardTouchEnd"
+                    @touchmove="onCardTouchEnd"
+                  >
+                    <GenerationCard
+                      :generation="gen as never"
+                      :show-author="false"
+                      :is-owner="isOwnProfile"
+                      @deleted="handleDeleted"
+                      @share-toggled="handleShareToggled"
+                      @preview="openPreview"
+                    />
+                  </div>
+                  <div
+                    v-if="
+                      isOwnProfile && generationCollections.has((gen as any).id)
+                    "
+                    class="absolute top-2 left-2 pointer-events-none max-w-[calc(100%-1rem)]"
+                  >
+                    <div
+                      class="bg-black/50 backdrop-blur-sm rounded px-1.5 py-0.5 flex items-center gap-1"
+                    >
+                      <UIcon
+                        name="i-lucide-folder"
+                        class="size-2.5 text-white flex-shrink-0"
+                      />
+                      <span
+                        class="text-white text-[10px] leading-tight truncate"
+                      >
+                        {{ generationCollectionLabel((gen as any).id) }}
+                      </span>
+                    </div>
+                  </div>
+                </template>
               </div>
             </div>
           </div>
@@ -628,5 +849,88 @@ watch(
       />
       <p class="text-zinc-500 dark:text-zinc-400">User not found</p>
     </div>
+
+    <GenerationDetailModal
+      v-model:open="showPreviewModal"
+      :generation-id="previewGenerationId"
+    />
+
+    <!-- Floating multi-select action bar -->
+    <Teleport to="body">
+      <Transition
+        enter-active-class="transition-all duration-200 ease-out"
+        enter-from-class="opacity-0 translate-y-4"
+        enter-to-class="opacity-100 translate-y-0"
+        leave-active-class="transition-all duration-150 ease-in"
+        leave-from-class="opacity-100 translate-y-0"
+        leave-to-class="opacity-0 translate-y-4"
+      >
+        <div
+          v-if="isSelectMode"
+          class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 shadow-2xl rounded-2xl px-4 py-3"
+        >
+          <span
+            class="text-sm font-medium text-zinc-700 dark:text-zinc-200 mr-1"
+          >
+            {{ selectedCount }} selected
+          </span>
+          <UButton
+            icon="i-lucide-folder-plus"
+            size="sm"
+            variant="soft"
+            color="primary"
+            :disabled="selectedCount === 0"
+            @click="showBulkCollectionPicker = true"
+          >
+            Add to Collection
+          </UButton>
+          <UButton
+            icon="i-lucide-trash-2"
+            size="sm"
+            variant="soft"
+            color="error"
+            :disabled="selectedCount === 0"
+            @click="showBulkDeleteModal = true"
+          >
+            Delete
+          </UButton>
+          <UButton
+            icon="i-lucide-x"
+            size="sm"
+            variant="ghost"
+            color="neutral"
+            @click="exitSelectMode"
+          />
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- Bulk delete confirm -->
+    <ConfirmModal
+      v-model:open="showBulkDeleteModal"
+      title="Delete Images"
+      :description="`Are you sure you want to delete ${selectedCount} image${selectedCount > 1 ? 's' : ''}? This cannot be undone.`"
+      confirm-text="Delete"
+      confirm-color="error"
+      icon="i-lucide-trash-2"
+      :loading="isBulkDeleting"
+      @confirm="bulkDelete"
+    />
+
+    <!-- Bulk collection picker -->
+    <CollectionPickerModal
+      v-model:open="showBulkCollectionPicker"
+      :generation-ids="[...selectedIds]"
+      :cover-image-url="firstSelectedImageUrl"
+      @update:open="
+        (v) => {
+          if (!v) {
+            exitSelectMode();
+            collectionsLoaded.value = false;
+            fetchCollections();
+          }
+        }
+      "
+    />
   </div>
 </template>
