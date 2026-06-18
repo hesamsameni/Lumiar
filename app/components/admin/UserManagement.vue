@@ -14,6 +14,7 @@ interface AdminUser {
   token_balance: number;
   is_admin: boolean;
   generation_count: number;
+  created_at: string;
 }
 
 const users = ref<AdminUser[]>([]);
@@ -94,6 +95,14 @@ await fetchUsers();
 
 <template>
   <div>
+    <!-- Total users count -->
+    <div class="mb-4 text-sm text-zinc-500 dark:text-zinc-400">
+      Total users:
+      <span class="font-semibold text-zinc-900 dark:text-zinc-100">{{
+        users.length
+      }}</span>
+    </div>
+
     <!-- Toolbar -->
     <div class="flex items-center justify-between mb-5 gap-3">
       <UInput
@@ -211,10 +220,7 @@ await fetchUsers();
                   <UIcon name="i-lucide-shield" class="size-3" />
                   Admin
                 </span>
-                <span
-                  v-else
-                  class="text-xs text-zinc-400 dark:text-zinc-500"
-                >
+                <span v-else class="text-xs text-zinc-400 dark:text-zinc-500">
                   User
                 </span>
               </td>
@@ -293,11 +299,7 @@ await fetchUsers();
         <div
           class="flex items-center justify-end gap-2 px-6 py-4 border-t border-zinc-200 dark:border-zinc-800"
         >
-          <UButton
-            variant="ghost"
-            color="neutral"
-            @click="showModal = false"
-          >
+          <UButton variant="ghost" color="neutral" @click="showModal = false">
             Cancel
           </UButton>
           <UButton

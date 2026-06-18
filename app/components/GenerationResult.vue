@@ -11,6 +11,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   edit: [imageUrl: string, generationId: string];
   deleted: [];
+  startOver: [];
 }>();
 
 const { session } = useAuthState();
@@ -67,6 +68,105 @@ async function toggleShare() {
   }
 }
 
+// ─── Share helpers ────────────────────────────────────────────────────────────
+
+const generationUrl = computed(() => {
+  const base =
+    typeof window !== "undefined"
+      ? window.location.origin
+      : "https://www.lumiar.site";
+  return `${base}/generation/${props.generationId}`;
+});
+
+async function ensureExploreShared() {
+  if (isShared.value) return;
+  const { error } = await generationService.setGenerationShared(
+    props.generationId,
+    true,
+  );
+  if (!error) {
+    isShared.value = true;
+    toast.add({
+      title: "Your image is now public on Explore too",
+      icon: "i-lucide-globe",
+      color: "success",
+    });
+  }
+}
+
+async function copyLink() {
+  await ensureExploreShared();
+  await navigator.clipboard.writeText(generationUrl.value);
+  toast.add({ title: "Link copied!", icon: "i-lucide-link", color: "success" });
+}
+
+async function shareOnX() {
+  await ensureExploreShared();
+  const text = `✨ AI art I made with Lumiar → ${generationUrl.value} #AIart #lumiar`;
+  window.open(
+    `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`,
+    "_blank",
+    "noopener,noreferrer,width=550,height=420",
+  );
+}
+
+async function shareOnWhatsApp() {
+  await ensureExploreShared();
+  const text = `✨ AI art I made with Lumiar → ${generationUrl.value} #AIart #lumiar`;
+  window.open(
+    `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`,
+    "_blank",
+    "noopener,noreferrer",
+  );
+}
+
+async function shareOnTelegram() {
+  await ensureExploreShared();
+  const text = `✨ AI art I made with Lumiar #AIart #lumiar`;
+  window.open(
+    `https://t.me/share/url?url=${encodeURIComponent(generationUrl.value)}&text=${encodeURIComponent(text)}`,
+    "_blank",
+    "noopener,noreferrer",
+  );
+}
+
+// ─── 3-dot menu items ─────────────────────────────────────────────────────────
+
+const moreMenuItems = computed(() => [
+  [
+    {
+      label: "View details",
+      icon: "i-lucide-arrow-up-right",
+      onSelect: () => navigateTo(`/generation/${props.generationId}`),
+    },
+  ],
+  [
+    { label: "Copy link", icon: "i-lucide-link", onSelect: copyLink },
+    { label: "Share on X", icon: "i-lucide-external-link", onSelect: shareOnX },
+    {
+      label: "Share on WhatsApp",
+      icon: "i-lucide-message-circle",
+      onSelect: shareOnWhatsApp,
+    },
+    {
+      label: "Share on Telegram",
+      icon: "i-lucide-send",
+      onSelect: shareOnTelegram,
+    },
+  ],
+  [
+    {
+      label: isDeleting.value ? "Deleting…" : "Delete",
+      icon: "i-lucide-trash-2",
+      color: "error" as const,
+      disabled: isDeleting.value,
+      onSelect: () => {
+        showDeleteModal.value = true;
+      },
+    },
+  ],
+]);
+
 onMounted(async () => {
   const { data } = await generationService.getGenerationShareState(
     props.generationId,
@@ -102,7 +202,9 @@ onMounted(async () => {
     </div>
 
     <!-- Actions panel -->
-    <div class="p-5 space-y-3 border-t border-zinc-100 dark:border-zinc-800">
+    <div
+      class="p-4 sm:p-5 space-y-3 border-t border-zinc-100 dark:border-zinc-800"
+    >
       <!-- Prompt -->
       <p
         class="text-xs text-zinc-500 dark:text-zinc-400 italic line-clamp-2 leading-relaxed"
@@ -138,25 +240,17 @@ onMounted(async () => {
 
       <!-- Secondary actions -->
       <div
-        class="flex items-center gap-0.5 pt-2 border-t border-zinc-100 dark:border-zinc-800"
+        class="flex items-center gap-1 pt-2 border-t border-zinc-100 dark:border-zinc-800"
       >
-        <SocialShareMenu
-          :generation-id="generationId"
-          :image-url="imageUrl"
-          :prompt="prompt"
-          :is-shared="isShared"
-          size="xs"
-          @shared-to-explore="isShared = true"
-        />
         <UButton
-          :icon="isShared ? 'i-lucide-eye-off' : 'i-lucide-share-2'"
+          :icon="isShared ? 'i-lucide-eye-off' : 'i-lucide-globe'"
           size="xs"
           :variant="isShared ? 'soft' : 'ghost'"
           color="primary"
           :loading="isSaving"
           @click="toggleShare"
         >
-          {{ isShared ? "Unshare" : "Explore" }}
+          {{ isShared ? "Unshare" : "Share to Explore" }}
         </UButton>
         <UButton
           :icon="
@@ -167,29 +261,39 @@ onMounted(async () => {
           size="xs"
           :variant="isSavedToCollection ? 'soft' : 'ghost'"
           :color="isSavedToCollection ? 'primary' : 'neutral'"
-          :title="isSavedToCollection ? 'In collection' : 'Save to collection'"
           @click="showCollectionPicker = true"
-        />
-        <UButton
-          icon="i-lucide-arrow-up-right"
-          size="xs"
-          variant="ghost"
-          color="neutral"
-          title="View detail"
-          :to="`/generation/${generationId}`"
-        />
-        <UButton
-          icon="i-lucide-trash-2"
-          size="xs"
-          variant="ghost"
-          color="error"
-          :loading="isDeleting"
-          title="Delete"
-          class="ml-auto"
-          @click="showDeleteModal = true"
-        />
+        >
+          {{ isSavedToCollection ? "Saved" : "Collection" }}
+        </UButton>
+
+        <div class="ml-auto">
+          <UDropdownMenu
+            :items="moreMenuItems"
+            :popper="{ placement: 'bottom-end' }"
+          >
+            <UButton
+              icon="i-lucide-ellipsis"
+              size="xs"
+              variant="ghost"
+              color="neutral"
+            />
+          </UDropdownMenu>
+        </div>
       </div>
     </div>
+  </div>
+
+  <!-- Start Over -->
+  <div class="mt-4 flex justify-center">
+    <UButton
+      icon="i-lucide-rotate-ccw"
+      size="sm"
+      variant="ghost"
+      color="neutral"
+      @click="emit('startOver')"
+    >
+      Start Over
+    </UButton>
   </div>
 
   <CollectionPickerModal
