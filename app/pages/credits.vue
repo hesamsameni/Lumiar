@@ -113,15 +113,7 @@ async function startCheckout() {
 
 <template>
   <div class="max-w-xl mx-auto px-4 py-16 relative isolate">
-    <!-- Glow backdrop -->
-    <div
-      class="pointer-events-none absolute inset-x-0 top-10 -z-10 flex justify-center overflow-visible"
-      aria-hidden="true"
-    >
-      <div
-        class="w-[500px] h-[350px] rounded-full bg-indigo-400/20 dark:bg-indigo-500/15 blur-[120px]"
-      />
-    </div>
+    <AuroraBackdrop />
 
     <!-- Success banner -->
     <Transition
@@ -170,19 +162,30 @@ async function startCheckout() {
 
     <!-- Hero -->
     <div class="mb-10 text-center">
-      <h1 class="text-3xl font-semibold tracking-tight mb-1.5">Buy Credits</h1>
-      <p class="text-sm text-zinc-400 dark:text-zinc-500">
+      <h1
+        class="font-display text-3xl sm:text-4xl font-bold tracking-tight mb-1.5"
+      >
+        Buy <span class="text-gradient-brand">Credits</span>
+      </h1>
+      <p class="text-sm text-zinc-500 dark:text-zinc-400">
         No subscriptions. Pay once, use whenever.
       </p>
       <div
         v-if="balance !== null"
-        class="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-zinc-100 dark:bg-zinc-800 text-sm font-medium"
+        class="mt-4 inline-flex rounded-full p-px bg-gradient-brand"
       >
-        <UIcon name="i-lucide-zap" class="size-4 text-amber-500" />
         <span
-          >Current balance:
-          <strong>{{ balance.toLocaleString() }}</strong> credits</span
+          class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white dark:bg-zinc-950 text-sm font-medium"
         >
+          <UIcon name="i-lucide-zap" class="size-4 text-amber-500" />
+          <span
+            >Current balance:
+            <strong class="tabular-nums">{{
+              balance.toLocaleString()
+            }}</strong>
+            credits</span
+          >
+        </span>
       </div>
     </div>
 
@@ -195,14 +198,14 @@ async function startCheckout() {
         class="relative flex flex-col items-center text-center px-4 py-5 rounded-2xl border-2 transition-all focus:outline-none"
         :class="
           selectedPackId === pack.id
-            ? 'border-primary bg-primary/8 dark:bg-primary/12 shadow-sm'
+            ? 'border-primary/50 bg-gradient-to-br from-indigo-500/10 via-violet-500/8 to-fuchsia-500/10 ring-1 ring-primary/20 shadow-sm'
             : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
         "
         @click="selectPack(pack.id)"
       >
         <span
           v-if="pack.featured"
-          class="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-primary text-white whitespace-nowrap"
+          class="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-gradient-brand text-white shadow-glow-brand whitespace-nowrap"
         >
           Popular
         </span>
@@ -263,11 +266,15 @@ async function startCheckout() {
 
     <!-- Custom amount -->
     <div class="flex items-center gap-3 mb-6">
-      <div class="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
+      <div
+        class="flex-1 h-px bg-gradient-to-r from-transparent to-zinc-200 dark:to-zinc-800"
+      />
       <span class="text-xs text-zinc-400 dark:text-zinc-500 whitespace-nowrap"
         >or enter a custom amount</span
       >
-      <div class="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
+      <div
+        class="flex-1 h-px bg-gradient-to-l from-transparent to-zinc-200 dark:to-zinc-800"
+      />
     </div>
 
     <div class="mb-8">
@@ -275,7 +282,7 @@ async function startCheckout() {
         class="flex items-center gap-2 px-4 py-3 rounded-2xl border-2 transition-all"
         :class="
           !selectedPackId && customEuros
-            ? 'border-primary bg-primary/8 dark:bg-primary/12'
+            ? 'border-primary/50 bg-gradient-to-br from-indigo-500/10 via-violet-500/8 to-fuchsia-500/10 ring-1 ring-primary/20'
             : 'border-zinc-200 dark:border-zinc-800 focus-within:border-zinc-300 dark:focus-within:border-zinc-700'
         "
       >
@@ -332,6 +339,7 @@ async function startCheckout() {
         icon="i-lucide-credit-card"
         :loading="isLoading"
         :disabled="!isValid"
+        class="!bg-gradient-brand !text-white shadow-glow-brand hover:!brightness-110 disabled:!brightness-100 disabled:shadow-none transition-all"
         @click="startCheckout"
       >
         {{ isLoading ? "Redirecting to Stripe…" : "Pay with Stripe" }}

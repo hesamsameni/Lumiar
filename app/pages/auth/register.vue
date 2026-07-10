@@ -68,24 +68,28 @@ async function signInWithGoogle() {
 
 <template>
   <div
-    class="min-h-screen bg-white dark:bg-zinc-950 flex items-center justify-center px-4"
+    class="relative isolate min-h-screen bg-white dark:bg-zinc-950 flex items-center justify-center px-4 overflow-hidden"
   >
+    <AuroraBackdrop />
     <div class="w-full max-w-sm">
       <div class="text-center mb-8">
-        <NuxtLink
-          to="/"
-          class="inline-flex items-center gap-2 font-semibold text-xl mb-6"
-        >
-          <img src="/logo.svg" alt="Lumiar logo" class="text-primary size-6" />
-          <span>Lumiar</span>
+        <NuxtLink to="/" class="inline-flex items-center gap-2 mb-6">
+          <img src="/logo.svg" alt="Lumiar logo" class="size-7" />
+          <span class="font-display font-bold text-xl text-gradient-brand"
+            >Lumiar</span
+          >
         </NuxtLink>
-        <h1 class="text-2xl font-bold">Create an account</h1>
+        <h1 class="font-display text-2xl font-bold tracking-tight">
+          Create an account
+        </h1>
         <p class="text-zinc-500 dark:text-zinc-400 text-sm mt-1">
           Start with 25 free credits
         </p>
       </div>
 
-      <UCard>
+      <div
+        class="rounded-panel border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm p-6"
+      >
         <div class="space-y-4">
           <UFormField label="Email">
             <UInput
@@ -112,14 +116,22 @@ async function signInWithGoogle() {
             />
           </UFormField>
 
-          <UButton block :loading="loading" @click="register"
+          <UButton
+            block
+            :loading="loading"
+            class="!bg-gradient-brand !text-white shadow-glow-brand hover:!brightness-110 transition-all"
+            @click="register"
             >Create account</UButton
           >
 
           <div class="flex items-center gap-3">
-            <div class="flex-1 h-px bg-zinc-200 dark:bg-zinc-700" />
+            <div
+              class="flex-1 h-px bg-gradient-to-r from-transparent to-zinc-200 dark:to-zinc-700"
+            />
             <span class="text-xs text-zinc-400">or</span>
-            <div class="flex-1 h-px bg-zinc-200 dark:bg-zinc-700" />
+            <div
+              class="flex-1 h-px bg-gradient-to-l from-transparent to-zinc-200 dark:to-zinc-700"
+            />
           </div>
 
           <UButton
@@ -132,7 +144,7 @@ async function signInWithGoogle() {
             Continue with Google
           </UButton>
         </div>
-      </UCard>
+      </div>
 
       <p class="text-center text-sm text-zinc-500 dark:text-zinc-400 mt-4">
         Already have an account?

@@ -44,17 +44,18 @@ function handleCancel() {
   <UModal v-model:open="isOpen" :dismissible="!loading">
     <template #content>
       <div>
-        <div class="px-4 py-5 sm:px-6 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
-          <h3 class="text-base font-semibold leading-6 text-zinc-900 dark:text-white flex items-center gap-2">
-            <UIcon
-              :name="icon"
-              class="size-5"
-              :class="{
-                'text-red-500': confirmColor === 'error',
-                'text-primary': confirmColor === 'primary',
-                'text-zinc-500': confirmColor === 'neutral',
-              }"
-            />
+        <div class="relative px-4 py-4 sm:px-6 flex items-center justify-between">
+          <h3 class="font-display text-base font-bold tracking-tight text-zinc-900 dark:text-white flex items-center gap-2.5">
+            <span
+              class="flex size-9 items-center justify-center rounded-xl ring-1 flex-shrink-0"
+              :class="
+                confirmColor === 'error'
+                  ? 'bg-red-500/10 text-red-500 ring-red-500/15'
+                  : 'bg-gradient-to-br from-indigo-500/15 via-violet-500/10 to-fuchsia-500/15 text-primary ring-primary/15'
+              "
+            >
+              <UIcon :name="icon" class="size-[18px]" />
+            </span>
             {{ title }}
           </h3>
           <UButton
@@ -64,6 +65,9 @@ function handleCancel() {
             class="-my-1"
             :disabled="loading"
             @click="handleCancel"
+          />
+          <div
+            class="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent"
           />
         </div>
 
@@ -85,6 +89,11 @@ function handleCancel() {
           <UButton
             :color="confirmColor"
             :loading="loading"
+            :class="
+              confirmColor === 'primary'
+                ? '!bg-gradient-brand !text-white shadow-glow-brand hover:!brightness-110 transition-all'
+                : ''
+            "
             @click="handleConfirm"
           >
             {{ confirmText }}

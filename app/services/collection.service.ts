@@ -59,7 +59,7 @@ export function useCollectionService() {
   async function getCollectionItems(collectionId: string) {
     return (supabase.from("collection_items") as any)
       .select(
-        "generation_id, added_at, generations(id, output_image_url, prompt, model_name, created_at, metadata, likes(id), is_shared)",
+        "generation_id, added_at, generations(id, output_image_url, prompt, model_name, created_at, metadata, likes(id), is_shared, aspect_ratio)",
       )
       .eq("collection_id", collectionId)
       .order("added_at", { ascending: false });

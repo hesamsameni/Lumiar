@@ -23,6 +23,7 @@ const showCollectionPicker = ref(false);
 const isSavedToCollection = ref(false);
 const isDeleting = ref(false);
 const showDeleteModal = ref(false);
+const imgLoaded = ref(false);
 
 async function deleteGeneration() {
   isDeleting.value = true;
@@ -190,14 +191,20 @@ onMounted(async () => {
 
   <!-- Result card -->
   <div
-    class="rounded-3xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-xl shadow-zinc-200/60 dark:shadow-black/40"
+    class="animate-fade-up rounded-3xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-xl shadow-zinc-200/60 dark:shadow-black/40"
   >
     <!-- Image -->
-    <div class="bg-zinc-100 dark:bg-zinc-950">
+    <div class="relative bg-zinc-100 dark:bg-zinc-950 min-h-[120px]">
+      <div
+        v-if="!imgLoaded"
+        class="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/40 dark:via-white/5 to-transparent"
+      />
       <img
         :src="imageUrl"
         alt="Generated image"
-        class="w-full object-contain"
+        class="w-full object-contain transition-opacity duration-500"
+        :class="imgLoaded ? 'opacity-100' : 'opacity-0'"
+        @load="imgLoaded = true"
       />
     </div>
 
@@ -219,9 +226,7 @@ onMounted(async () => {
         <UButton
           icon="i-lucide-download"
           size="sm"
-          variant="solid"
-          color="neutral"
-          class="flex-1"
+          class="flex-1 !bg-gradient-brand !text-white shadow-glow-brand hover:!brightness-110 transition-all"
           @click="downloadImage"
         >
           Download

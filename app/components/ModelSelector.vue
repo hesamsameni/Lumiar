@@ -142,7 +142,7 @@ const tierLabel: Record<string, string> = {
     <div
       v-for="group in groupedModels"
       :key="group.company"
-      class="rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden"
+      class="rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden"
     >
       <!-- Group header (clickable to collapse/expand) -->
       <button
@@ -180,20 +180,25 @@ const tierLabel: Record<string, string> = {
         <div
           v-for="model in group.models"
           :key="model.id"
-          class="flex items-start gap-3 px-3 py-2.5 cursor-pointer transition-colors"
+          class="relative flex items-start gap-3 px-3 py-2.5 cursor-pointer transition-colors"
           :class="
             modelValue.id === model.id
-              ? 'bg-primary/8 dark:bg-primary/12'
+              ? 'bg-gradient-to-r from-indigo-500/10 via-violet-500/8 to-fuchsia-500/10'
               : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/40'
           "
           @click="emit('update:modelValue', model)"
         >
+          <!-- Selected indicator bar -->
+          <span
+            v-if="modelValue.id === model.id"
+            class="absolute left-0 top-1/2 -translate-y-1/2 h-8 w-1 rounded-r-full bg-gradient-brand"
+          />
           <!-- Radio dot -->
           <div
             class="mt-1 size-3.5 rounded-full border-2 shrink-0 transition-all"
             :class="
               modelValue.id === model.id
-                ? 'border-primary bg-primary'
+                ? 'border-transparent bg-gradient-brand'
                 : 'border-zinc-300 dark:border-zinc-600'
             "
           />

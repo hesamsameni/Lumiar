@@ -36,6 +36,7 @@ const showDeleteModal = ref(false);
 const showUnshareModal = ref(false);
 const isDeleting = ref(false);
 const fullscreenImageUrl = ref<string | null>(null);
+const imgLoaded = ref(false);
 
 const model = computed(() =>
   generation.value ? getModelById(generation.value.model_id as string) : null,
@@ -85,6 +86,7 @@ async function fetchGeneration() {
   generation.value = null;
   comments.value = [];
   isShared.value = false;
+  imgLoaded.value = false;
 
   const { data } = await generationService.getGenerationById(
     props.generationId,
@@ -258,18 +260,25 @@ watch(
 <template>
   <UModal
     :open="open"
-    :ui="{ content: 'sm:max-w-5xl lg:h-[85dvh] flex flex-col' }"
+    :ui="{ content: 'sm:max-w-5xl max-h-[90dvh] flex flex-col' }"
     @update:open="emit('update:open', $event)"
   >
     <template #content>
       <div class="flex flex-col max-h-[90dvh] overflow-hidden">
         <!-- Header -->
         <div
-          class="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0"
+          class="relative flex items-center justify-between px-4 py-3 flex-shrink-0"
         >
-          <h3 class="text-sm font-semibold text-zinc-900 dark:text-white">
-            Generation Details
-          </h3>
+          <div class="flex items-center gap-2.5">
+            <span
+              class="flex size-8 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/15 via-violet-500/10 to-fuchsia-500/15 text-primary ring-1 ring-primary/15"
+            >
+              <UIcon name="i-lucide-image" class="size-4" />
+            </span>
+            <h3 class="font-display font-bold text-sm tracking-tight">
+              Generation Details
+            </h3>
+          </div>
           <div class="flex items-center gap-2">
             <UButton
               icon="i-lucide-external-link"
@@ -289,10 +298,13 @@ watch(
               @click="emit('update:open', false)"
             />
           </div>
+          <div
+            class="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent"
+          />
         </div>
 
         <!-- Body -->
-        <div class="overflow-y-auto lg:overflow-hidden flex-1 min-h-0">
+        <div class="overflow-y-auto flex-1 min-h-0">
           <!-- Loading -->
           <div v-if="loading" class="flex items-center justify-center py-20">
             <UIcon
@@ -302,20 +314,22 @@ watch(
           </div>
 
           <template v-else-if="generation">
-            <div class="flex flex-col lg:flex-row lg:h-full">
+            <div class="flex flex-col lg:flex-row">
               <!-- Left: image + actions -->
               <div class="lg:flex-1 flex flex-col min-h-0">
                 <!-- Image -->
                 <div
-                  class="flex-1 bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center p-6 min-h-[40vh] lg:min-h-0 lg:overflow-hidden relative group"
+                  class="flex-1 bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center p-4 sm:p-6 relative group"
                 >
                   <img
                     :src="generation.output_image_url as string"
                     :alt="generation.prompt as string"
-                    class="max-w-full max-h-[35vh] lg:max-h-[75%] object-contain rounded-xl shadow-lg"
+                    class="max-w-full max-h-[45vh] lg:max-h-[70vh] w-auto object-contain rounded-2xl shadow-lg transition-opacity duration-500"
+                    :class="imgLoaded ? 'opacity-100' : 'opacity-0'"
+                    @load="imgLoaded = true"
                   />
                   <button
-                    class="absolute top-4 right-4 size-8 rounded-lg bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors backdrop-blur-sm opacity-0 group-hover:opacity-100"
+                    class="absolute top-4 right-4 size-8 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60 transition-colors backdrop-blur-md opacity-0 group-hover:opacity-100"
                     @click="
                       fullscreenImageUrl = generation.output_image_url as string
                     "
@@ -330,10 +344,8 @@ watch(
                 >
                   <UButton
                     icon="i-lucide-download"
-                    variant="solid"
-                    color="neutral"
                     size="sm"
-                    class="flex-1"
+                    class="flex-1 !bg-gradient-brand !text-white shadow-glow-brand hover:!brightness-110 transition-all"
                     @click="downloadImage"
                   >
                     Download
@@ -414,29 +426,32 @@ watch(
 
               <!-- Details sidebar: fixed width, scrolls independently -->
               <div
-                class="lg:w-72 xl:w-80 shrink-0 lg:overflow-y-auto p-4 space-y-4 border-t lg:border-t-0 lg:border-l border-zinc-200 dark:border-zinc-800"
+                class="lg:w-72 xl:w-80 shrink-0 p-4 space-y-4 border-t lg:border-t-0 lg:border-l border-zinc-200 dark:border-zinc-800"
               >
                 <!-- Author -->
                 <NuxtLink
                   v-if="generation.profiles"
                   :to="`/profile/${(generation.profiles as { username: string }).username}`"
-                  class="flex items-center gap-2 group"
+                  class="flex items-center gap-2.5 group"
                   @click="emit('update:open', false)"
                 >
-                  <UAvatar
-                    :src="
-                      (generation.profiles as { avatar_url?: string })
-                        .avatar_url || undefined
-                    "
-                    :fallback="
-                      (generation.profiles as { username: string }).username
-                        ?.slice(0, 1)
-                        .toUpperCase()
-                    "
-                    size="sm"
-                  />
+                  <span class="rounded-full p-px bg-conic-brand flex-shrink-0">
+                    <UAvatar
+                      :src="
+                        (generation.profiles as { avatar_url?: string })
+                          .avatar_url || undefined
+                      "
+                      :fallback="
+                        (generation.profiles as { username: string }).username
+                          ?.slice(0, 1)
+                          .toUpperCase()
+                      "
+                      size="sm"
+                      class="ring-2 ring-white dark:ring-zinc-900"
+                    />
+                  </span>
                   <span
-                    class="text-sm font-medium group-hover:text-primary transition-colors"
+                    class="text-sm font-semibold group-hover:text-primary transition-colors"
                   >
                     {{ (generation.profiles as { username: string }).username }}
                   </span>
@@ -511,12 +526,12 @@ watch(
                   >
                     Tags
                   </p>
-                  <div class="flex flex-wrap gap-1">
+                  <div class="flex flex-wrap gap-1.5">
                     <span
                       v-for="tag in (generation.metadata as { tags: string[] })
                         .tags"
                       :key="tag"
-                      class="text-xs px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
+                      class="text-xs px-2.5 py-0.5 rounded-full border border-primary/20 bg-gradient-to-r from-indigo-500/10 via-violet-500/10 to-fuchsia-500/10 text-primary font-medium"
                     >
                       {{ tag }}
                     </span>

@@ -10,6 +10,7 @@ interface Generation {
   model_name: string;
   created_at: string;
   is_shared: boolean;
+  aspect_ratio?: string;
   metadata?: { tags?: string[] };
   profiles?: { username: string; avatar_url?: string };
   likes?: { id: string }[];
@@ -22,7 +23,23 @@ const props = defineProps<{
   isOwner?: boolean;
   collectionId?: string;
   initialIsLiked?: boolean;
+  masonry?: boolean;
 }>();
+
+const imgLoaded = ref(false);
+
+// In masonry mode, always reserve the card height so the grid never reflows
+// (or flickers) as images load. Uses the stored aspect ratio when known, and a
+// square fallback otherwise.
+const masonryAspect = computed(() => {
+  if (!props.masonry) return null;
+  const ar = props.generation.aspect_ratio;
+  if (ar && ar !== "auto") {
+    const [w, h] = ar.split(":").map(Number);
+    if (w && h) return `${w} / ${h}`;
+  }
+  return "1 / 1";
+});
 
 const emit = defineEmits<{
   deleted: [id: string];
@@ -319,80 +336,89 @@ onMounted(() => {
 
 <template>
   <div
-    class="rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 transition-all hover:shadow-md"
+    class="group relative rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-900 transition-all duration-300 hover:shadow-xl hover:shadow-zinc-300/50 dark:hover:shadow-black/50 hover:-translate-y-0.5"
   >
-    <!-- Image -->
+    <!-- Image (preview trigger) -->
     <button
       class="block w-full text-left"
       @click="emit('preview', generation.id)"
     >
-      <div class="aspect-square overflow-hidden bg-zinc-100 dark:bg-zinc-800">
+      <div
+        class="relative overflow-hidden bg-zinc-100 dark:bg-zinc-800"
+        :class="!masonry ? 'aspect-square' : ''"
+        :style="masonryAspect ? { aspectRatio: masonryAspect } : undefined"
+      >
         <img
           :src="generation.output_image_url"
           :alt="generation.prompt"
-          class="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+          class="w-full h-full object-cover transition-all duration-300 group-hover:scale-[1.04]"
+          :class="imgLoaded ? 'opacity-100' : 'opacity-0'"
           loading="lazy"
+          @load="imgLoaded = true"
         />
       </div>
     </button>
 
-    <!-- Bottom bar -->
-    <div class="px-3 py-2.5 flex items-center gap-2">
-      <template v-if="showAuthor && generation.profiles">
-        <NuxtLink
-          :to="`/profile/${generation.profiles.username}`"
-          class="flex items-center gap-1.5 min-w-0 flex-1"
-        >
-          <UAvatar
-            :src="generation.profiles.avatar_url || undefined"
-            :fallback="
-              generation.profiles.username?.slice(0, 1).toUpperCase() || '?'
-            "
-            size="2xs"
-            class="flex-shrink-0"
-          />
-          <span
-            class="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate leading-tight"
-          >
-            {{ generation.profiles.username }}
-          </span>
-        </NuxtLink>
-      </template>
-      <div v-else class="flex-1 min-w-0">
-        <p
-          class="text-xs text-zinc-500 dark:text-zinc-400 truncate leading-tight"
-          :style="rtlStyle(generation.prompt)"
-          :dir="hasRtlChars(generation.prompt) ? 'rtl' : 'ltr'"
-        >
-          {{ generation.prompt }}
-        </p>
-      </div>
+    <!-- Gradient scrim (visible on mobile, reveals on hover for desktop) -->
+    <div
+      class="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/85 via-black/25 to-transparent opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-300"
+    />
 
-      <!-- Owner actions dropdown -->
-      <UDropdownMenu v-if="isOwner" :items="dropdownItems">
-        <button
-          class="size-6 rounded-md flex items-center justify-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex-shrink-0"
-          @click.prevent
-        >
-          <UIcon name="i-lucide-more-horizontal" class="size-3.5" />
-        </button>
-      </UDropdownMenu>
-
-      <!-- Like button -->
+    <!-- Owner actions (top-right, glass) -->
+    <UDropdownMenu v-if="isOwner" :items="dropdownItems">
       <button
-        class="flex items-center gap-1 text-xs flex-shrink-0 transition-colors"
-        :class="
-          isLiked
-            ? 'text-red-500'
-            : 'text-zinc-400 dark:text-zinc-500 hover:text-red-400'
-        "
+        aria-label="Image actions"
+        class="absolute top-2 right-2 size-8 rounded-full flex items-center justify-center bg-black/40 text-white backdrop-blur-md hover:bg-black/60 transition-all opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100"
+        @click.prevent
+      >
+        <UIcon name="i-lucide-more-horizontal" class="size-4" />
+      </button>
+    </UDropdownMenu>
+
+    <!-- Bottom info overlay -->
+    <div
+      class="pointer-events-none absolute inset-x-0 bottom-0 p-3 flex items-end gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 translate-y-1 group-hover:translate-y-0 transition-all duration-300"
+    >
+      <NuxtLink
+        v-if="showAuthor && generation.profiles"
+        :to="`/profile/${generation.profiles.username}`"
+        class="pointer-events-auto flex items-center gap-1.5 min-w-0 flex-1"
+        @click.stop
+      >
+        <UAvatar
+          :src="generation.profiles.avatar_url || undefined"
+          :fallback="
+            generation.profiles.username?.slice(0, 1).toUpperCase() || '?'
+          "
+          size="2xs"
+          class="flex-shrink-0 ring-1 ring-white/40"
+        />
+        <span
+          class="text-xs font-medium text-white truncate leading-tight drop-shadow"
+        >
+          {{ generation.profiles.username }}
+        </span>
+      </NuxtLink>
+      <p
+        v-else
+        class="text-xs text-white/90 line-clamp-2 leading-snug drop-shadow flex-1 min-w-0"
+        :style="rtlStyle(generation.prompt)"
+        :dir="hasRtlChars(generation.prompt) ? 'rtl' : 'ltr'"
+      >
+        {{ generation.prompt }}
+      </p>
+
+      <!-- Like -->
+      <button
+        class="pointer-events-auto flex items-center gap-1 text-xs font-medium shrink-0 drop-shadow transition-colors"
+        :class="isLiked ? 'text-red-400' : 'text-white hover:text-red-300'"
         :disabled="isTogglingLike"
         @click.prevent="toggleLike"
       >
         <UIcon
           name="i-lucide-heart"
           class="size-3.5"
-          :class="isLiked ? 'fill-red-500' : 'fill-none'"
+          :class="isLiked ? 'fill-red-400' : 'fill-none'"
         />
         {{ likesCount }}
       </button>

@@ -61,6 +61,7 @@ const showDeleteModal = ref(false);
 const showUnshareModal = ref(false);
 const showCollectionPicker = ref(false);
 const fullscreenImageUrl = ref<string | null>(null);
+const imgLoaded = ref(false);
 
 const referenceImages = computed(() => {
   if (!generation.value) return [];
@@ -276,7 +277,7 @@ onMounted(async () => {
       variant="ghost"
       color="neutral"
       size="sm"
-      class="mb-6"
+      class="mb-6 rounded-full"
       @click="router.back()"
     >
       Back
@@ -293,16 +294,22 @@ onMounted(async () => {
       <div class="grid lg:grid-cols-[1fr_360px] gap-8">
         <div>
           <div
-            class="relative rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 group"
+            class="relative rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 group min-h-[160px]"
           >
+            <div
+              v-if="!imgLoaded"
+              class="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/40 dark:via-white/5 to-transparent"
+            />
             <img
               :src="generation.output_image_url as string"
               :alt="generation.prompt as string"
-              class="w-full object-contain max-h-[70vh]"
+              class="w-full object-contain max-h-[70vh] transition-opacity duration-500"
+              :class="imgLoaded ? 'opacity-100' : 'opacity-0'"
+              @load="imgLoaded = true"
             />
             <!-- Fullscreen button -->
             <button
-              class="absolute top-3 right-3 size-9 rounded-xl bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors backdrop-blur-sm"
+              class="absolute top-3 right-3 size-9 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60 transition-colors backdrop-blur-md opacity-0 group-hover:opacity-100"
               title="View fullscreen"
               @click="
                 fullscreenImageUrl = generation.output_image_url as string
@@ -347,10 +354,8 @@ onMounted(async () => {
           <div class="flex gap-2 mt-4">
             <UButton
               icon="i-lucide-download"
-              variant="solid"
-              color="neutral"
               size="sm"
-              class="flex-1"
+              class="flex-1 !bg-gradient-brand !text-white shadow-glow-brand hover:!brightness-110 transition-all"
               @click="downloadImage"
             >
               Download
@@ -428,27 +433,32 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div class="space-y-6">
-          <div>
+        <div class="space-y-5">
+          <div
+            class="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5"
+          >
             <NuxtLink
               v-if="generation.profiles"
               :to="`/profile/${(generation.profiles as { username: string }).username}`"
-              class="flex items-center gap-2 mb-3 group"
+              class="flex items-center gap-2.5 mb-4 group"
             >
-              <UAvatar
-                :src="
-                  (generation.profiles as { avatar_url?: string }).avatar_url ||
-                  undefined
-                "
-                :fallback="
-                  (generation.profiles as { username: string }).username
-                    ?.slice(0, 1)
-                    .toUpperCase()
-                "
-                size="sm"
-              />
+              <span class="rounded-full p-px bg-conic-brand flex-shrink-0">
+                <UAvatar
+                  :src="
+                    (generation.profiles as { avatar_url?: string })
+                      .avatar_url || undefined
+                  "
+                  :fallback="
+                    (generation.profiles as { username: string }).username
+                      ?.slice(0, 1)
+                      .toUpperCase()
+                  "
+                  size="sm"
+                  class="ring-2 ring-white dark:ring-zinc-900"
+                />
+              </span>
               <span
-                class="text-sm font-medium group-hover:text-primary transition-colors"
+                class="text-sm font-semibold group-hover:text-primary transition-colors"
               >
                 {{ (generation.profiles as { username: string }).username }}
               </span>
@@ -582,12 +592,12 @@ onMounted(async () => {
                 >
                   Tags
                 </p>
-                <div class="flex flex-wrap gap-1">
+                <div class="flex flex-wrap gap-1.5">
                   <span
                     v-for="tag in (generation.metadata as { tags: string[] })
                       .tags"
                     :key="tag"
-                    class="text-xs px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
+                    class="text-xs px-2.5 py-0.5 rounded-full border border-primary/20 bg-gradient-to-r from-indigo-500/10 via-violet-500/10 to-fuchsia-500/10 text-primary font-medium"
                   >
                     {{ tag }}
                   </span>
@@ -596,10 +606,14 @@ onMounted(async () => {
             </div>
           </div>
 
-          <div>
-            <h3 class="font-medium text-sm mb-3">
+          <div
+            class="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5"
+          >
+            <h3
+              class="font-display font-semibold text-sm mb-3 flex items-center gap-1.5"
+            >
               Comments
-              <span class="text-zinc-400 ml-1">{{ comments.length }}</span>
+              <span class="text-zinc-400">{{ comments.length }}</span>
             </h3>
 
             <div class="space-y-3 max-h-64 overflow-y-auto mb-4">

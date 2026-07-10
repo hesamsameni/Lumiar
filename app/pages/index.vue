@@ -69,6 +69,12 @@ const canAddMore = computed(() => {
   return inputFiles.value.length + editingSlots < maxImages.value;
 });
 
+const generatingAspect = computed(() => {
+  const v = selectedAspectRatio.value.value;
+  if (!v || v === "auto") return "1 / 1";
+  return v.replace(":", " / ");
+});
+
 // Composer state
 const isPolishing = ref(false);
 const isDragging = ref(false);
@@ -251,38 +257,43 @@ function getRatioStyle(value: string): Record<string, string> {
 </script>
 
 <template>
-  <div class="max-w-xl mx-auto px-4 py-16 relative isolate">
-    <!-- Indigo glow backdrop -->
-    <div
-      class="pointer-events-none absolute inset-x-0 top-10 -z-10 flex justify-center overflow-visible"
-      aria-hidden="true"
-    >
-      <div
-        class="w-[600px] h-[400px] rounded-full bg-indigo-400/25 dark:bg-indigo-500/20 blur-[120px]"
-      />
-    </div>
+  <div class="max-w-xl mx-auto px-4 py-16 sm:py-20 relative isolate">
+    <!-- Animated aurora + grain backdrop (breaks out to full viewport width) -->
+    <AuroraBackdrop />
     <!-- Hero -->
     <div class="mb-10 text-center">
-      <h1 class="text-3xl font-semibold tracking-tight mb-1.5">
-        What will you create?
+      <span
+        class="inline-flex items-center gap-1.5 mb-4 rounded-full border border-zinc-200/80 dark:border-zinc-700/60 bg-white/60 dark:bg-zinc-900/50 backdrop-blur px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400"
+      >
+        <UIcon name="i-lucide-sparkles" class="size-3 text-primary" />
+        AI Image Studio
+      </span>
+      <h1
+        class="font-display text-4xl sm:text-5xl font-bold tracking-tight leading-[1.05] mb-3"
+      >
+        What will you
+        <span class="text-gradient-brand animate-gradient-pan">create?</span>
       </h1>
-      <p class="text-sm text-zinc-400 dark:text-zinc-500">
+      <p class="text-sm sm:text-base text-zinc-500 dark:text-zinc-400">
         Describe an image and let AI bring it to life
       </p>
     </div>
 
-    <!-- Composer card -->
+    <!-- Composer card (gradient border wrapper) -->
     <div
-      class="rounded-3xl border shadow-sm bg-white dark:bg-zinc-900 transition-all duration-200"
+      class="group/composer rounded-[calc(var(--radius-panel)+1px)] p-px transition-all duration-300 bg-gradient-to-br"
       :class="
         isDragging
-          ? 'border-primary ring-2 ring-primary/20 shadow-primary/10'
-          : 'border-zinc-200 dark:border-zinc-800'
+          ? 'from-indigo-500 via-violet-500 to-fuchsia-500 shadow-glow-brand'
+          : 'from-zinc-200 via-zinc-200 to-zinc-200 dark:from-zinc-800 dark:via-zinc-800 dark:to-zinc-800 focus-within:from-indigo-500/70 focus-within:via-violet-500/60 focus-within:to-fuchsia-500/70 hover:from-zinc-300 hover:to-zinc-300 dark:hover:from-zinc-700 dark:hover:to-zinc-700'
       "
       @dragover.prevent="isDragging = true"
       @dragleave="isDragging = false"
       @drop.prevent="onDrop"
     >
+      <div
+        class="rounded-panel bg-white dark:bg-zinc-900 transition-all duration-200"
+      >
       <!-- Attached images preview -->
       <div
         v-if="inputPreviewUrls.length > 0 || editingImageUrl"
@@ -357,7 +368,7 @@ function getRatioStyle(value: string): Record<string, string> {
         :disabled="isGenerating"
         placeholder="Describe the image you want to generate…"
         rows="6"
-        class="w-full px-5 pt-5 pb-3 text-sm bg-transparent resize-none outline-none placeholder-zinc-400 dark:placeholder-zinc-600 text-zinc-900 dark:text-zinc-100 leading-relaxed rounded-t-3xl"
+        class="w-full px-5 pt-5 pb-3 text-sm bg-transparent resize-none outline-none placeholder-zinc-400 dark:placeholder-zinc-600 text-zinc-900 dark:text-zinc-100 leading-relaxed rounded-t-panel"
         :style="rtlStyle(prompt)"
         :dir="hasRtlChars(prompt) ? 'rtl' : 'ltr'"
       />
@@ -509,7 +520,7 @@ function getRatioStyle(value: string): Record<string, string> {
 
           <!-- Generate -->
           <UButton
-            class="ml-auto flex-shrink-0"
+            class="ml-auto flex-shrink-0 !bg-gradient-brand !text-white shadow-glow-brand hover:!brightness-110 hover:animate-gradient-pan disabled:!brightness-100 disabled:shadow-none transition-all"
             size="sm"
             :loading="isGenerating"
             :disabled="!prompt.trim()"
@@ -523,6 +534,7 @@ function getRatioStyle(value: string): Record<string, string> {
           </UButton>
         </div>
       </div>
+      </div>
     </div>
 
     <!-- Ratio sidebar -->
@@ -534,15 +546,32 @@ function getRatioStyle(value: string): Record<string, string> {
       <template #content>
         <div class="flex flex-col h-full">
           <div
-            class="flex items-center justify-between px-5 py-4 border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0"
+            class="relative flex items-center justify-between px-5 py-4 flex-shrink-0"
           >
-            <h2 class="font-semibold text-base">Aspect Ratio</h2>
+            <div class="flex items-center gap-3">
+              <span
+                class="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/15 via-violet-500/10 to-fuchsia-500/15 text-primary ring-1 ring-primary/15"
+              >
+                <UIcon name="i-lucide-ratio" class="size-[18px]" />
+              </span>
+              <div>
+                <h2 class="font-display font-bold text-base tracking-tight">
+                  Aspect Ratio
+                </h2>
+                <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                  Choose the output dimensions
+                </p>
+              </div>
+            </div>
             <UButton
               icon="i-lucide-x"
               variant="ghost"
               color="neutral"
               size="sm"
               @click="showRatioSelector = false"
+            />
+            <div
+              class="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent"
             />
           </div>
           <div class="flex-1 overflow-y-auto p-5 space-y-2">
@@ -552,7 +581,7 @@ function getRatioStyle(value: string): Record<string, string> {
               class="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl border transition-all text-left"
               :class="
                 selectedAspectRatio.value === ratio.value
-                  ? 'border-primary bg-primary/8 dark:bg-primary/12'
+                  ? 'border-primary/40 bg-gradient-to-r from-indigo-500/10 via-violet-500/8 to-fuchsia-500/10 ring-1 ring-primary/25'
                   : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
               "
               @click="
@@ -581,7 +610,7 @@ function getRatioStyle(value: string): Record<string, string> {
                     class="rounded border-2 transition-all"
                     :class="
                       selectedAspectRatio.value === ratio.value
-                        ? 'border-primary bg-primary/20'
+                        ? 'border-transparent bg-gradient-brand'
                         : 'border-zinc-400 dark:border-zinc-500'
                     "
                     :style="getRatioStyle(ratio.value)"
@@ -623,14 +652,23 @@ function getRatioStyle(value: string): Record<string, string> {
       <template #content>
         <div class="flex flex-col h-full">
           <div
-            class="flex items-center justify-between px-5 py-4 border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0"
+            class="relative flex items-center justify-between px-5 py-4 flex-shrink-0"
           >
-            <div>
-              <h2 class="font-semibold text-base">Select Model</h2>
-              <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                {{ selectedModel.name }} ·
-                {{ selectedModel.tokens_per_generation }} tokens
-              </p>
+            <div class="flex items-center gap-3">
+              <span
+                class="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/15 via-violet-500/10 to-fuchsia-500/15 text-primary ring-1 ring-primary/15"
+              >
+                <UIcon name="i-lucide-cpu" class="size-[18px]" />
+              </span>
+              <div>
+                <h2 class="font-display font-bold text-base tracking-tight">
+                  Select Model
+                </h2>
+                <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                  {{ selectedModel.name }} ·
+                  {{ selectedModel.tokens_per_generation }} credits
+                </p>
+              </div>
             </div>
             <UButton
               icon="i-lucide-x"
@@ -638,6 +676,9 @@ function getRatioStyle(value: string): Record<string, string> {
               color="neutral"
               size="sm"
               @click="showModelSelector = false"
+            />
+            <div
+              class="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent"
             />
           </div>
           <div class="flex-1 overflow-y-auto p-4">
@@ -717,6 +758,56 @@ function getRatioStyle(value: string): Record<string, string> {
         >Your image is being generated in the background. It'll appear here
         automatically when ready.</span
       >
+    </div>
+
+    <!-- Richer generating state -->
+    <div v-if="isGenerating" class="mt-12">
+      <div class="flex items-center gap-3 mb-5">
+        <div class="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
+        <span
+          class="flex items-center gap-1.5 text-xs font-medium text-zinc-400 dark:text-zinc-500 select-none"
+        >
+          <UIcon name="i-lucide-loader-2" class="size-3 animate-spin" />
+          Creating your image
+        </span>
+        <div class="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
+      </div>
+      <div
+        class="relative rounded-3xl overflow-hidden border border-zinc-200 dark:border-zinc-800"
+        :style="{ aspectRatio: generatingAspect }"
+      >
+        <!-- Animated brand gradient wash -->
+        <div class="absolute inset-0 bg-gradient-brand opacity-20 animate-gradient-pan" />
+        <div class="absolute inset-0 bg-grain opacity-10 mix-blend-overlay" />
+        <!-- Shimmer sweep -->
+        <div
+          class="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/25 to-transparent"
+        />
+        <!-- Center content -->
+        <div
+          class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center px-6"
+        >
+          <span
+            class="flex size-12 items-center justify-center rounded-2xl bg-white/80 dark:bg-zinc-900/80 backdrop-blur shadow-glow-brand"
+          >
+            <UIcon
+              name="i-lucide-sparkles"
+              class="size-6 text-primary animate-pulse"
+            />
+          </span>
+          <p class="text-sm font-medium text-zinc-700 dark:text-zinc-200">
+            Generating your image…
+          </p>
+          <p
+            v-if="prompt.trim()"
+            class="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2 max-w-xs"
+            :style="rtlStyle(prompt)"
+            :dir="hasRtlChars(prompt) ? 'rtl' : 'ltr'"
+          >
+            "{{ prompt }}"
+          </p>
+        </div>
+      </div>
     </div>
 
     <GenerationResult

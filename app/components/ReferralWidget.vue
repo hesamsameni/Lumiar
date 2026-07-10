@@ -36,17 +36,17 @@ function shareOnWhatsApp() {
 
 <template>
   <div
-    class="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 to-transparent p-6 space-y-5"
+    class="rounded-2xl border border-primary/20 bg-gradient-to-br from-indigo-500/8 via-violet-500/5 to-transparent p-6 space-y-5"
   >
     <!-- Header -->
     <div class="flex items-start gap-3">
       <div
-        class="size-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0"
+        class="size-10 rounded-xl bg-gradient-to-br from-indigo-500/15 via-violet-500/10 to-fuchsia-500/15 text-primary ring-1 ring-primary/15 flex items-center justify-center flex-shrink-0"
       >
-        <UIcon name="i-lucide-gift" class="size-5 text-primary" />
+        <UIcon name="i-lucide-gift" class="size-5" />
       </div>
       <div>
-        <h3 class="font-semibold text-zinc-900 dark:text-white">
+        <h3 class="font-display font-bold tracking-tight text-zinc-900 dark:text-white">
           Invite friends, earn credits
         </h3>
         <p class="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
@@ -65,7 +65,9 @@ function shareOnWhatsApp() {
       class="flex items-center gap-6 py-3 px-4 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800"
     >
       <div class="text-center">
-        <p class="text-2xl font-bold text-zinc-900 dark:text-white">
+        <p
+          class="font-display text-2xl font-bold text-zinc-900 dark:text-white tabular-nums"
+        >
           {{ stats.referral_count }}
         </p>
         <p class="text-xs text-zinc-500 dark:text-zinc-400">
@@ -74,7 +76,7 @@ function shareOnWhatsApp() {
       </div>
       <div class="w-px h-8 bg-zinc-200 dark:bg-zinc-700" />
       <div class="text-center">
-        <p class="text-2xl font-bold text-primary">
+        <p class="font-display text-2xl font-bold text-gradient-brand tabular-nums">
           {{ stats.credits_earned }}
         </p>
         <p class="text-xs text-zinc-500 dark:text-zinc-400">credits earned</p>

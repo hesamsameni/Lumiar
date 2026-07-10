@@ -34,21 +34,25 @@ async function updatePassword() {
 
 <template>
   <div
-    class="min-h-screen bg-white dark:bg-zinc-950 flex items-center justify-center px-4"
+    class="relative isolate min-h-screen bg-white dark:bg-zinc-950 flex items-center justify-center px-4 overflow-hidden"
   >
+    <AuroraBackdrop />
     <div class="w-full max-w-sm">
       <div class="text-center mb-8">
-        <NuxtLink
-          to="/"
-          class="inline-flex items-center gap-2 font-semibold text-xl mb-6"
-        >
-          <img src="/logo.svg" alt="Lumiar logo" class="text-primary size-6" />
-          <span>Lumiar</span>
+        <NuxtLink to="/" class="inline-flex items-center gap-2 mb-6">
+          <img src="/logo.svg" alt="Lumiar logo" class="size-7" />
+          <span class="font-display font-bold text-xl text-gradient-brand"
+            >Lumiar</span
+          >
         </NuxtLink>
-        <h1 class="text-2xl font-bold">Set new password</h1>
+        <h1 class="font-display text-2xl font-bold tracking-tight">
+          Set new password
+        </h1>
       </div>
 
-      <UCard>
+      <div
+        class="rounded-panel border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm p-6"
+      >
         <div class="space-y-4">
           <UFormField label="New password">
             <UInput
@@ -66,11 +70,15 @@ async function updatePassword() {
               class="w-full"
             />
           </UFormField>
-          <UButton block :loading="loading" @click="updatePassword"
+          <UButton
+            block
+            :loading="loading"
+            class="!bg-gradient-brand !text-white shadow-glow-brand hover:!brightness-110 transition-all"
+            @click="updatePassword"
             >Update password</UButton
           >
         </div>
-      </UCard>
+      </div>
     </div>
   </div>
 </template>

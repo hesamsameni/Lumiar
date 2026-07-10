@@ -26,24 +26,28 @@ async function sendReset() {
 
 <template>
   <div
-    class="min-h-screen bg-white dark:bg-zinc-950 flex items-center justify-center px-4"
+    class="relative isolate min-h-screen bg-white dark:bg-zinc-950 flex items-center justify-center px-4 overflow-hidden"
   >
+    <AuroraBackdrop />
     <div class="w-full max-w-sm">
       <div class="text-center mb-8">
-        <NuxtLink
-          to="/"
-          class="inline-flex items-center gap-2 font-semibold text-xl mb-6"
-        >
-          <img src="/logo.svg" alt="Lumiar logo" class="text-primary size-6" />
-          <span>Lumiar</span>
+        <NuxtLink to="/" class="inline-flex items-center gap-2 mb-6">
+          <img src="/logo.svg" alt="Lumiar logo" class="size-7" />
+          <span class="font-display font-bold text-xl text-gradient-brand"
+            >Lumiar</span
+          >
         </NuxtLink>
-        <h1 class="text-2xl font-bold">Reset password</h1>
+        <h1 class="font-display text-2xl font-bold tracking-tight">
+          Reset password
+        </h1>
         <p class="text-zinc-500 dark:text-zinc-400 text-sm mt-1">
           We'll send you a reset link
         </p>
       </div>
 
-      <UCard>
+      <div
+        class="rounded-panel border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm p-6"
+      >
         <div v-if="!sent" class="space-y-4">
           <UFormField label="Email">
             <UInput
@@ -53,7 +57,11 @@ async function sendReset() {
               class="w-full"
             />
           </UFormField>
-          <UButton block :loading="loading" @click="sendReset"
+          <UButton
+            block
+            :loading="loading"
+            class="!bg-gradient-brand !text-white shadow-glow-brand hover:!brightness-110 transition-all"
+            @click="sendReset"
             >Send reset link</UButton
           >
           <UButton
@@ -68,10 +76,11 @@ async function sendReset() {
         </div>
 
         <div v-else class="text-center py-4 space-y-3">
-          <UIcon
-            name="i-lucide-mail-check"
-            class="size-12 text-primary mx-auto"
-          />
+          <span
+            class="flex size-12 items-center justify-center rounded-2xl mx-auto bg-gradient-to-br from-indigo-500/15 via-violet-500/10 to-fuchsia-500/15 text-primary ring-1 ring-primary/15"
+          >
+            <UIcon name="i-lucide-mail-check" class="size-6" />
+          </span>
           <p class="font-medium">Check your email</p>
           <p class="text-sm text-zinc-500 dark:text-zinc-400">
             Password reset link sent to <strong>{{ email }}</strong>
@@ -82,7 +91,7 @@ async function sendReset() {
             >Back to sign in</NuxtLink
           >
         </div>
-      </UCard>
+      </div>
     </div>
   </div>
 </template>

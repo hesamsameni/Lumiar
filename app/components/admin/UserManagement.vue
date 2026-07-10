@@ -144,7 +144,7 @@ await fetchUsers();
       <!-- Table -->
       <div
         v-else
-        class="rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden"
+        class="rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden"
       >
         <table class="w-full text-sm">
           <thead>
@@ -169,11 +169,14 @@ await fetchUsers();
               <!-- User info -->
               <td class="px-4 py-3">
                 <div class="flex items-center gap-3">
-                  <UAvatar
-                    :src="user.avatar_url ?? undefined"
-                    :alt="user.username"
-                    size="sm"
-                  />
+                  <span class="rounded-full p-px bg-conic-brand flex-shrink-0">
+                    <UAvatar
+                      :src="user.avatar_url ?? undefined"
+                      :alt="user.username"
+                      size="sm"
+                      class="ring-2 ring-white dark:ring-zinc-950"
+                    />
+                  </span>
                   <div>
                     <p class="font-medium text-zinc-900 dark:text-zinc-100">
                       {{ user.username }}
@@ -215,7 +218,7 @@ await fetchUsers();
               <td class="px-4 py-3 hidden lg:table-cell text-center">
                 <span
                   v-if="user.is_admin"
-                  class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary"
+                  class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border border-primary/20 bg-gradient-to-r from-indigo-500/10 via-violet-500/10 to-fuchsia-500/10 text-primary"
                 >
                   <UIcon name="i-lucide-shield" class="size-3" />
                   Admin
@@ -305,6 +308,7 @@ await fetchUsers();
           <UButton
             icon="i-lucide-plus-circle"
             :loading="saving"
+            class="!bg-gradient-brand !text-white shadow-glow-brand hover:!brightness-110 transition-all"
             @click="confirmAddCredits"
           >
             Add Credits

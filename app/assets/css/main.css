@@ -1,2 +1,148 @@
 @import "tailwindcss";
 @import "@nuxt/ui";
+
+/* ============================================================
+   Lumiar design tokens
+   Single source of truth for brand color, typography, radius,
+   glow and motion. Prefer these utilities over ad-hoc classes.
+   ============================================================ */
+@theme {
+  --font-display: "Space Grotesk", "Google Sans", "Vazirmatn", sans-serif;
+
+  /* Signature brand gradient stops (indigo → violet → fuchsia) */
+  --color-brand-start: #6366f1;
+  --color-brand-mid: #8b5cf6;
+  --color-brand-end: #d946ef;
+
+  /* Radius scale */
+  --radius-control: 0.75rem; /* buttons, inputs, chips  */
+  --radius-card: 1.25rem; /* content cards           */
+  --radius-panel: 1.75rem; /* hero / composer panels  */
+}
+
+/* Signature gradient as text */
+@utility text-gradient-brand {
+  background-image: linear-gradient(
+    110deg,
+    var(--color-brand-start),
+    var(--color-brand-mid) 45%,
+    var(--color-brand-end)
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Signature gradient as fill */
+@utility bg-gradient-brand {
+  background-image: linear-gradient(
+    110deg,
+    var(--color-brand-start),
+    var(--color-brand-mid) 45%,
+    var(--color-brand-end)
+  );
+  background-size: 200% auto;
+}
+
+/* Conic variant — wraps evenly around circular rings/avatars */
+@utility bg-conic-brand {
+  background-image: conic-gradient(
+    from 210deg,
+    var(--color-brand-start),
+    var(--color-brand-mid),
+    var(--color-brand-end),
+    var(--color-brand-start)
+  );
+}
+
+/* Soft brand glow for elevated CTAs / panels */
+@utility shadow-glow-brand {
+  box-shadow:
+    0 12px 34px -12px
+      color-mix(in oklab, var(--color-brand-mid) 60%, transparent),
+    0 4px 14px -8px
+      color-mix(in oklab, var(--color-brand-start) 50%, transparent);
+}
+
+/* Fine film grain overlay (pair with mix-blend / opacity) */
+@utility bg-grain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ============================================================
+   Motion
+   ============================================================ */
+@keyframes aurora-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  33% {
+    transform: translate3d(6%, -4%, 0) scale(1.12);
+  }
+  66% {
+    transform: translate3d(-5%, 5%, 0) scale(0.95);
+  }
+}
+
+@keyframes gradient-pan {
+  0% {
+    background-position: 0% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
+@keyframes shimmer-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(200%);
+  }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@utility animate-aurora {
+  animation: aurora-drift 20s ease-in-out infinite;
+}
+
+@utility animate-aurora-slow {
+  animation: aurora-drift 28s ease-in-out infinite;
+}
+
+@utility animate-gradient-pan {
+  animation: gradient-pan 6s linear infinite alternate;
+}
+
+/* Sheen used by skeleton / loading placeholders */
+@utility animate-shimmer {
+  animation: shimmer-sweep 1.6s infinite;
+}
+
+/* Entrance animation for cards / results (pair with animation-delay for stagger) */
+@utility animate-fade-up {
+  animation: fade-in-up 0.5s ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-aurora,
+  .animate-aurora-slow,
+  .animate-gradient-pan,
+  .animate-shimmer,
+  .animate-fade-up {
+    animation: none;
+  }
+}

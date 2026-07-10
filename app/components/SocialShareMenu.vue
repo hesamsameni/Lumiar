@@ -214,12 +214,16 @@ const shareItems = computed(() => {
     <template #content>
       <div>
         <div
-          class="px-4 py-5 sm:px-6 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between"
+          class="relative px-4 py-4 sm:px-6 flex items-center justify-between"
         >
           <h3
-            class="text-base font-semibold text-zinc-900 dark:text-white flex items-center gap-2"
+            class="font-display text-base font-bold tracking-tight text-zinc-900 dark:text-white flex items-center gap-2.5"
           >
-            <UIcon name="i-lucide-globe" class="size-5 text-primary" />
+            <span
+              class="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/15 via-violet-500/10 to-fuchsia-500/15 text-primary ring-1 ring-primary/15 flex-shrink-0"
+            >
+              <UIcon name="i-lucide-globe" class="size-[18px]" />
+            </span>
             Share this image?
           </h3>
           <UButton
@@ -228,6 +232,9 @@ const shareItems = computed(() => {
             icon="i-lucide-x"
             class="-my-1"
             @click="handleModalCancel"
+          />
+          <div
+            class="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent"
           />
         </div>
 
@@ -260,7 +267,10 @@ const shareItems = computed(() => {
           <UButton color="neutral" variant="outline" @click="handleModalCancel">
             Cancel
           </UButton>
-          <UButton color="primary" @click="handleModalConfirm">
+          <UButton
+            class="!bg-gradient-brand !text-white shadow-glow-brand hover:!brightness-110 transition-all"
+            @click="handleModalConfirm"
+          >
             Continue & Share
           </UButton>
         </div>

@@ -13,7 +13,7 @@ const emit = defineEmits<{
 
 <template>
   <div
-    class="rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 transition-all hover:shadow-md flex flex-col"
+    class="group rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 transition-all duration-300 hover:shadow-xl hover:shadow-zinc-300/50 dark:hover:shadow-black/50 hover:-translate-y-0.5 flex flex-col"
   >
     <!-- Image / gradient top -->
     <div
@@ -23,7 +23,7 @@ const emit = defineEmits<{
         v-if="card.image"
         :src="card.image"
         :alt="card.title"
-        class="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+        class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
         loading="lazy"
       />
       <div
@@ -44,7 +44,7 @@ const emit = defineEmits<{
       <!-- Customizable badge -->
       <span
         v-if="card.placeholders?.length"
-        class="absolute top-2 left-2 flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md font-medium bg-primary/80 text-white backdrop-blur-sm"
+        class="absolute top-2 left-2 flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md font-medium bg-gradient-brand text-white shadow-glow-brand"
       >
         <UIcon name="i-lucide-sliders-horizontal" class="size-2.5" />
         Customizable
@@ -67,14 +67,14 @@ const emit = defineEmits<{
       </p>
       <button
         v-if="!card.placeholders?.length"
-        class="mt-auto w-full text-xs py-1.5 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 active:bg-primary/30 transition-colors font-medium"
+        class="mt-auto w-full text-xs py-1.5 rounded-xl border border-primary/30 bg-gradient-to-r from-indigo-500/10 via-violet-500/10 to-fuchsia-500/10 text-primary hover:brightness-105 active:brightness-95 transition-all font-medium"
         @click.stop="emit('use', card.prompt)"
       >
         Use Prompt
       </button>
       <button
         v-else
-        class="mt-auto w-full text-xs py-1.5 rounded-xl bg-primary text-white hover:bg-primary/90 active:bg-primary/80 transition-colors font-medium flex items-center justify-center gap-1.5"
+        class="mt-auto w-full text-xs py-1.5 rounded-xl bg-gradient-brand text-white shadow-glow-brand hover:brightness-110 active:brightness-95 transition-all font-medium flex items-center justify-center gap-1.5"
         @click.stop="emit('customize', card)"
       >
         <UIcon name="i-lucide-sliders-horizontal" class="size-3" />
