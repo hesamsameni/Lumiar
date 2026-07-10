@@ -80,17 +80,20 @@ function usePrompt() {
 </script>
 
 <template>
-  <UModal v-model:open="isOpen">
+  <UModal
+    v-model:open="isOpen"
+    :ui="{ content: 'sm:max-w-lg max-h-[85dvh] flex flex-col' }"
+  >
     <template #content>
-      <div class="flex flex-col max-h-[85vh] overflow-hidden">
+      <div class="flex flex-col min-h-0 flex-1 overflow-hidden">
         <!-- Header -->
         <div
-          class="px-5 py-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between gap-3"
+          class="relative px-5 py-4 flex items-center justify-between gap-3 flex-shrink-0"
         >
           <div class="flex items-center gap-3 min-w-0">
             <div
               v-if="card.image"
-              class="size-8 rounded-lg overflow-hidden flex-shrink-0 border border-zinc-200 dark:border-zinc-700"
+              class="size-9 rounded-xl overflow-hidden flex-shrink-0 border border-zinc-200 dark:border-zinc-700"
             >
               <img
                 :src="card.image"
@@ -98,9 +101,15 @@ function usePrompt() {
                 class="w-full h-full object-cover"
               />
             </div>
+            <span
+              v-else
+              class="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/15 via-violet-500/10 to-fuchsia-500/15 text-primary ring-1 ring-primary/15 flex-shrink-0"
+            >
+              <UIcon name="i-lucide-sliders-horizontal" class="size-4" />
+            </span>
             <div class="min-w-0">
               <h3
-                class="text-sm font-semibold text-zinc-900 dark:text-white truncate"
+                class="font-display font-bold text-sm tracking-tight text-zinc-900 dark:text-white truncate"
               >
                 {{ card.title }}
               </h3>
@@ -116,10 +125,13 @@ function usePrompt() {
             size="xs"
             @click="isOpen = false"
           />
+          <div
+            class="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent"
+          />
         </div>
 
         <!-- Scrollable body -->
-        <div class="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+        <div class="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-4">
           <!-- 2-column grid of collapsible cards -->
           <div class="grid grid-cols-1 gap-2">
             <div
@@ -175,7 +187,7 @@ function usePrompt() {
                     class="px-2.5 py-1 rounded-full text-[11px] font-medium transition-all border"
                     :class="
                       values[placeholder.key] === opt
-                        ? 'bg-primary text-white border-primary shadow-sm'
+                        ? 'border-primary/40 bg-gradient-to-r from-indigo-500/10 via-violet-500/10 to-fuchsia-500/10 text-primary ring-1 ring-primary/20'
                         : 'border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:border-primary/60 hover:text-primary'
                     "
                     @click="
@@ -218,7 +230,7 @@ function usePrompt() {
 
         <!-- Footer -->
         <div
-          class="px-4 py-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-end gap-2"
+          class="px-4 py-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-end gap-2 flex-shrink-0"
         >
           <UButton
             color="neutral"
@@ -227,7 +239,11 @@ function usePrompt() {
             @click="isOpen = false"
             >Cancel</UButton
           >
-          <UButton icon="i-lucide-sparkles" size="sm" @click="usePrompt"
+          <UButton
+            icon="i-lucide-sparkles"
+            size="sm"
+            class="!bg-gradient-brand !text-white shadow-glow-brand hover:!brightness-110 transition-all"
+            @click="usePrompt"
             >Use Prompt</UButton
           >
         </div>

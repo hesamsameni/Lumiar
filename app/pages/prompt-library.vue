@@ -73,12 +73,21 @@ function handleCustomized(prompt: string) {
         class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-1"
       >
         <div>
-          <h1 class="text-3xl font-bold tracking-tight mb-1">Prompt Library</h1>
+          <h1
+            class="font-display text-3xl sm:text-4xl font-bold tracking-tight mb-1"
+          >
+            Prompt Library
+          </h1>
           <p class="text-zinc-500 dark:text-zinc-400">
             Curated prompts to spark your creativity
           </p>
         </div>
-        <UButton to="/" icon="i-lucide-sparkles" size="sm">
+        <UButton
+          to="/"
+          icon="i-lucide-sparkles"
+          size="sm"
+          class="!bg-gradient-brand !text-white shadow-glow-brand hover:!brightness-110 transition-all"
+        >
           Go to Generate
         </UButton>
       </div>
@@ -98,7 +107,7 @@ function handleCustomized(prompt: string) {
         class="text-xs px-3 py-1.5 rounded-full border transition-all"
         :class="
           selectedCategory === null
-            ? 'border-primary bg-primary/10 text-primary font-medium'
+            ? 'border-primary/40 bg-gradient-to-r from-indigo-500/10 via-violet-500/10 to-fuchsia-500/10 text-primary font-medium ring-1 ring-primary/20'
             : 'border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-zinc-300'
         "
         @click="selectedCategory = null"
@@ -111,7 +120,7 @@ function handleCustomized(prompt: string) {
         class="text-xs px-3 py-1.5 rounded-full border transition-all"
         :class="
           selectedCategory === cat.id
-            ? 'border-primary bg-primary/10 text-primary font-medium'
+            ? 'border-primary/40 bg-gradient-to-r from-indigo-500/10 via-violet-500/10 to-fuchsia-500/10 text-primary font-medium ring-1 ring-primary/20'
             : 'border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-zinc-300'
         "
         @click="selectedCategory = selectedCategory === cat.id ? null : cat.id"
@@ -133,15 +142,12 @@ function handleCustomized(prompt: string) {
       <section v-for="group in groupedCards" :key="group.category.id">
         <div v-if="!selectedCategory" class="flex items-center gap-3 mb-5">
           <div
-            class="size-9 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center flex-shrink-0"
+            class="size-9 rounded-xl bg-gradient-to-br from-indigo-500/15 via-violet-500/10 to-fuchsia-500/15 text-primary ring-1 ring-primary/15 flex items-center justify-center flex-shrink-0"
           >
-            <UIcon
-              :name="group.category.icon"
-              class="size-4 text-zinc-500 dark:text-zinc-400"
-            />
+            <UIcon :name="group.category.icon" class="size-4" />
           </div>
           <div>
-            <h2 class="font-semibold text-base leading-tight">
+            <h2 class="font-display font-bold text-base tracking-tight leading-tight">
               {{ group.category.name }}
             </h2>
             <p class="text-xs text-zinc-500 dark:text-zinc-400">

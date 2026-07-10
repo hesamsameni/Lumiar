@@ -60,6 +60,11 @@ const navLinks = computed(() => [
     : []),
 ]);
 
+function isActive(to: string) {
+  if (to === "/") return route.path === "/";
+  return route.path.startsWith(to);
+}
+
 async function handleSignOut() {
   await authService.signOut();
   router.push("/auth/login");
@@ -68,30 +73,51 @@ async function handleSignOut() {
 
 <template>
   <header
-    class="fixed top-0 inset-x-0 z-50 h-16 border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md"
+    class="fixed top-0 inset-x-0 z-50 h-16 bg-white/70 dark:bg-zinc-950/70 backdrop-blur-xl"
   >
+    <!-- Brand gradient hairline -->
+    <div
+      class="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent"
+    />
     <div
       class="max-w-7xl mx-auto px-4 h-full flex items-center justify-between gap-4"
     >
-      <NuxtLink
-        to="/"
-        class="flex items-center gap-2 font-semibold text-lg tracking-tight"
-      >
-        <img src="/logo.svg" alt="Lumiar logo" class="size-6 object-contain" />
-        <span>Lumiar</span>
+      <NuxtLink to="/" class="group flex items-center gap-2.5">
+        <img
+          src="/logo.svg"
+          alt="Lumiar logo"
+          class="size-7 object-contain transition-transform duration-300 group-hover:scale-105"
+        />
+        <span
+          class="font-display text-lg font-bold tracking-tight text-gradient-brand"
+          >Lumiar</span
+        >
       </NuxtLink>
 
-      <nav class="hidden md:flex items-center gap-1 flex-1 justify-center">
-        <UButton
+      <nav
+        aria-label="Primary navigation"
+        class="hidden md:flex items-center gap-0.5 p-1 rounded-full bg-zinc-100/70 dark:bg-zinc-900/60 border border-zinc-200/60 dark:border-zinc-800/60 backdrop-blur"
+      >
+        <NuxtLink
           v-for="link in navLinks"
           :key="link.to"
           :to="link.to"
-          variant="ghost"
-          size="sm"
-          color="neutral"
+          class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-medium transition-all"
+          :class="
+            isActive(link.to)
+              ? 'bg-white dark:bg-zinc-800 shadow-sm ring-1 ring-zinc-200/70 dark:ring-zinc-700/60'
+              : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
+          "
         >
-          {{ link.label }}
-        </UButton>
+          <UIcon
+            :name="link.icon"
+            class="size-3.5"
+            :class="isActive(link.to) ? 'text-primary' : ''"
+          />
+          <span :class="isActive(link.to) ? 'text-gradient-brand' : ''">{{
+            link.label
+          }}</span>
+        </NuxtLink>
       </nav>
 
       <div class="flex items-center gap-2">
@@ -100,17 +126,17 @@ async function handleSignOut() {
           variant="ghost"
           color="neutral"
           size="sm"
+          class="rounded-full"
           @click="isDark = !isDark"
         />
 
         <template v-if="isAuthenticated">
           <TokenBadge class="hidden sm:flex" />
           <UDropdownMenu :items="profileItems">
-            <UButton
-              variant="ghost"
-              color="neutral"
-              square
-              class="rounded-full p-0.5"
+            <button
+              type="button"
+              aria-label="Open account menu"
+              class="rounded-full p-px bg-conic-brand hover:shadow-glow-brand transition-all"
             >
               <UAvatar
                 :src="
@@ -121,9 +147,9 @@ async function handleSignOut() {
                 :alt="avatarLabel"
                 :fallback="avatarLabel"
                 size="sm"
-                class="ring-2 ring-primary/30 hover:ring-primary/60 transition-all"
+                class="ring-2 ring-white dark:ring-zinc-950"
               />
-            </UButton>
+            </button>
           </UDropdownMenu>
         </template>
 
@@ -131,7 +157,10 @@ async function handleSignOut() {
           <UButton to="/auth/login" variant="ghost" size="sm" color="neutral"
             >Sign in</UButton
           >
-          <UButton to="/auth/register" size="sm" class="hidden sm:inline-flex"
+          <UButton
+            to="/auth/register"
+            size="sm"
+            class="hidden sm:inline-flex !bg-gradient-brand !text-white shadow-glow-brand hover:!brightness-110 transition-all"
             >Get started</UButton
           >
         </template>
@@ -178,20 +207,24 @@ async function handleSignOut() {
         v-if="sidebarOpen"
         class="fixed left-0 top-0 h-full w-72 z-50 md:hidden bg-white dark:bg-zinc-950 border-r border-zinc-200 dark:border-zinc-800 flex flex-col"
       >
+        <!-- Brand gradient edge -->
+        <div
+          class="absolute inset-y-0 right-0 w-px bg-gradient-to-b from-indigo-500/50 via-violet-500/40 to-fuchsia-500/50"
+        />
         <!-- Sidebar header -->
         <div
           class="h-16 flex items-center justify-between px-4 border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0"
         >
-          <NuxtLink
-            to="/"
-            class="flex items-center gap-2 font-semibold text-lg tracking-tight"
-          >
+          <NuxtLink to="/" class="flex items-center gap-2.5">
             <img
               src="/logo.svg"
               alt="Lumiar logo"
-              class="size-6 object-contain"
+              class="size-7 object-contain"
             />
-            <span>Lumiar</span>
+            <span
+              class="font-display text-lg font-bold tracking-tight text-gradient-brand"
+              >Lumiar</span
+            >
           </NuxtLink>
           <UButton
             icon="i-lucide-x"
@@ -203,18 +236,25 @@ async function handleSignOut() {
         </div>
 
         <!-- Nav links -->
-        <nav class="flex-1 overflow-y-auto p-4 space-y-1">
+        <nav
+          aria-label="Mobile navigation"
+          class="flex-1 overflow-y-auto p-4 space-y-1"
+        >
           <NuxtLink
             v-for="link in navLinks"
             :key="link.to"
             :to="link.to"
-            class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors"
+            class="relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
             :class="
-              $route.path === link.to
-                ? 'bg-primary/10 text-primary'
+              isActive(link.to)
+                ? 'bg-gradient-to-r from-indigo-500/15 via-violet-500/10 to-fuchsia-500/10 text-primary ring-1 ring-primary/20'
                 : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 hover:text-zinc-900 dark:hover:text-zinc-100'
             "
           >
+            <span
+              v-if="isActive(link.to)"
+              class="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-r-full bg-gradient-brand"
+            />
             <UIcon :name="link.icon" class="size-4 flex-shrink-0" />
             {{ link.label }}
           </NuxtLink>
@@ -226,15 +266,20 @@ async function handleSignOut() {
         >
           <template v-if="isAuthenticated">
             <div class="flex items-center gap-3 mb-3 px-1">
-              <UAvatar
-                :src="
-                  profile?.avatar_url ||
-                  (user?.user_metadata?.avatar_url as string | undefined) ||
-                  undefined
-                "
-                :fallback="avatarLabel"
-                size="sm"
-              />
+              <span
+                class="rounded-full p-px bg-conic-brand flex-shrink-0"
+              >
+                <UAvatar
+                  :src="
+                    profile?.avatar_url ||
+                    (user?.user_metadata?.avatar_url as string | undefined) ||
+                    undefined
+                  "
+                  :fallback="avatarLabel"
+                  size="sm"
+                  class="ring-2 ring-white dark:ring-zinc-950"
+                />
+              </span>
               <div class="flex-1 min-w-0">
                 <p class="text-sm font-medium truncate">
                   {{ profile?.username ?? user?.email }}
@@ -273,7 +318,12 @@ async function handleSignOut() {
               class="mb-2"
               >Sign in</UButton
             >
-            <UButton to="/auth/register" block>Get started</UButton>
+            <UButton
+              to="/auth/register"
+              block
+              class="!bg-gradient-brand !text-white shadow-glow-brand hover:!brightness-110 transition-all"
+              >Get started</UButton
+            >
           </template>
         </div>
       </div>

@@ -410,109 +410,149 @@ const firstSelectedImageUrl = computed(() => {
     </div>
 
     <template v-else-if="profile">
-      <div
-        class="flex flex-col sm:flex-row items-start sm:items-center gap-5 mb-10"
-      >
-        <UAvatar
-          :src="(profile.avatar_url as string | null) || undefined"
-          :fallback="(profile.username as string)?.slice(0, 1).toUpperCase()"
-          size="2xl"
-          class="ring-4 ring-primary/20"
-        />
-
-        <div class="flex-1">
-          <h1 class="text-2xl font-bold">{{ profile.username }}</h1>
-          <p v-if="profile.full_name" class="text-zinc-500 dark:text-zinc-400">
-            {{ profile.full_name }}
-          </p>
-          <p
-            v-if="profile.bio"
-            class="text-sm text-zinc-600 dark:text-zinc-300 mt-1 max-w-md"
+      <!-- Hero -->
+      <div class="relative mb-10">
+        <div
+          class="flex flex-col sm:flex-row items-start sm:items-center gap-6"
+        >
+          <span
+            class="rounded-full p-1 bg-conic-brand shadow-glow-brand flex-shrink-0"
           >
-            {{ profile.bio }}
-          </p>
+            <UAvatar
+              :src="(profile.avatar_url as string | null) || undefined"
+              :fallback="(profile.username as string)?.slice(0, 1).toUpperCase()"
+              size="3xl"
+              class="size-24 sm:size-32 text-4xl ring-4 ring-white dark:ring-zinc-950"
+            />
+          </span>
 
-          <div
-            class="flex items-center gap-4 mt-3 text-sm text-zinc-500 dark:text-zinc-400"
-          >
-            <span
-              ><strong class="text-zinc-900 dark:text-zinc-100">{{
-                generations.length
-              }}</strong>
-              {{ isOwnProfile ? "creations" : "shared" }}</span
+          <div class="flex-1 min-w-0">
+            <h1
+              class="font-display text-3xl sm:text-4xl font-bold tracking-tight"
             >
-            <span
-              ><strong class="text-zinc-900 dark:text-zinc-100">{{
-                followersCount
-              }}</strong>
-              followers</span
+              {{ profile.username }}
+            </h1>
+            <p v-if="profile.full_name" class="text-zinc-500 dark:text-zinc-400">
+              {{ profile.full_name }}
+            </p>
+            <p
+              v-if="profile.bio"
+              class="text-sm text-zinc-600 dark:text-zinc-300 mt-1 max-w-md"
             >
-            <span
-              ><strong class="text-zinc-900 dark:text-zinc-100">{{
-                followingCount
-              }}</strong>
-              following</span
-            >
+              {{ profile.bio }}
+            </p>
+
+            <div class="flex flex-wrap items-center gap-2 mt-4">
+              <div
+                class="flex items-baseline gap-1.5 rounded-full border border-zinc-200/70 dark:border-zinc-800/70 bg-white/60 dark:bg-zinc-900/50 backdrop-blur px-3 py-1"
+              >
+                <span class="font-display font-bold text-zinc-900 dark:text-white">{{
+                  generations.length
+                }}</span>
+                <span class="text-xs text-zinc-500 dark:text-zinc-400">{{
+                  isOwnProfile ? "creations" : "shared"
+                }}</span>
+              </div>
+              <div
+                class="flex items-baseline gap-1.5 rounded-full border border-zinc-200/70 dark:border-zinc-800/70 bg-white/60 dark:bg-zinc-900/50 backdrop-blur px-3 py-1"
+              >
+                <span class="font-display font-bold text-zinc-900 dark:text-white">{{
+                  followersCount
+                }}</span>
+                <span class="text-xs text-zinc-500 dark:text-zinc-400"
+                  >followers</span
+                >
+              </div>
+              <div
+                class="flex items-baseline gap-1.5 rounded-full border border-zinc-200/70 dark:border-zinc-800/70 bg-white/60 dark:bg-zinc-900/50 backdrop-blur px-3 py-1"
+              >
+                <span class="font-display font-bold text-zinc-900 dark:text-white">{{
+                  followingCount
+                }}</span>
+                <span class="text-xs text-zinc-500 dark:text-zinc-400"
+                  >following</span
+                >
+              </div>
+            </div>
           </div>
-        </div>
 
-        <div class="flex gap-2">
-          <template v-if="isOwnProfile">
-            <UButton
-              to="/profile/edit"
-              variant="outline"
-              color="neutral"
-              size="sm"
-              icon="i-lucide-pencil"
-            >
-              Edit profile
-            </UButton>
-          </template>
-          <template v-else>
-            <UButton
-              :variant="isFollowing ? 'outline' : 'solid'"
-              color="primary"
-              size="sm"
-              :loading="isTogglingFollow"
-              @click="toggleFollow"
-            >
-              {{ isFollowing ? "Unfollow" : "Follow" }}
-            </UButton>
-          </template>
+          <div class="flex gap-2">
+            <template v-if="isOwnProfile">
+              <UButton
+                to="/profile/edit"
+                variant="outline"
+                color="neutral"
+                size="sm"
+                icon="i-lucide-pencil"
+              >
+                Edit profile
+              </UButton>
+            </template>
+            <template v-else>
+              <UButton
+                v-if="isFollowing"
+                variant="outline"
+                color="neutral"
+                size="sm"
+                :loading="isTogglingFollow"
+                @click="toggleFollow"
+              >
+                Unfollow
+              </UButton>
+              <UButton
+                v-else
+                size="sm"
+                class="!bg-gradient-brand !text-white shadow-glow-brand hover:!brightness-110 transition-all"
+                :loading="isTogglingFollow"
+                @click="toggleFollow"
+              >
+                Follow
+              </UButton>
+            </template>
+          </div>
         </div>
       </div>
 
       <div
         v-if="isOwnProfile"
-        class="flex items-center gap-1 border-b border-zinc-200 dark:border-zinc-800 mb-6"
+        class="flex items-center justify-between gap-3 mb-6 flex-wrap"
       >
-        <button
-          v-for="tab in tabs"
-          :key="tab.key"
-          class="px-4 py-2 text-sm font-medium transition-all border-b-2 -mb-px"
-          :class="
-            activeTab === tab.key
-              ? 'border-primary text-primary'
-              : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
-          "
-          @click="activeTab = tab.key"
+        <div
+          class="flex items-center gap-0.5 p-1 rounded-full bg-zinc-100/70 dark:bg-zinc-900/60 border border-zinc-200/60 dark:border-zinc-800/60"
         >
-          {{ tab.label }}
-          <span class="ml-1 text-xs text-zinc-400">
-            {{
-              tab.key === "shared"
-                ? sharedGenerations.length
-                : tab.key === "collections"
-                  ? collections.length
-                  : generations.length
-            }}
-          </span>
-        </button>
+          <button
+            v-for="tab in tabs"
+            :key="tab.key"
+            class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-medium transition-all"
+            :class="
+              activeTab === tab.key
+                ? 'bg-white dark:bg-zinc-800 shadow-sm ring-1 ring-zinc-200/70 dark:ring-zinc-700/60'
+                : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
+            "
+            @click="activeTab = tab.key"
+          >
+            <span :class="activeTab === tab.key ? 'text-gradient-brand' : ''">{{
+              tab.label
+            }}</span>
+            <span
+              class="text-xs"
+              :class="activeTab === tab.key ? 'text-primary' : 'text-zinc-400'"
+            >
+              {{
+                tab.key === "shared"
+                  ? sharedGenerations.length
+                  : tab.key === "collections"
+                    ? collections.length
+                    : generations.length
+              }}
+            </span>
+          </button>
+        </div>
 
         <!-- Select controls: desktop only (inline in tab bar) -->
         <div
           v-if="activeTab !== 'collections'"
-          class="ml-auto hidden sm:flex items-center gap-1 pb-px"
+          class="hidden sm:flex items-center gap-1"
         >
           <template v-if="!isSelectMode">
             <UButton
@@ -598,7 +638,7 @@ const firstSelectedImageUrl = computed(() => {
             class="text-xs px-3 py-1 rounded-full border transition-all"
             :class="
               collectionFilter === f.value
-                ? 'bg-primary border-primary text-white font-medium'
+                ? 'border-primary/40 bg-gradient-to-r from-indigo-500/10 via-violet-500/10 to-fuchsia-500/10 text-primary font-medium ring-1 ring-primary/20'
                 : 'border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-zinc-400 dark:hover:border-zinc-500'
             "
             @click="collectionFilter = f.value as 'all' | 'in' | 'out'"
@@ -638,13 +678,11 @@ const firstSelectedImageUrl = computed(() => {
             >
               {{ group.label }}
             </p>
-            <div
-              class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3"
-            >
+            <div class="columns-2 sm:columns-3 md:columns-4 lg:columns-5 gap-3">
               <div
                 v-for="gen in group.items"
                 :key="(gen as any).id"
-                class="relative"
+                class="relative mb-3 break-inside-avoid"
               >
                 <!-- Selection overlay -->
                 <template v-if="isSelectMode">
@@ -655,7 +693,7 @@ const firstSelectedImageUrl = computed(() => {
                     <img
                       :src="(gen as any).output_image_url"
                       :alt="(gen as any).prompt"
-                      class="w-full aspect-square object-cover transition-opacity duration-150"
+                      class="w-full h-auto object-cover transition-opacity duration-150"
                       :class="
                         selectedIds.has((gen as any).id)
                           ? 'opacity-70'
@@ -693,6 +731,7 @@ const firstSelectedImageUrl = computed(() => {
                       :generation="gen as never"
                       :show-author="false"
                       :is-owner="isOwnProfile"
+                      :masonry="true"
                       :initial-is-liked="likedIds.has((gen as any).id)"
                       @deleted="handleDeleted"
                       @share-toggled="handleShareToggled"
@@ -764,13 +803,13 @@ const firstSelectedImageUrl = computed(() => {
             v-for="col in collections"
             :key="col.id"
             :to="`/collections/${col.id}`"
-            class="group rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800 hover:shadow-md transition-all"
+            class="group rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 transition-all duration-300 hover:shadow-xl hover:shadow-zinc-300/50 dark:hover:shadow-black/50 hover:-translate-y-0.5"
           >
             <div class="aspect-square bg-zinc-100 dark:bg-zinc-800 relative">
               <img
                 v-if="col.cover_image_url"
                 :src="col.cover_image_url"
-                class="w-full h-full object-cover"
+                class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
                 alt=""
               />
               <div

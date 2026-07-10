@@ -119,14 +119,14 @@ const sections: Section[] = [
       <div class="text-center space-y-4">
         <img src="/logo.svg" alt="Lumiar logo" class="mx-auto h-12 w-auto" />
         <p
-          class="text-xs font-semibold uppercase tracking-[0.4em] text-zinc-500"
+          class="text-xs font-semibold uppercase tracking-[0.4em] text-gradient-brand"
         >
           Privacy Policy
         </p>
-        <h1 class="text-4xl font-semibold tracking-tight">
+        <h1 class="font-display text-4xl font-bold tracking-tight">
           Your data stays yours—transparent collection, clear controls.
         </h1>
-        <p class="text-base text-zinc-400">
+        <p class="text-base text-zinc-500 dark:text-zinc-400">
           We describe what we collect, how we protect it, and how you can shape
           your experience.
         </p>
@@ -139,7 +139,7 @@ const sections: Section[] = [
           class="rounded-2xl border border-zinc-200/70 bg-white/80 dark:border-zinc-800 dark:bg-zinc-900/80 p-5 shadow-sm text-left"
         >
           <p
-            class="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-500 dark:text-zinc-400"
+            class="text-xs font-semibold uppercase tracking-[0.3em] text-gradient-brand"
           >
             {{ highlight.title }}
           </p>
@@ -153,9 +153,9 @@ const sections: Section[] = [
         <section
           v-for="section in sections"
           :key="section.title"
-          class="rounded-3xl border border-zinc-200/70 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/90 p-6 space-y-3 shadow-sm"
+          class="rounded-2xl border border-zinc-200/70 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/90 p-6 space-y-3 shadow-sm"
         >
-          <h2 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+          <h2 class="font-display text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
             {{ section.title }}
           </h2>
           <div class="space-y-3 text-sm text-zinc-600 dark:text-zinc-300">

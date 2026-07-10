@@ -81,24 +81,31 @@ async function signInWithGoogle() {
 
 <template>
   <div
-    class="min-h-screen bg-white dark:bg-zinc-950 flex items-center justify-center px-4"
+    class="relative isolate min-h-screen bg-white dark:bg-zinc-950 flex items-center justify-center px-4 overflow-hidden"
   >
+    <AuroraBackdrop />
     <div class="w-full max-w-sm">
       <div class="text-center mb-8">
         <NuxtLink
           to="/"
-          class="inline-flex items-center gap-2 font-semibold text-xl mb-6"
+          class="inline-flex items-center gap-2 mb-6"
         >
-          <img src="/logo.svg" alt="Lumiar logo" class="text-primary size-6" />
-          <span>Lumiar</span>
+          <img src="/logo.svg" alt="Lumiar logo" class="size-7" />
+          <span class="font-display font-bold text-xl text-gradient-brand"
+            >Lumiar</span
+          >
         </NuxtLink>
-        <h1 class="text-2xl font-bold">Welcome back</h1>
+        <h1 class="font-display text-2xl font-bold tracking-tight">
+          Welcome back
+        </h1>
         <p class="text-zinc-500 dark:text-zinc-400 text-sm mt-1">
           Sign in to your account
         </p>
       </div>
 
-      <UCard>
+      <div
+        class="rounded-panel border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm p-6"
+      >
         <div v-if="!magicLinkSent" class="space-y-4">
           <UFormField label="Email">
             <UInput
@@ -126,7 +133,11 @@ async function signInWithGoogle() {
                 Forgot password?
               </NuxtLink>
             </div>
-            <UButton block :loading="loading" @click="signInWithPassword"
+            <UButton
+              block
+              :loading="loading"
+              class="!bg-gradient-brand !text-white shadow-glow-brand hover:!brightness-110 transition-all"
+              @click="signInWithPassword"
               >Sign in</UButton
             >
           </template>
@@ -136,6 +147,7 @@ async function signInWithGoogle() {
               block
               :loading="loading"
               icon="i-lucide-mail"
+              class="!bg-gradient-brand !text-white shadow-glow-brand hover:!brightness-110 transition-all"
               @click="sendMagicLink"
             >
               Send magic link
@@ -143,9 +155,13 @@ async function signInWithGoogle() {
           </template>
 
           <div class="flex items-center gap-3">
-            <div class="flex-1 h-px bg-zinc-200 dark:bg-zinc-700" />
+            <div
+              class="flex-1 h-px bg-gradient-to-r from-transparent to-zinc-200 dark:to-zinc-700"
+            />
             <span class="text-xs text-zinc-400">or</span>
-            <div class="flex-1 h-px bg-zinc-200 dark:bg-zinc-700" />
+            <div
+              class="flex-1 h-px bg-gradient-to-l from-transparent to-zinc-200 dark:to-zinc-700"
+            />
           </div>
 
           <UButton
@@ -174,10 +190,11 @@ async function signInWithGoogle() {
         </div>
 
         <div v-else class="text-center py-4 space-y-3">
-          <UIcon
-            name="i-lucide-mail-check"
-            class="size-12 text-primary mx-auto"
-          />
+          <span
+            class="flex size-12 items-center justify-center rounded-2xl mx-auto bg-gradient-to-br from-indigo-500/15 via-violet-500/10 to-fuchsia-500/15 text-primary ring-1 ring-primary/15"
+          >
+            <UIcon name="i-lucide-mail-check" class="size-6" />
+          </span>
           <p class="font-medium">Check your email</p>
           <p class="text-sm text-zinc-500 dark:text-zinc-400">
             We sent a magic link to <strong>{{ email }}</strong>
@@ -186,7 +203,7 @@ async function signInWithGoogle() {
             >Send again</UButton
           >
         </div>
-      </UCard>
+      </div>
 
       <p class="text-center text-sm text-zinc-500 dark:text-zinc-400 mt-4">
         Don't have an account?

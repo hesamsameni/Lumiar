@@ -158,7 +158,7 @@ function openPreview(id: string) {
             />
             <span class="text-sm text-zinc-400">Collections</span>
           </div>
-          <h1 class="text-2xl font-bold">
+          <h1 class="font-display text-2xl sm:text-3xl font-bold tracking-tight">
             {{ collection.name }}
           </h1>
           <p
@@ -197,23 +197,25 @@ function openPreview(id: string) {
         </UButton>
       </div>
 
-      <!-- Grid -->
-      <div
-        v-else
-        class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3"
-      >
-        <GenerationCard
+      <!-- Masonry grid -->
+      <div v-else class="columns-2 sm:columns-3 md:columns-4 lg:columns-5 gap-3">
+        <div
           v-for="gen in generations"
           :key="gen.id"
-          :generation="gen as never"
-          :show-author="false"
-          :is-owner="isOwner"
-          :collection-id="collectionId"
-          @deleted="handleDeleted"
-          @share-toggled="handleShareToggled"
-          @removed-from-collection="handleRemovedFromCollection"
-          @preview="openPreview"
-        />
+          class="mb-3 break-inside-avoid"
+        >
+          <GenerationCard
+            :generation="gen as never"
+            :show-author="false"
+            :is-owner="isOwner"
+            :masonry="true"
+            :collection-id="collectionId"
+            @deleted="handleDeleted"
+            @share-toggled="handleShareToggled"
+            @removed-from-collection="handleRemovedFromCollection"
+            @preview="openPreview"
+          />
+        </div>
       </div>
     </template>
 

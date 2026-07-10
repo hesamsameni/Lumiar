@@ -199,20 +199,26 @@ await fetchModels();
   <div class="max-w-6xl mx-auto px-4 py-10">
     <!-- Page header -->
     <div class="flex items-center justify-between mb-6">
-      <div>
-        <div class="flex items-center gap-2 mb-1">
-          <UIcon name="i-lucide-shield" class="size-5 text-primary" />
-          <h1 class="text-2xl font-bold tracking-tight">Admin Dashboard</h1>
+      <div class="flex items-center gap-3">
+        <span
+          class="flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/15 via-violet-500/10 to-fuchsia-500/15 text-primary ring-1 ring-primary/15 flex-shrink-0"
+        >
+          <UIcon name="i-lucide-shield" class="size-5" />
+        </span>
+        <div>
+          <h1 class="font-display text-2xl font-bold tracking-tight">
+            Admin Dashboard
+          </h1>
+          <p class="text-sm text-zinc-500 dark:text-zinc-400">
+            Manage models, prompts and library content
+          </p>
         </div>
-        <p class="text-sm text-zinc-500 dark:text-zinc-400">
-          Manage models, prompts and library content
-        </p>
       </div>
     </div>
 
     <!-- Tab switcher -->
     <div
-      class="flex gap-1 p-1 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 mb-8 w-fit"
+      class="flex items-center gap-0.5 p-1 rounded-full bg-zinc-100/70 dark:bg-zinc-900/60 border border-zinc-200/60 dark:border-zinc-800/60 mb-8 w-fit"
     >
       <button
         v-for="tab in [
@@ -222,16 +228,22 @@ await fetchModels();
         ]"
         :key="tab.id"
         type="button"
-        class="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all"
+        class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-medium transition-all"
         :class="
           activeTab === tab.id
-            ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm'
-            : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
+            ? 'bg-white dark:bg-zinc-800 shadow-sm ring-1 ring-zinc-200/70 dark:ring-zinc-700/60'
+            : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
         "
         @click="activeTab = tab.id as 'models' | 'prompts' | 'users'"
       >
-        <UIcon :name="tab.icon" class="size-4" />
-        {{ tab.label }}
+        <UIcon
+          :name="tab.icon"
+          class="size-4"
+          :class="activeTab === tab.id ? 'text-primary' : ''"
+        />
+        <span :class="activeTab === tab.id ? 'text-gradient-brand' : ''">{{
+          tab.label
+        }}</span>
       </button>
     </div>
 
@@ -239,7 +251,12 @@ await fetchModels();
     <div v-show="activeTab === 'models'">
       <!-- Add button -->
       <div class="flex justify-end mb-5">
-        <UButton icon="i-lucide-plus" @click="openCreate">Add Model</UButton>
+        <UButton
+          icon="i-lucide-plus"
+          class="!bg-gradient-brand !text-white shadow-glow-brand hover:!brightness-110 transition-all"
+          @click="openCreate"
+          >Add Model</UButton
+        >
       </div>
 
       <!-- Loading -->
@@ -271,7 +288,7 @@ await fetchModels();
         <!-- Table -->
         <div
           v-else
-          class="rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden"
+          class="rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden"
         >
           <table class="w-full text-sm">
             <thead>
@@ -307,7 +324,7 @@ await fetchModels();
                     >
                     <span
                       v-if="model.recommended"
-                      class="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-primary/15 text-primary"
+                      class="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border border-primary/20 bg-gradient-to-r from-indigo-500/10 via-violet-500/10 to-fuchsia-500/10 text-primary"
                     >
                       <UIcon name="i-lucide-star" class="size-2.5" />
                       Pick
@@ -454,7 +471,7 @@ await fetchModels();
                     class="flex-1 py-2 px-3 rounded-lg border text-sm font-medium transition-all"
                     :class="
                       form.tier === opt.value
-                        ? 'border-primary bg-primary/10 text-primary'
+                        ? 'border-primary/40 bg-gradient-to-r from-indigo-500/10 via-violet-500/10 to-fuchsia-500/10 text-primary ring-1 ring-primary/20'
                         : 'border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-600'
                     "
                     @click="form.tier = opt.value"
@@ -478,7 +495,7 @@ await fetchModels();
                     class="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg border text-sm font-medium transition-all"
                     :class="
                       form.provider === opt.value
-                        ? 'border-primary bg-primary/10 text-primary'
+                        ? 'border-primary/40 bg-gradient-to-r from-indigo-500/10 via-violet-500/10 to-fuchsia-500/10 text-primary ring-1 ring-primary/20'
                         : 'border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-600'
                     "
                     @click="form.provider = opt.value"
@@ -619,6 +636,7 @@ await fetchModels();
             <UButton
               :loading="saving"
               :icon="isEditing ? 'i-lucide-save' : 'i-lucide-plus'"
+              class="!bg-gradient-brand !text-white shadow-glow-brand hover:!brightness-110 transition-all"
               @click="saveModel"
             >
               {{ isEditing ? "Save Changes" : "Create Model" }}

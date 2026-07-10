@@ -116,7 +116,11 @@ function openPreview(id: string) {
 <template>
   <div class="max-w-7xl mx-auto px-4 py-10">
     <div class="mb-8">
-      <h1 class="text-3xl font-bold tracking-tight mb-1">Explore</h1>
+      <h1
+        class="font-display text-3xl sm:text-4xl font-bold tracking-tight mb-1"
+      >
+        Explore
+      </h1>
       <p class="text-zinc-500 dark:text-zinc-400">
         Discover what the community is creating
       </p>
@@ -136,7 +140,7 @@ function openPreview(id: string) {
         class="text-xs px-3 py-1.5 rounded-full border transition-all"
         :class="
           selectedTag === null
-            ? 'border-primary bg-primary/10 text-primary font-medium'
+            ? 'border-primary/40 bg-gradient-to-r from-indigo-500/10 via-violet-500/10 to-fuchsia-500/10 text-primary font-medium ring-1 ring-primary/20'
             : 'border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-zinc-300'
         "
         @click="selectedTag = null"
@@ -149,7 +153,7 @@ function openPreview(id: string) {
         class="text-xs px-3 py-1.5 rounded-full border transition-all"
         :class="
           selectedTag === tag
-            ? 'border-primary bg-primary/10 text-primary font-medium'
+            ? 'border-primary/40 bg-gradient-to-r from-indigo-500/10 via-violet-500/10 to-fuchsia-500/10 text-primary font-medium ring-1 ring-primary/20'
             : 'border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-zinc-300'
         "
         @click="selectedTag = selectedTag === tag ? null : tag"
@@ -160,13 +164,22 @@ function openPreview(id: string) {
 
     <div
       v-if="loading && !generations.length"
-      class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3"
+      class="columns-2 sm:columns-3 lg:columns-4 xl:columns-5 gap-3"
     >
       <div
-        v-for="i in 12"
+        v-for="i in 15"
         :key="i"
-        class="aspect-square rounded-xl bg-zinc-100 dark:bg-zinc-800 animate-pulse"
-      />
+        class="mb-3 break-inside-avoid"
+      >
+        <div
+          class="relative overflow-hidden rounded-2xl bg-zinc-100 dark:bg-zinc-800"
+          :style="{ height: `${[200, 260, 220, 320, 240, 280][i % 6]}px` }"
+        >
+          <div
+            class="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/40 dark:via-white/5 to-transparent"
+          />
+        </div>
+      </div>
     </div>
 
     <div v-else-if="!generations.length" class="text-center py-20">
@@ -178,17 +191,21 @@ function openPreview(id: string) {
     </div>
 
     <div v-else>
-      <div
-        class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3"
-      >
-        <GenerationCard
-          v-for="gen in generations"
+      <div class="columns-2 sm:columns-3 lg:columns-4 xl:columns-5 gap-3">
+        <div
+          v-for="(gen, idx) in generations"
           :key="(gen as { id: string }).id"
-          :generation="gen as never"
-          :show-author="true"
-          :initial-is-liked="likedIds.has((gen as { id: string }).id)"
-          @preview="openPreview"
-        />
+          class="mb-3 break-inside-avoid animate-fade-up"
+          :style="{ animationDelay: `${(idx % 12) * 40}ms` }"
+        >
+          <GenerationCard
+            :generation="gen as never"
+            :show-author="true"
+            :masonry="true"
+            :initial-is-liked="likedIds.has((gen as { id: string }).id)"
+            @preview="openPreview"
+          />
+        </div>
       </div>
 
       <div v-if="hasMore" class="text-center mt-8">

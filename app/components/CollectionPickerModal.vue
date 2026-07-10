@@ -216,12 +216,16 @@ watch(showNewForm, (val) => {
     <template #content>
       <div>
         <div
-          class="px-4 py-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between"
+          class="relative px-4 py-4 flex items-center justify-between"
         >
           <h3
-            class="text-base font-semibold text-zinc-900 dark:text-white flex items-center gap-2"
+            class="font-display text-base font-bold tracking-tight text-zinc-900 dark:text-white flex items-center gap-2.5"
           >
-            <UIcon name="i-lucide-folder" class="size-5 text-primary" />
+            <span
+              class="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/15 via-violet-500/10 to-fuchsia-500/15 text-primary ring-1 ring-primary/15 flex-shrink-0"
+            >
+              <UIcon name="i-lucide-folder" class="size-[18px]" />
+            </span>
             Add to collection
           </h3>
           <UButton
@@ -230,6 +234,9 @@ watch(showNewForm, (val) => {
             icon="i-lucide-x"
             class="-my-1"
             @click="isOpen = false"
+          />
+          <div
+            class="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent"
           />
         </div>
 
@@ -255,7 +262,7 @@ watch(showNewForm, (val) => {
               class="w-full flex items-center gap-3 px-4 py-2.5 transition-colors text-left"
               :class="
                 memberSet.has(col.id)
-                  ? 'bg-primary/5 dark:bg-primary/10 hover:bg-primary/10 dark:hover:bg-primary/15'
+                  ? 'bg-gradient-to-r from-indigo-500/8 via-violet-500/6 to-fuchsia-500/8 hover:brightness-105'
                   : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/60'
               "
               :disabled="isToggling === col.id"
@@ -326,6 +333,7 @@ watch(showNewForm, (val) => {
                 size="sm"
                 :loading="isCreating"
                 :disabled="!newName.trim()"
+                class="!bg-gradient-brand !text-white shadow-glow-brand hover:!brightness-110 transition-all"
                 @click="createAndAdd"
               >
                 Create

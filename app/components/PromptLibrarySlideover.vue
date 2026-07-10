@@ -81,13 +81,22 @@ function handleCustomized(prompt: string) {
     <template #content>
       <div class="flex flex-col h-full">
         <div
-          class="flex items-center justify-between px-5 py-4 border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0"
+          class="relative flex items-center justify-between px-5 py-4 flex-shrink-0"
         >
-          <div>
-            <h2 class="font-semibold text-base">Prompt Library</h2>
-            <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-              {{ filteredCards.length }} prompts
-            </p>
+          <div class="flex items-center gap-3">
+            <span
+              class="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/15 via-violet-500/10 to-fuchsia-500/15 text-primary ring-1 ring-primary/15"
+            >
+              <UIcon name="i-lucide-library" class="size-[18px]" />
+            </span>
+            <div>
+              <h2 class="font-display font-bold text-base tracking-tight">
+                Prompt Library
+              </h2>
+              <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                {{ filteredCards.length }} prompts
+              </p>
+            </div>
           </div>
           <UButton
             icon="i-lucide-x"
@@ -95,6 +104,9 @@ function handleCustomized(prompt: string) {
             color="neutral"
             size="sm"
             @click="emit('update:open', false)"
+          />
+          <div
+            class="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent"
           />
         </div>
 

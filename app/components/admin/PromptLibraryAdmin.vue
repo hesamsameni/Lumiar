@@ -349,7 +349,9 @@ await Promise.all([fetchCategories(), fetchPrompts()]);
     <div>
       <div class="flex items-center justify-between mb-4">
         <div>
-          <h2 class="font-semibold text-base">Categories</h2>
+          <h2 class="font-display font-bold text-base tracking-tight">
+            Categories
+          </h2>
           <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
             Group prompts by theme
           </p>
@@ -380,7 +382,7 @@ await Promise.all([fetchCategories(), fetchPrompts()]);
 
       <div
         v-else
-        class="rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden"
+        class="rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden"
       >
         <table class="w-full text-sm">
           <thead>
@@ -470,7 +472,9 @@ await Promise.all([fetchCategories(), fetchPrompts()]);
     <div>
       <div class="flex items-center justify-between mb-4">
         <div>
-          <h2 class="font-semibold text-base">Prompts</h2>
+          <h2 class="font-display font-bold text-base tracking-tight">
+            Prompts
+          </h2>
           <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
             {{ prompts.length }} total prompts
           </p>
@@ -512,7 +516,7 @@ await Promise.all([fetchCategories(), fetchPrompts()]);
 
       <div
         v-else
-        class="rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden"
+        class="rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden"
       >
         <table class="w-full text-sm">
           <thead>
@@ -711,6 +715,7 @@ await Promise.all([fetchCategories(), fetchPrompts()]);
           <UButton
             :loading="savingCat"
             :icon="isEditingCat ? 'i-lucide-save' : 'i-lucide-plus'"
+            class="!bg-gradient-brand !text-white shadow-glow-brand hover:!brightness-110 transition-all"
             @click="saveCat"
           >
             {{ isEditingCat ? "Save Changes" : "Create Category" }}
@@ -1003,6 +1008,7 @@ await Promise.all([fetchCategories(), fetchPrompts()]);
           <UButton
             :loading="savingPrompt"
             :icon="isEditingPrompt ? 'i-lucide-save' : 'i-lucide-plus'"
+            class="!bg-gradient-brand !text-white shadow-glow-brand hover:!brightness-110 transition-all"
             @click="savePrompt"
           >
             {{ isEditingPrompt ? "Save Changes" : "Create Prompt" }}

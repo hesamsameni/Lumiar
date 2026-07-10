@@ -139,16 +139,21 @@ async function save() {
 </script>
 
 <template>
-  <div class="max-w-lg mx-auto px-4 py-10">
+  <div class="max-w-lg mx-auto px-4 py-10 relative isolate">
+    <AuroraBackdrop />
+
     <div class="flex items-center gap-3 mb-8">
       <UButton
         icon="i-lucide-arrow-left"
         variant="ghost"
         color="neutral"
         size="sm"
+        class="rounded-full"
         @click="router.back()"
       />
-      <h1 class="text-2xl font-bold">Edit profile</h1>
+      <h1 class="font-display text-2xl sm:text-3xl font-bold tracking-tight">
+        Edit profile
+      </h1>
     </div>
 
     <div v-if="loading" class="flex justify-center py-12">
@@ -158,12 +163,17 @@ async function save() {
       />
     </div>
 
-    <UCard v-else>
-      <div class="space-y-5">
+    <div
+      v-else
+      class="rounded-panel border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm p-5 sm:p-6"
+    >
+      <div class="space-y-6">
         <!-- Avatar upload -->
-        <div class="flex items-center gap-4">
-          <div
-            class="relative group cursor-pointer"
+        <div class="flex items-center gap-5">
+          <button
+            type="button"
+            aria-label="Change profile photo"
+            class="relative group cursor-pointer rounded-full p-1 bg-conic-brand shadow-glow-brand flex-shrink-0"
             @click="avatarInput?.click()"
           >
             <UAvatar
@@ -171,16 +181,16 @@ async function save() {
                 (displayAvatarUrl as string | null | undefined) || undefined
               "
               :fallback="username?.slice(0, 1).toUpperCase() || '?'"
-              size="2xl"
-              class="ring-4 ring-primary/20"
+              size="3xl"
+              class="size-24 text-3xl ring-4 ring-white dark:ring-zinc-950"
             />
             <div
-              class="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+              class="absolute inset-1 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
             >
               <UIcon name="i-lucide-camera" class="size-5 text-white" />
             </div>
-          </div>
-          <div class="space-y-1">
+          </button>
+          <div class="space-y-1.5">
             <p class="text-sm font-medium">Profile photo</p>
             <p class="text-xs text-zinc-500 dark:text-zinc-400">
               JPG, PNG or WebP · max 10 MB
@@ -204,6 +214,10 @@ async function save() {
           />
         </div>
 
+        <div
+          class="h-px bg-gradient-to-r from-transparent via-zinc-200 dark:via-zinc-800 to-transparent"
+        />
+
         <UFormField label="Username" required>
           <UInput v-model="username" placeholder="yourname" class="w-full" />
         </UFormField>
@@ -225,9 +239,14 @@ async function save() {
           <UButton variant="ghost" color="neutral" @click="router.back()"
             >Cancel</UButton
           >
-          <UButton :loading="saving" @click="save">Save changes</UButton>
+          <UButton
+            :loading="saving"
+            class="!bg-gradient-brand !text-white shadow-glow-brand hover:!brightness-110 transition-all"
+            @click="save"
+            >Save changes</UButton
+          >
         </div>
       </div>
-    </UCard>
+    </div>
   </div>
 </template>

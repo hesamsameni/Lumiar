@@ -18,21 +18,24 @@ onMounted(() => {
 
 <template>
   <div
-    class="min-h-screen flex flex-col items-center justify-center px-4 bg-white dark:bg-zinc-950"
+    class="relative isolate min-h-screen flex flex-col items-center justify-center px-4 bg-white dark:bg-zinc-950 overflow-hidden"
   >
+    <AuroraBackdrop />
     <!-- Shown briefly while redirect happens -->
     <div class="text-center space-y-4 max-w-sm">
       <div
-        class="size-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto"
+        class="size-16 rounded-2xl bg-gradient-brand shadow-glow-brand flex items-center justify-center mx-auto text-white"
       >
-        <UIcon name="i-lucide-gift" class="size-8 text-primary" />
+        <UIcon name="i-lucide-gift" class="size-8" />
       </div>
-      <h1 class="text-2xl font-bold text-zinc-900 dark:text-white">
+      <h1
+        class="font-display text-2xl font-bold tracking-tight text-zinc-900 dark:text-white"
+      >
         You've been invited to Lumiar!
       </h1>
       <p class="text-zinc-500 dark:text-zinc-400">
         Sign up and you'll
-        <span class="font-semibold text-zinc-700 dark:text-zinc-200"
+        <span class="font-semibold text-gradient-brand"
           >both get 50 free credits</span
         >
         to generate AI images.
