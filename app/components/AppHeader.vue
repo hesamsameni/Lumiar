@@ -54,6 +54,7 @@ const profileItems = computed(() => [
 const navLinks = computed(() => [
   { label: "Generate", to: "/", icon: "i-lucide-sparkles" },
   { label: "Explore", to: "/explore", icon: "i-lucide-compass" },
+  { label: "Tools", to: "/ai", icon: "i-lucide-wand-2" },
   { label: "Prompts", to: "/prompt-library", icon: "i-lucide-library" },
   ...(profile.value?.is_admin
     ? [{ label: "Admin", to: "/admin", icon: "i-lucide-shield" }]

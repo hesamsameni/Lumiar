@@ -1,2 +1,8 @@
 User-Agent: *
-Disallow:
+Allow: /
+Disallow: /admin
+Disallow: /auth
+Disallow: /profile/edit
+Disallow: /credits
+
+Sitemap: https://www.lumiar.site/sitemap.xml

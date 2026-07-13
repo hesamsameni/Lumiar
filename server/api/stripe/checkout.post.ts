@@ -1,21 +1,20 @@
 import Stripe from "stripe";
 import { requireUser } from "../../utils/auth";
+import { resolvePurchase } from "../../utils/pricing";
 
 export default defineEventHandler(async (event) => {
   const user = await requireUser(event);
   const config = useRuntimeConfig();
 
-  const { amountEuros, credits: creditsFromClient } = await readBody<{
-    amountEuros: number;
-    credits?: number;
-  }>(event);
+  const body = await readBody<{ packId?: string; amountEuros?: number }>(event);
 
-  if (!amountEuros || amountEuros < 2) {
-    throw createError({ statusCode: 400, message: "Minimum amount is €2" });
-  }
-
-  const tokens = creditsFromClient ?? Math.floor(amountEuros * 100);
-  const amountCents = Math.round(amountEuros * 100);
+  // The credit amount is resolved server-side from a trusted price table.
+  // Never trust a client-supplied credit/token count — otherwise a caller
+  // could pay the minimum and grant themselves unlimited credits.
+  const { amountCents, tokens } = resolvePurchase({
+    packId: body?.packId ?? null,
+    amountEuros: body?.amountEuros ?? null,
+  });
 
   if (!config.stripeSecretKey) {
     throw createError({ statusCode: 500, message: "Stripe is not configured" });

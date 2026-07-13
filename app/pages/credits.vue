@@ -96,7 +96,10 @@ async function startCheckout() {
     const accessToken = sessionData.session?.access_token;
     const { url } = await $fetch<{ url: string }>("/api/stripe/checkout", {
       method: "POST",
-      body: { amountEuros: finalEuros.value, credits: finalCredits.value },
+      body: {
+        packId: selectedPackId.value ?? undefined,
+        amountEuros: finalEuros.value,
+      },
       headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
     });
     window.location.href = url!;

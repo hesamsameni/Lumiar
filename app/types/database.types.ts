@@ -103,6 +103,26 @@ export interface Database {
         >;
         Update: never;
       };
+      landing_page_examples: {
+        Row: {
+          id: string;
+          use_case_slug: string;
+          image_url: string;
+          caption: string | null;
+          link_url: string | null;
+          sort_order: number;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<
+          Database["public"]["Tables"]["landing_page_examples"]["Row"],
+          "id" | "created_at" | "updated_at"
+        > & { is_active?: boolean; sort_order?: number };
+        Update: Partial<
+          Database["public"]["Tables"]["landing_page_examples"]["Row"]
+        >;
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { USE_CASES } from "~/utils/useCases";
+
 const currentYear = new Date().getFullYear();
+const footerTools = USE_CASES.slice(0, 6);
 </script>
 
 <template>
@@ -9,6 +12,29 @@ const currentYear = new Date().getFullYear();
     <div
       class="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent"
     />
+    <div class="max-w-7xl mx-auto px-4 mb-5">
+      <p
+        class="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-2 text-center sm:text-left"
+      >
+        AI Tools
+      </p>
+      <div
+        class="flex flex-wrap justify-center gap-x-4 gap-y-1.5 sm:justify-start"
+      >
+        <NuxtLink
+          v-for="tool in footerTools"
+          :key="tool.slug"
+          :to="`/ai/${tool.slug}`"
+          class="hover:text-zinc-900 dark:hover:text-white transition-colors"
+          >{{ tool.heading }}</NuxtLink
+        >
+        <NuxtLink
+          to="/ai"
+          class="font-medium text-primary hover:brightness-110 transition-all"
+          >All tools →</NuxtLink
+        >
+      </div>
+    </div>
     <div
       class="max-w-7xl mx-auto px-4 flex flex-col items-center gap-2 text-center sm:flex-row sm:justify-between sm:text-left"
     >

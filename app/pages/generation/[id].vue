@@ -214,6 +214,18 @@ function useAsBase() {
   router.push({ path: "/", query: { edit: id.value } });
 }
 
+function remix() {
+  if (!generation.value) return;
+  usePostHog()?.capture("generation_remixed", {
+    generation_id: id.value,
+    source: "generation_page",
+  });
+  router.push({
+    path: "/",
+    query: { prompt: generation.value.prompt as string },
+  });
+}
+
 async function toggleShare() {
   isTogglingShare.value = true;
   try {
@@ -361,11 +373,23 @@ onMounted(async () => {
               Download
             </UButton>
             <UButton
+              icon="i-lucide-shuffle"
+              variant="outline"
+              color="neutral"
+              size="sm"
+              class="flex-1"
+              title="Start a new image from this prompt"
+              @click="remix"
+            >
+              Remix
+            </UButton>
+            <UButton
               icon="i-lucide-pencil"
               variant="outline"
               color="neutral"
               size="sm"
               class="flex-1"
+              title="Edit this image"
               @click="useAsBase"
             >
               Edit
