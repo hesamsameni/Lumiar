@@ -36,7 +36,6 @@ export default defineEventHandler(async (event) => {
     // Multi-image fields
     inputImagesBase64,
     inputImageUrls,
-    tokensUsed,
     aspectRatio,
     parentId,
   } = body;
@@ -135,9 +134,43 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: "Invalid aspect ratio" });
   }
 
+  // --- Resolve the real cost + balance server-side (never trust the client) ---
+  // The authoritative per-generation cost comes from `ai_models`, and the
+  // balance is checked before we spend money calling a provider.
+  const supabase = await serverSupabaseClient(event);
+
+  const { data: modelRow } = (await (supabase as any)
+    .from("ai_models")
+    .select("tokens_per_generation")
+    .eq("id", modelId)
+    .maybeSingle()) as { data: { tokens_per_generation: number } | null };
+
+  if (!modelRow) {
+    throw createError({ statusCode: 400, message: "Unknown model" });
+  }
+  const tokenCost = Math.max(0, Math.round(modelRow.tokens_per_generation ?? 0));
+
+  const { data: profileRow } = (await (supabase as any)
+    .from("profiles")
+    .select("token_balance, is_admin")
+    .eq("id", user.id)
+    .single()) as {
+    data: { token_balance: number; is_admin: boolean } | null;
+  };
+  const isAdmin = !!profileRow?.is_admin;
+  const balance = Math.max(0, profileRow?.token_balance ?? 0);
+
   // --- Dev mode: return mock image without calling AI providers ---
   const DEV_MODE_PREFIX = "dev mode hesam";
   const isDevMode = trimmedPrompt.toLowerCase().startsWith(DEV_MODE_PREFIX);
+
+  // --- Balance gate: block before any paid provider call ---
+  if (!isDevMode && !isAdmin && balance < tokenCost) {
+    throw createError({
+      statusCode: 402,
+      message: `Insufficient tokens: this model requires ${tokenCost} but you have ${balance}.`,
+    });
+  }
 
   // --- Provider routing ---
   const resolvedProvider: string =
@@ -282,7 +315,6 @@ export default defineEventHandler(async (event) => {
   ];
   const primaryInputUrl = allInputCdnUrls[0] ?? null;
 
-  const supabase = await serverSupabaseClient(event);
   const { data: generation, error: dbError } = await supabase
     .from("generations")
     .insert({
@@ -292,7 +324,7 @@ export default defineEventHandler(async (event) => {
       model_name: modelName,
       input_image_url: primaryInputUrl,
       output_image_url: outputImageUrl,
-      tokens_used: typeof tokensUsed === "number" ? Math.max(0, tokensUsed) : 0,
+      tokens_used: tokenCost,
       aspect_ratio: aspectRatio ?? "1:1",
       parent_id: parentId ?? null,
       metadata: {
@@ -316,36 +348,28 @@ export default defineEventHandler(async (event) => {
   const generationId = (generation as { id: string }).id;
 
   // --- Token deduction (server-side so it survives client timeouts) ---
-  const tokensToDeduct =
-    typeof tokensUsed === "number" ? Math.max(0, tokensUsed) : 0;
-  if (tokensToDeduct > 0) {
+  // Deducts atomically via the `spend_tokens` RPC (single UPDATE guarded by
+  // balance), avoiding the read-modify-write race of the previous approach.
+  // Admins generate for free.
+  if (!isAdmin && tokenCost > 0) {
     try {
-      const { data: profileRow } = await (supabase as any)
-        .from("profiles")
-        .select("token_balance, is_admin")
-        .eq("id", user.id)
-        .single();
-      if (profileRow && !profileRow.is_admin) {
-        const newBalance = Math.max(
-          0,
-          (profileRow.token_balance ?? 0) - tokensToDeduct,
+      const { data: spent, error: spendErr } = await (supabase as any).rpc(
+        "spend_tokens",
+        { p_user_id: user.id, p_amount: tokenCost },
+      );
+      if (spendErr || spent === false) {
+        console.error(
+          "[generate] Token deduction failed (non-fatal):",
+          spendErr ?? "insufficient balance at spend time",
         );
-        await Promise.all([
-          (supabase as any)
-            .from("profiles")
-            .update({
-              token_balance: newBalance,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", user.id),
-          (supabase as any).from("token_transactions").insert({
-            user_id: user.id,
-            amount: -tokensToDeduct,
-            type: "generation",
-            reference_id: generationId,
-            description: `Generation with ${modelName}`,
-          }),
-        ]);
+      } else {
+        await (supabase as any).from("token_transactions").insert({
+          user_id: user.id,
+          amount: -tokenCost,
+          type: "generation",
+          reference_id: generationId,
+          description: `Generation with ${modelName}`,
+        });
       }
     } catch (err) {
       console.error("[generate] Token deduction failed (non-fatal):", err);
@@ -363,7 +387,7 @@ export default defineEventHandler(async (event) => {
       model_id: modelId,
       model_name: modelName,
       provider: resolvedProvider,
-      tokens_used: typeof tokensUsed === "number" ? Math.max(0, tokensUsed) : 0,
+      tokens_used: tokenCost,
       aspect_ratio: aspectRatio ?? "1:1",
       has_input_images: rawBase64Inputs.length > 0 || !!inputImageUrl,
       is_edit: !!parentId,

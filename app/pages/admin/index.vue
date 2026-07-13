@@ -190,7 +190,7 @@ const providerOptions: { label: string; value: ModelProvider; icon: string }[] =
     { label: "Google", value: "google", icon: "i-lucide-brain-circuit" },
   ];
 
-const activeTab = ref<"models" | "prompts" | "users">("models");
+const activeTab = ref<"models" | "prompts" | "users" | "landing">("models");
 
 await fetchModels();
 </script>
@@ -224,6 +224,7 @@ await fetchModels();
         v-for="tab in [
           { id: 'models', label: 'AI Models', icon: 'i-lucide-cpu' },
           { id: 'prompts', label: 'Prompt Library', icon: 'i-lucide-library' },
+          { id: 'landing', label: 'Landing Pages', icon: 'i-lucide-wand-2' },
           { id: 'users', label: 'Users', icon: 'i-lucide-users' },
         ]"
         :key="tab.id"
@@ -234,7 +235,9 @@ await fetchModels();
             ? 'bg-white dark:bg-zinc-800 shadow-sm ring-1 ring-zinc-200/70 dark:ring-zinc-700/60'
             : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
         "
-        @click="activeTab = tab.id as 'models' | 'prompts' | 'users'"
+        @click="
+          activeTab = tab.id as 'models' | 'prompts' | 'users' | 'landing'
+        "
       >
         <UIcon
           :name="tab.icon"
@@ -648,6 +651,11 @@ await fetchModels();
     <!-- ── Prompt Library tab ── -->
     <div v-show="activeTab === 'prompts'">
       <AdminPromptLibraryAdmin />
+    </div>
+
+    <!-- ── Landing Pages tab ── -->
+    <div v-show="activeTab === 'landing'">
+      <AdminLandingExamplesAdmin />
     </div>
 
     <!-- ── Users tab ── -->

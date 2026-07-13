@@ -53,6 +53,15 @@ const socialService = useSocialService();
 const generationService = useGenerationService();
 const collectionService = useCollectionService();
 const toast = useToast();
+const posthog = usePostHog();
+
+function remix() {
+  posthog?.capture("generation_remixed", {
+    generation_id: props.generation.id,
+    source: "explore_card",
+  });
+  navigateTo({ path: "/", query: { prompt: props.generation.prompt } });
+}
 
 const likesCount = ref(
   props.generation._count?.likes ?? props.generation.likes?.length ?? 0,
@@ -363,6 +372,17 @@ onMounted(() => {
     <div
       class="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/85 via-black/25 to-transparent opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-300"
     />
+
+    <!-- Remix (top-left, glass) -->
+    <button
+      aria-label="Remix this image"
+      title="Remix — start a new image from this prompt"
+      class="absolute top-2 left-2 flex items-center gap-1.5 h-8 px-2.5 rounded-full bg-black/40 text-white backdrop-blur-md hover:bg-black/60 transition-all opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 text-xs font-medium"
+      @click.prevent.stop="remix"
+    >
+      <UIcon name="i-lucide-shuffle" class="size-3.5" />
+      Remix
+    </button>
 
     <!-- Owner actions (top-right, glass) -->
     <UDropdownMenu v-if="isOwner" :items="dropdownItems">

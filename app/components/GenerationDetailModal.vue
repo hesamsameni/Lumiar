@@ -211,6 +211,19 @@ function useAsBase() {
   router.push({ path: "/", query: { edit: props.generationId! } });
 }
 
+function remix() {
+  if (!generation.value) return;
+  usePostHog()?.capture("generation_remixed", {
+    generation_id: props.generationId,
+    source: "detail_modal",
+  });
+  emit("update:open", false);
+  router.push({
+    path: "/",
+    query: { prompt: generation.value.prompt as string },
+  });
+}
+
 async function postComment() {
   if (!authUser.value?.id || !props.generationId) {
     toast.add({ title: "Sign in to comment", color: "warning" });
@@ -351,11 +364,23 @@ watch(
                     Download
                   </UButton>
                   <UButton
+                    icon="i-lucide-shuffle"
+                    variant="outline"
+                    color="neutral"
+                    size="sm"
+                    class="flex-1"
+                    title="Start a new image from this prompt"
+                    @click="remix"
+                  >
+                    Remix
+                  </UButton>
+                  <UButton
                     icon="i-lucide-pencil"
                     variant="outline"
                     color="neutral"
                     size="sm"
                     class="flex-1"
+                    title="Edit this image"
                     @click="useAsBase"
                   >
                     Edit
