@@ -190,7 +190,9 @@ const providerOptions: { label: string; value: ModelProvider; icon: string }[] =
     { label: "Google", value: "google", icon: "i-lucide-brain-circuit" },
   ];
 
-const activeTab = ref<"models" | "prompts" | "users" | "landing">("models");
+const activeTab = ref<
+  "models" | "video-models" | "prompts" | "users" | "landing"
+>("models");
 
 await fetchModels();
 </script>
@@ -223,6 +225,11 @@ await fetchModels();
       <button
         v-for="tab in [
           { id: 'models', label: 'AI Models', icon: 'i-lucide-cpu' },
+          {
+            id: 'video-models',
+            label: 'Video Models',
+            icon: 'i-lucide-clapperboard',
+          },
           { id: 'prompts', label: 'Prompt Library', icon: 'i-lucide-library' },
           { id: 'landing', label: 'Landing Pages', icon: 'i-lucide-wand-2' },
           { id: 'users', label: 'Users', icon: 'i-lucide-users' },
@@ -236,7 +243,12 @@ await fetchModels();
             : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
         "
         @click="
-          activeTab = tab.id as 'models' | 'prompts' | 'users' | 'landing'
+          activeTab = tab.id as
+            | 'models'
+            | 'video-models'
+            | 'prompts'
+            | 'users'
+            | 'landing'
         "
       >
         <UIcon
@@ -648,6 +660,12 @@ await fetchModels();
         </template>
       </USlideover>
     </div>
+
+    <!-- ── Video Models tab ── -->
+    <div v-show="activeTab === 'video-models'">
+      <AdminVideoModelManagement />
+    </div>
+
     <!-- ── Prompt Library tab ── -->
     <div v-show="activeTab === 'prompts'">
       <AdminPromptLibraryAdmin />

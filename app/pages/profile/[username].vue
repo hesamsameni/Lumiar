@@ -1,16 +1,20 @@
 <script setup lang="ts">
 import { useGenerationService } from "~/services/generation.service";
+import { useVideoGenerationService } from "~/services/videoGeneration.service";
 import { useProfileService } from "~/services/profile.service";
 import { useSocialService } from "~/services/social.service";
 import { useCollectionService } from "~/services/collection.service";
+import type { MediaItem, MediaType } from "~/types/media.types";
 
 const route = useRoute();
 const { user: authUser } = useAuthState();
 const toast = useToast();
 const generationService = useGenerationService();
+const videoGenerationService = useVideoGenerationService();
 const profileService = useProfileService();
 const socialService = useSocialService();
 const collectionService = useCollectionService();
+const userVideos = ref<Record<string, unknown>[]>([]);
 
 const username = computed(() => route.params.username as string);
 const isOwnProfile = computed(() => profile.value?.id === authUser.value?.id);
@@ -22,20 +26,34 @@ const followersCount = ref(0);
 const followingCount = ref(0);
 const isFollowing = ref(false);
 const isTogglingFollow = ref(false);
-const activeTab = ref("generations");
+// A single "view" drives everything, so mobile shows one tidy filter row
+// instead of separate tab / media / collection filter clusters.
+type ProfileView =
+  | "all"
+  | "images"
+  | "videos"
+  | "shared"
+  | "uncollected"
+  | "collections";
+const view = ref<ProfileView>("all");
 
-const tabs = [
-  { key: "generations", label: "Generations" },
-  { key: "shared", label: "Shared" },
-  { key: "collections", label: "Collections" },
-];
+const activeTab = computed(() =>
+  view.value === "collections"
+    ? "collections"
+    : view.value === "shared"
+      ? "shared"
+      : "generations",
+);
 
 interface CollectionItem {
   id: string;
   name: string;
   cover_image_url: string | null;
   is_public: boolean;
-  collection_items: { generation_id: string }[];
+  collection_items: {
+    generation_id?: string | null;
+    video_generation_id?: string | null;
+  }[];
 }
 
 const collections = ref<CollectionItem[]>([]);
@@ -43,8 +61,34 @@ const collectionsLoaded = ref(false);
 const showNewCollectionModal = ref(false);
 const newCollectionName = ref("");
 const isCreatingCollection = ref(false);
-const collectionFilter = ref<"all" | "in" | "out">("all");
+const collectionFilter = computed<"all" | "in" | "out">(() =>
+  view.value === "uncollected" ? "out" : "all",
+);
+const mediaFilter = computed<"all" | MediaType>(() =>
+  view.value === "images" ? "image" : view.value === "videos" ? "video" : "all",
+);
 const collectionsVersion = useState("collectionsVersion", () => 0);
+
+// The single filter row. Collection-related chips are owner-only.
+const viewChips = computed(() => {
+  const chips: { value: ProfileView; label: string; icon: string }[] = [
+    { value: "all", label: "All", icon: "i-lucide-layout-grid" },
+    { value: "images", label: "Images", icon: "i-lucide-image" },
+    { value: "videos", label: "Videos", icon: "i-lucide-video" },
+  ];
+  if (isOwnProfile.value) {
+    chips.push({ value: "shared", label: "Shared", icon: "i-lucide-globe" });
+    if (collections.value.length) {
+      chips.push({
+        value: "uncollected",
+        label: "Uncollected",
+        icon: "i-lucide-folder-minus",
+      });
+    }
+    chips.push({ value: "collections", label: "Collections", icon: "i-lucide-folder" });
+  }
+  return chips;
+});
 const likedIds = ref<Set<string>>(new Set());
 
 async function fetchProfile() {
@@ -70,6 +114,22 @@ async function fetchGenerations() {
       generationIds,
     );
     likedIds.value = new Set((likedRows ?? []).map((r) => r.generation_id));
+  }
+}
+
+async function fetchVideos() {
+  if (!profile.value) return;
+  try {
+    const isOwn = profile.value.id === authUser.value?.id;
+    const { data } = await videoGenerationService.getVideosByUser(
+      profile.value.id as string,
+      !isOwn,
+    );
+    userVideos.value = data ?? [];
+  } catch (err) {
+    // Never let a video-fetch failure block the rest of the profile.
+    console.error("[profile] fetchVideos failed:", err);
+    userVideos.value = [];
   }
 }
 
@@ -129,6 +189,9 @@ function handleDeleted(id: string) {
   generations.value = generations.value.filter(
     (g) => (g as { id: string }).id !== id,
   );
+  userVideos.value = userVideos.value.filter(
+    (v) => (v as { id: string }).id !== id,
+  );
 }
 
 function handleShareToggled(id: string, isShared: boolean) {
@@ -147,8 +210,12 @@ const generationCollections = computed(() => {
   const map = new Map<string, string[]>();
   for (const col of collections.value) {
     for (const item of col.collection_items) {
-      if (!map.has(item.generation_id)) map.set(item.generation_id, []);
-      map.get(item.generation_id)!.push(col.name);
+      const mediaId =
+        (item as { generation_id?: string | null }).generation_id ??
+        (item as { video_generation_id?: string | null }).video_generation_id;
+      if (!mediaId) continue;
+      if (!map.has(mediaId)) map.set(mediaId, []);
+      map.get(mediaId)!.push(col.name);
     }
   }
   return map;
@@ -172,6 +239,41 @@ const filteredGenerations = computed(() => {
   return base;
 });
 
+// This user's completed videos, mapped into the mixed feed.
+const profileVideos = computed<MediaItem[]>(() => {
+  let list = userVideos.value;
+  if (activeTab.value === "shared") {
+    list = list.filter((v) => (v as { is_shared?: boolean }).is_shared);
+  }
+  return list.map((v) => ({
+    ...(v as Record<string, unknown>),
+    media_type: "video" as const,
+    profiles: {
+      username: profile.value?.username as string,
+      avatar_url: (profile.value?.avatar_url as string | null) ?? null,
+    },
+  })) as MediaItem[];
+});
+
+// Media-aware feed used for rendering. Select mode stays images-only since bulk
+// actions/collections don't apply to placeholder videos yet.
+const mediaFeed = computed<MediaItem[]>(() => {
+  const images = filteredGenerations.value.map((g) => ({
+    ...(g as Record<string, unknown>),
+    media_type: "image" as const,
+  })) as MediaItem[];
+
+  if (isSelectMode.value) return images;
+
+  if (mediaFilter.value === "image") return images;
+  if (mediaFilter.value === "video") return profileVideos.value;
+
+  return [...images, ...profileVideos.value].sort(
+    (a, b) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  );
+});
+
 function getGroupLabel(dateStr: string): string {
   const date = new Date(dateStr);
   const now = new Date();
@@ -193,11 +295,11 @@ function getGroupLabel(dateStr: string): string {
 const groupedGenerations = computed(() => {
   const groups: Array<{
     label: string;
-    items: typeof filteredGenerations.value;
+    items: MediaItem[];
   }> = [];
-  const map = new Map<string, typeof filteredGenerations.value>();
-  for (const gen of filteredGenerations.value) {
-    const label = getGroupLabel((gen as any).created_at);
+  const map = new Map<string, MediaItem[]>();
+  for (const gen of mediaFeed.value) {
+    const label = getGroupLabel(gen.created_at);
     if (!map.has(label)) {
       map.set(label, []);
       groups.push({ label, items: map.get(label)! });
@@ -283,6 +385,8 @@ onMounted(async () => {
     fetchCollections(),
   ]);
   loading.value = false;
+  // Videos load independently so they can never block the main feed.
+  fetchVideos();
 });
 
 watch(
@@ -295,10 +399,17 @@ watch(
 
 const previewGenerationId = ref<string | null>(null);
 const showPreviewModal = ref(false);
+const previewVideoId = ref<string | null>(null);
+const showVideoModal = ref(false);
 
 function openPreview(id: string) {
   if (isSelectMode.value) {
     toggleSelect(id);
+    return;
+  }
+  if (userVideos.value.some((v) => (v as { id: string }).id === id)) {
+    previewVideoId.value = id;
+    showVideoModal.value = true;
     return;
   }
   previewGenerationId.value = id;
@@ -330,26 +441,6 @@ function selectAll() {
   selectedIds.value = new Set(
     filteredGenerations.value.map((g) => (g as any).id as string),
   );
-
-  // ─── Long-press to enter select mode (mobile) ─────────────────────────────────
-  let longPressTimer: ReturnType<typeof setTimeout> | null = null;
-
-  function onCardTouchStart(id: string) {
-    if (isSelectMode.value) return;
-    longPressTimer = setTimeout(() => {
-      enterSelectMode();
-      toggleSelect(id);
-      // Haptic feedback if supported
-      if (navigator.vibrate) navigator.vibrate(30);
-    }, 500);
-  }
-
-  function onCardTouchEnd() {
-    if (longPressTimer) {
-      clearTimeout(longPressTimer);
-      longPressTimer = null;
-    }
-  }
 }
 
 const selectedCount = computed(() => selectedIds.value.size);
@@ -476,7 +567,9 @@ const firstSelectedImageUrl = computed(() => {
             </div>
           </div>
 
-          <div class="flex gap-2">
+          <div
+            class="flex gap-2 absolute top-0 right-0 sm:static sm:top-auto sm:right-auto"
+          >
             <template v-if="isOwnProfile">
               <UButton
                 to="/profile/edit"
@@ -484,8 +577,9 @@ const firstSelectedImageUrl = computed(() => {
                 color="neutral"
                 size="sm"
                 icon="i-lucide-pencil"
+                :title="'Edit profile'"
               >
-                Edit profile
+                <span class="hidden sm:inline">Edit profile</span>
               </UButton>
             </template>
             <template v-else>
@@ -513,58 +607,51 @@ const firstSelectedImageUrl = computed(() => {
         </div>
       </div>
 
-      <div
-        v-if="isOwnProfile"
-        class="flex items-center justify-between gap-3 mb-6 flex-wrap"
-      >
-        <div
-          class="flex items-center gap-0.5 p-1 rounded-full bg-zinc-100/70 dark:bg-zinc-900/60 border border-zinc-200/60 dark:border-zinc-800/60"
-        >
-          <button
-            v-for="tab in tabs"
-            :key="tab.key"
-            class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-medium transition-all"
-            :class="
-              activeTab === tab.key
-                ? 'bg-white dark:bg-zinc-800 shadow-sm ring-1 ring-zinc-200/70 dark:ring-zinc-700/60'
-                : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
-            "
-            @click="activeTab = tab.key"
+      <!-- Unified filter row (scrolls horizontally on mobile) + select control -->
+      <div class="flex items-center gap-2 mb-6">
+        <div class="flex-1 min-w-0 overflow-x-auto no-scrollbar">
+          <div
+            class="flex items-center gap-1 p-1 rounded-full bg-zinc-100/70 dark:bg-zinc-900/60 border border-zinc-200/60 dark:border-zinc-800/60 w-max"
           >
-            <span :class="activeTab === tab.key ? 'text-gradient-brand' : ''">{{
-              tab.label
-            }}</span>
-            <span
-              class="text-xs"
-              :class="activeTab === tab.key ? 'text-primary' : 'text-zinc-400'"
+            <button
+              v-for="chip in viewChips"
+              :key="chip.value"
+              type="button"
+              class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap"
+              :class="
+                view === chip.value
+                  ? 'bg-white dark:bg-zinc-800 shadow-sm ring-1 ring-zinc-200/70 dark:ring-zinc-700/60'
+                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
+              "
+              @click="view = chip.value"
             >
-              {{
-                tab.key === "shared"
-                  ? sharedGenerations.length
-                  : tab.key === "collections"
-                    ? collections.length
-                    : generations.length
-              }}
-            </span>
-          </button>
+              <UIcon
+                :name="chip.icon"
+                class="size-3.5"
+                :class="view === chip.value ? 'text-primary' : ''"
+              />
+              <span :class="view === chip.value ? 'text-gradient-brand' : ''">{{
+                chip.label
+              }}</span>
+            </button>
+          </div>
         </div>
 
-        <!-- Select controls: desktop only (inline in tab bar) -->
+        <!-- Select control (media grids only) -->
         <div
-          v-if="activeTab !== 'collections'"
-          class="hidden sm:flex items-center gap-1"
+          v-if="isOwnProfile && activeTab !== 'collections'"
+          class="flex items-center gap-1 flex-shrink-0"
         >
-          <template v-if="!isSelectMode">
-            <UButton
-              size="xs"
-              variant="ghost"
-              color="neutral"
-              icon="i-lucide-check-square"
-              @click="enterSelectMode"
-            >
-              Select
-            </UButton>
-          </template>
+          <UButton
+            v-if="!isSelectMode"
+            size="xs"
+            variant="ghost"
+            color="neutral"
+            icon="i-lucide-check-square"
+            @click="enterSelectMode"
+          >
+            <span class="hidden sm:inline">Select</span>
+          </UButton>
           <template v-else>
             <UButton
               size="xs"
@@ -572,7 +659,8 @@ const firstSelectedImageUrl = computed(() => {
               color="neutral"
               @click="selectAll"
             >
-              Select All
+              <span class="hidden sm:inline">Select all</span>
+              <UIcon name="i-lucide-check-check" class="size-4 sm:hidden" />
             </UButton>
             <UButton
               size="xs"
@@ -586,69 +674,10 @@ const firstSelectedImageUrl = computed(() => {
         </div>
       </div>
 
-      <!-- Select controls: mobile only (row below tab bar) -->
-      <div
-        v-if="isOwnProfile && activeTab !== 'collections'"
-        class="flex sm:hidden justify-end items-center gap-1 mb-4 -mt-4"
-      >
-        <template v-if="!isSelectMode">
-          <UButton
-            size="xs"
-            variant="ghost"
-            color="neutral"
-            icon="i-lucide-check-square"
-            @click="enterSelectMode"
-          >
-            Select
-          </UButton>
-        </template>
-        <template v-else>
-          <UButton size="xs" variant="ghost" color="neutral" @click="selectAll">
-            Select All
-          </UButton>
-          <UButton
-            size="xs"
-            variant="ghost"
-            color="primary"
-            @click="exitSelectMode"
-          >
-            Done
-          </UButton>
-        </template>
-      </div>
-
       <!-- Generations / Shared tab content -->
       <template v-if="activeTab !== 'collections'">
-        <!-- Collection filter bar -->
-        <div
-          v-if="isOwnProfile && collectionsLoaded && collections.length"
-          class="flex items-center gap-2 mb-5 flex-wrap"
-        >
-          <span
-            class="text-xs text-zinc-500 dark:text-zinc-400 font-medium mr-1"
-            >Filter:</span
-          >
-          <button
-            v-for="f in [
-              { value: 'all', label: 'All' },
-              { value: 'out', label: 'Uncollected' },
-              { value: 'in', label: 'In collections' },
-            ]"
-            :key="f.value"
-            class="text-xs px-3 py-1 rounded-full border transition-all"
-            :class="
-              collectionFilter === f.value
-                ? 'border-primary/40 bg-gradient-to-r from-indigo-500/10 via-violet-500/10 to-fuchsia-500/10 text-primary font-medium ring-1 ring-primary/20'
-                : 'border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-zinc-400 dark:hover:border-zinc-500'
-            "
-            @click="collectionFilter = f.value as 'all' | 'in' | 'out'"
-          >
-            {{ f.label }}
-          </button>
-        </div>
-
         <!-- Empty state -->
-        <div v-if="!filteredGenerations.length" class="text-center py-20">
+        <div v-if="!mediaFeed.length" class="text-center py-20">
           <UIcon
             name="i-lucide-image"
             class="size-12 text-zinc-300 dark:text-zinc-600 mx-auto mb-3"
@@ -678,22 +707,25 @@ const firstSelectedImageUrl = computed(() => {
             >
               {{ group.label }}
             </p>
-            <div class="columns-2 sm:columns-3 md:columns-4 lg:columns-5 gap-3">
+            <div
+              class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 grid-flow-row-dense auto-rows-[168px] sm:auto-rows-[190px] lg:auto-rows-[210px]"
+            >
               <div
-                v-for="gen in group.items"
+                v-for="(gen, gidx) in group.items"
                 :key="(gen as any).id"
-                class="relative mb-3 break-inside-avoid"
+                class="relative group/tile"
+                :class="mosaicSpan(gidx)"
               >
                 <!-- Selection overlay -->
                 <template v-if="isSelectMode">
                   <button
-                    class="block w-full rounded-2xl overflow-hidden focus:outline-none"
+                    class="block w-full h-full rounded-2xl overflow-hidden focus:outline-none"
                     @click="toggleSelect((gen as any).id)"
                   >
                     <img
                       :src="(gen as any).output_image_url"
                       :alt="(gen as any).prompt"
-                      class="w-full h-auto object-cover transition-opacity duration-150"
+                      class="w-full h-full object-cover transition-opacity duration-150"
                       :class="
                         selectedIds.has((gen as any).id)
                           ? 'opacity-70'
@@ -721,28 +753,22 @@ const firstSelectedImageUrl = computed(() => {
                 </template>
 
                 <template v-else>
-                  <div
-                    @touchstart.passive="onCardTouchStart((gen as any).id)"
-                    @touchend="onCardTouchEnd"
-                    @touchcancel="onCardTouchEnd"
-                    @touchmove="onCardTouchEnd"
-                  >
-                    <GenerationCard
-                      :generation="gen as never"
-                      :show-author="false"
-                      :is-owner="isOwnProfile"
-                      :masonry="true"
-                      :initial-is-liked="likedIds.has((gen as any).id)"
-                      @deleted="handleDeleted"
-                      @share-toggled="handleShareToggled"
-                      @preview="openPreview"
-                    />
-                  </div>
+                  <MediaCard
+                    :item="gen"
+                    :show-author="false"
+                    :is-owner="isOwnProfile"
+                    :fill="true"
+                    :initial-is-liked="likedIds.has(gen.id)"
+                    @deleted="handleDeleted"
+                    @share-toggled="handleShareToggled"
+                    @removed-from-collection="handleDeleted"
+                    @preview="openPreview"
+                  />
                   <div
                     v-if="
                       isOwnProfile && generationCollections.has((gen as any).id)
                     "
-                    class="absolute top-2 left-2 pointer-events-none max-w-[calc(100%-1rem)]"
+                    class="absolute top-2 left-2 pointer-events-none max-w-[calc(100%-1rem)] transition-opacity duration-200 opacity-0 sm:opacity-100 sm:group-hover/tile:opacity-0"
                   >
                     <div
                       class="bg-black/50 backdrop-blur-sm rounded px-1.5 py-0.5 flex items-center gap-1"
@@ -905,6 +931,12 @@ const firstSelectedImageUrl = computed(() => {
     <GenerationDetailModal
       v-model:open="showPreviewModal"
       :generation-id="previewGenerationId"
+    />
+
+    <VideoDetailModal
+      v-model:open="showVideoModal"
+      :video-id="previewVideoId"
+      @deleted="handleDeleted"
     />
 
     <!-- Floating multi-select action bar -->

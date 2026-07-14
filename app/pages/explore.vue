@@ -2,18 +2,24 @@
 import { GENERATION_TAGS } from "~/utils/constants";
 import { watchDebounced } from "@vueuse/core";
 import { useGenerationService } from "~/services/generation.service";
+import { useVideoGenerationService } from "~/services/videoGeneration.service";
 import { useProfileService } from "~/services/profile.service";
 import { useSocialService } from "~/services/social.service";
+import type { MediaItem, MediaType } from "~/types/media.types";
 
 const generationService = useGenerationService();
+const videoGenerationService = useVideoGenerationService();
 const profileService = useProfileService();
 const socialService = useSocialService();
 const { user: authUser } = useAuthState();
+
+const videos = ref<Record<string, unknown>[]>([]);
 
 const likedIds = ref<Set<string>>(new Set());
 
 const searchQuery = ref("");
 const selectedTag = ref<string | null>(null);
+const mediaFilter = ref<"all" | MediaType>("all");
 const generations = ref<Record<string, unknown>[]>([]);
 const loading = ref(false);
 const page = ref(1);
@@ -99,18 +105,100 @@ async function fetchGenerations(reset = false) {
   page.value++;
 }
 
-watchDebounced([selectedTag, searchQuery], () => fetchGenerations(true), {
-  debounce: 300,
+// Videos aren't paginated with images; load the latest shared clips once per
+// filter change and merge them into the feed.
+async function fetchVideos() {
+  let data: unknown = null;
+  try {
+    const res = await videoGenerationService.getExploreVideos({
+      page: 1,
+      pageSize,
+      selectedTag: selectedTag.value,
+      searchQuery: searchQuery.value,
+    });
+    if (res.error) throw res.error;
+    data = res.data;
+  } catch (err) {
+    console.error("[explore] fetchVideos failed:", err);
+    videos.value = [];
+    return;
+  }
+  if (!data) {
+    videos.value = [];
+    return;
+  }
+  const rows = data as { user_id: string }[];
+  const userIds = [...new Set(rows.map((v) => v.user_id).filter(Boolean))];
+  let profilesById: Record<string, ProfileLite> = {};
+  if (userIds.length) {
+    const { data: profiles } =
+      await profileService.getProfilesLiteByIds(userIds);
+    profilesById = Object.fromEntries(
+      ((profiles ?? []) as ProfileLite[]).map((p) => [p.id, p]),
+    );
+  }
+  videos.value = rows.map((v) => {
+    const profile = profilesById[v.user_id];
+    return {
+      ...v,
+      profiles: profile
+        ? { username: profile.username, avatar_url: profile.avatar_url }
+        : undefined,
+    };
+  });
+}
+
+watchDebounced(
+  [selectedTag, searchQuery],
+  () => {
+    fetchGenerations(true);
+    fetchVideos();
+  },
+  { debounce: 300 },
+);
+onMounted(() => {
+  fetchGenerations(true);
+  fetchVideos();
 });
-onMounted(() => fetchGenerations(true));
 
 const previewGenerationId = ref<string | null>(null);
 const showPreviewModal = ref(false);
+const previewVideoId = ref<string | null>(null);
+const showVideoModal = ref(false);
 
 function openPreview(id: string) {
+  if (videos.value.some((v) => (v as { id: string }).id === id)) {
+    previewVideoId.value = id;
+    showVideoModal.value = true;
+    return;
+  }
   previewGenerationId.value = id;
   showPreviewModal.value = true;
 }
+
+function handleVideoDeleted(id: string) {
+  videos.value = videos.value.filter((v) => (v as { id: string }).id !== id);
+}
+
+// Mixed image + video feed, newest first.
+const feedItems = computed<MediaItem[]>(() => {
+  const images = (generations.value as unknown[]).map((g) => ({
+    ...(g as Record<string, unknown>),
+    media_type: "image" as const,
+  })) as MediaItem[];
+  const vids = (videos.value as unknown[]).map((v) => ({
+    ...(v as Record<string, unknown>),
+    media_type: "video" as const,
+  })) as MediaItem[];
+
+  if (mediaFilter.value === "image") return images;
+  if (mediaFilter.value === "video") return vids;
+
+  return [...images, ...vids].sort(
+    (a, b) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  );
+});
 </script>
 
 <template>
@@ -126,16 +214,17 @@ function openPreview(id: string) {
       </p>
     </div>
 
-    <div class="flex flex-col md:flex-row gap-4 mb-6">
+    <div class="flex flex-col md:flex-row md:items-center gap-4 mb-6">
       <UInput
         v-model="searchQuery"
         icon="i-lucide-search"
         placeholder="Search prompts…"
         class="flex-1"
       />
+      <MediaTypeFilter v-model="mediaFilter" class="self-start md:self-auto" />
     </div>
 
-    <div class="flex flex-wrap gap-2 mb-6">
+    <div v-if="mediaFilter !== 'video'" class="flex flex-wrap gap-2 mb-6">
       <button
         class="text-xs px-3 py-1.5 rounded-full border transition-all"
         :class="
@@ -182,7 +271,7 @@ function openPreview(id: string) {
       </div>
     </div>
 
-    <div v-else-if="!generations.length" class="text-center py-20">
+    <div v-else-if="!feedItems.length" class="text-center py-20">
       <UIcon
         name="i-lucide-image-off"
         class="size-12 text-zinc-300 dark:text-zinc-600 mx-auto mb-3"
@@ -191,24 +280,24 @@ function openPreview(id: string) {
     </div>
 
     <div v-else>
-      <div class="columns-2 sm:columns-3 lg:columns-4 xl:columns-5 gap-3">
-        <div
-          v-for="(gen, idx) in generations"
-          :key="(gen as { id: string }).id"
-          class="mb-3 break-inside-avoid animate-fade-up"
+      <div
+        class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 grid-flow-row-dense auto-rows-[168px] sm:auto-rows-[190px] lg:auto-rows-[210px]"
+      >
+        <MediaCard
+          v-for="(item, idx) in feedItems"
+          :key="item.id"
+          :item="item"
+          :show-author="true"
+          :fill="true"
+          :initial-is-liked="likedIds.has(item.id)"
+          class="animate-fade-up"
+          :class="mosaicSpan(idx)"
           :style="{ animationDelay: `${(idx % 12) * 40}ms` }"
-        >
-          <GenerationCard
-            :generation="gen as never"
-            :show-author="true"
-            :masonry="true"
-            :initial-is-liked="likedIds.has((gen as { id: string }).id)"
-            @preview="openPreview"
-          />
-        </div>
+          @preview="openPreview"
+        />
       </div>
 
-      <div v-if="hasMore" class="text-center mt-8">
+      <div v-if="hasMore && mediaFilter !== 'video'" class="text-center mt-8">
         <UButton
           variant="outline"
           color="neutral"
@@ -223,6 +312,12 @@ function openPreview(id: string) {
     <GenerationDetailModal
       v-model:open="showPreviewModal"
       :generation-id="previewGenerationId"
+    />
+
+    <VideoDetailModal
+      v-model:open="showVideoModal"
+      :video-id="previewVideoId"
+      @deleted="handleVideoDeleted"
     />
   </div>
 </template>

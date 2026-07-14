@@ -7,6 +7,20 @@ export const ASPECT_RATIOS = [
   { label: "Tall (9:16)", value: "9:16", width: 720, height: 1280 },
 ];
 
+// Aspect ratios supported across the video model catalog. The composer only
+// shows the ones the selected model actually supports.
+export const VIDEO_ASPECT_RATIOS = [
+  { label: "Wide (16:9)", value: "16:9", width: 1280, height: 720 },
+  { label: "Vertical (9:16)", value: "9:16", width: 720, height: 1280 },
+  { label: "Square (1:1)", value: "1:1", width: 1024, height: 1024 },
+  { label: "Standard (4:3)", value: "4:3", width: 1024, height: 768 },
+  { label: "Portrait (3:4)", value: "3:4", width: 768, height: 1024 },
+  { label: "Cinema (21:9)", value: "21:9", width: 1680, height: 720 },
+  { label: "Tall (9:21)", value: "9:21", width: 720, height: 1680 },
+  { label: "Photo (3:2)", value: "3:2", width: 1080, height: 720 },
+  { label: "Photo (2:3)", value: "2:3", width: 720, height: 1080 },
+];
+
 export const PROMPT_POLISH_MODEL = "openai/gpt-4o-mini";
 
 export const FREE_WELCOME_TOKENS = 10;
