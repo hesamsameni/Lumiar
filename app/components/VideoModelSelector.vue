@@ -245,7 +245,8 @@ const tierLabel: Record<string, string> = {
             </div>
 
             <p
-              class="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5 leading-snug line-clamp-2"
+              :title="model.description"
+              class="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5 leading-snug line-clamp-3"
             >
               {{ model.description }}
             </p>

@@ -235,9 +235,9 @@ function getRatioStyle(value: string): Record<string, string> {
         />
 
         <div class="border-t border-zinc-100 dark:border-zinc-800">
-          <!-- Mobile summary strip -->
+          <!-- Selection summary strip (model + ratio + duration) -->
           <div
-            class="flex sm:hidden items-center gap-2 px-4 py-2.5 border-b border-zinc-100 dark:border-zinc-800"
+            class="flex items-center gap-2 px-3 py-2.5 border-b border-zinc-100 dark:border-zinc-800"
           >
             <button
               type="button"
@@ -285,43 +285,6 @@ function getRatioStyle(value: string): Record<string, string> {
                 class="size-[18px]"
                 :class="isProcessingImage ? 'animate-spin' : ''"
               />
-            </button>
-
-            <div
-              class="hidden sm:block w-px h-5 bg-zinc-200 dark:bg-zinc-700 mx-0.5 flex-shrink-0"
-            />
-
-            <!-- Aspect ratio (desktop) -->
-            <button
-              type="button"
-              :disabled="isGenerating"
-              class="hidden sm:flex h-9 px-2.5 rounded-xl items-center gap-1.5 text-xs font-medium transition-colors disabled:opacity-40 text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex-shrink-0"
-              @click="showRatioSelector = true"
-            >
-              <UIcon name="i-lucide-ratio" class="size-3.5 flex-shrink-0" />
-              <span>{{ selectedAspectRatio.value }}</span>
-            </button>
-
-            <!-- Duration (desktop) -->
-            <button
-              type="button"
-              :disabled="isGenerating"
-              class="hidden sm:flex h-9 px-2.5 rounded-xl items-center gap-1.5 text-xs font-medium transition-colors disabled:opacity-40 text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex-shrink-0"
-              @click="showDurationSelector = true"
-            >
-              <UIcon name="i-lucide-clock" class="size-3.5 flex-shrink-0" />
-              <span>{{ selectedDuration }}s</span>
-            </button>
-
-            <!-- Model (desktop) -->
-            <button
-              type="button"
-              :disabled="isGenerating"
-              class="hidden sm:flex h-9 px-2.5 rounded-xl items-center gap-1.5 text-xs font-medium transition-colors disabled:opacity-40 text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex-shrink-0 min-w-0"
-              @click="showModelSelector = true"
-            >
-              <UIcon name="i-lucide-clapperboard" class="size-3.5 flex-shrink-0" />
-              <span>{{ selectedModel.name }}</span>
             </button>
 
             <!-- Generate -->
