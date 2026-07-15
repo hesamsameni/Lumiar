@@ -52,7 +52,8 @@ const profileItems = computed(() => [
 ]);
 
 const navLinks = computed(() => [
-  { label: "Generate", to: "/", icon: "i-lucide-sparkles" },
+  { label: "Image", to: "/", icon: "i-lucide-image" },
+  { label: "Video", to: "/video", icon: "i-lucide-video" },
   { label: "Explore", to: "/explore", icon: "i-lucide-compass" },
   { label: "Tools", to: "/ai", icon: "i-lucide-wand-2" },
   { label: "Prompts", to: "/prompt-library", icon: "i-lucide-library" },

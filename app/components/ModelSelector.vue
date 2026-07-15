@@ -20,7 +20,8 @@ type CompanyKey =
   | "black-forest-labs"
   | "bytedance"
   | "x-ai"
-  | "microsoft";
+  | "microsoft"
+  | "sourceful";
 
 const companyMeta: Record<
   CompanyKey,
@@ -61,6 +62,11 @@ const companyMeta: Record<
     subtitle: "MAI Image family",
     logo: "/ai-logos/microsoft.svg",
   },
+  sourceful: {
+    label: "Sourceful",
+    subtitle: "Riverflow family",
+    logo: "/ai-logos/sourceful.jpeg",
+  },
 };
 
 const companyOrder: CompanyKey[] = [
@@ -71,6 +77,7 @@ const companyOrder: CompanyKey[] = [
   "black-forest-labs",
   "bytedance",
   "x-ai",
+  "sourceful",
 ];
 
 const COMPANY_ID_MAP: Partial<Record<string, CompanyKey>> = {
@@ -86,6 +93,7 @@ const groupedModels = computed(() => {
     "black-forest-labs": [],
     bytedance: [],
     "x-ai": [],
+    sourceful: [],
   };
   for (const model of models.value) {
     const prefix = model.id.split("/")[0] ?? "";
@@ -229,7 +237,8 @@ const tierLabel: Record<string, string> = {
             </div>
 
             <p
-              class="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5 leading-snug line-clamp-2"
+              :title="model.description"
+              class="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5 leading-snug line-clamp-3"
             >
               {{ model.description }}
             </p>

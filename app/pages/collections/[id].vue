@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useCollectionService } from "~/services/collection.service";
 import { useProfileService } from "~/services/profile.service";
+import type { MediaItem } from "~/types/media.types";
 
 const route = useRoute();
 const router = useRouter();
@@ -33,7 +34,7 @@ interface GenerationItem {
 }
 
 const collection = ref<CollectionMeta | null>(null);
-const generations = ref<GenerationItem[]>([]);
+const items = ref<MediaItem[]>([]);
 const ownerUsername = ref<string | null>(null);
 const loading = ref(true);
 const notFound = ref(false);
@@ -62,14 +63,22 @@ async function loadCollection() {
     return;
   }
 
-  const [{ data: items }, { data: ownerProfile }] = await Promise.all([
+  const [{ data: rows }, { data: ownerProfile }] = await Promise.all([
     collectionService.getCollectionItems(collectionId.value),
     profileService.getProfileById(data.user_id),
   ]);
 
-  generations.value = ((items ?? []) as any[])
-    .map((item) => item.generations)
-    .filter(Boolean) as GenerationItem[];
+  items.value = ((rows ?? []) as any[])
+    .map((row): MediaItem | null => {
+      if (row.generations) {
+        return { ...row.generations, media_type: "image" } as MediaItem;
+      }
+      if (row.video_generations) {
+        return { ...row.video_generations, media_type: "video" } as MediaItem;
+      }
+      return null;
+    })
+    .filter((m): m is MediaItem => m !== null);
 
   ownerUsername.value = (ownerProfile as any)?.username ?? null;
 
@@ -77,16 +86,16 @@ async function loadCollection() {
 }
 
 function handleDeleted(id: string) {
-  generations.value = generations.value.filter((g) => g.id !== id);
+  items.value = items.value.filter((g) => g.id !== id);
 }
 
 function handleShareToggled(id: string, isShared: boolean) {
-  const gen = generations.value.find((g) => g.id === id);
-  if (gen) gen.is_shared = isShared;
+  const gen = items.value.find((g) => g.id === id);
+  if (gen) (gen as { is_shared?: boolean }).is_shared = isShared;
 }
 
 function handleRemovedFromCollection(id: string) {
-  generations.value = generations.value.filter((g) => g.id !== id);
+  items.value = items.value.filter((g) => g.id !== id);
 }
 
 async function deleteCollection() {
@@ -113,8 +122,19 @@ onMounted(loadCollection);
 
 const previewGenerationId = ref<string | null>(null);
 const showPreviewModal = ref(false);
+const previewVideoId = ref<string | null>(null);
+const showVideoModal = ref(false);
 
 function openPreview(id: string) {
+  if (
+    items.value.some(
+      (m) => m.id === id && (m as MediaItem).media_type === "video",
+    )
+  ) {
+    previewVideoId.value = id;
+    showVideoModal.value = true;
+    return;
+  }
   previewGenerationId.value = id;
   showPreviewModal.value = true;
 }
@@ -168,8 +188,8 @@ function openPreview(id: string) {
             {{ collection.description }}
           </p>
           <p class="text-sm text-zinc-400 mt-1">
-            {{ generations.length }}
-            {{ generations.length === 1 ? "item" : "items" }}
+            {{ items.length }}
+            {{ items.length === 1 ? "item" : "items" }}
           </p>
         </div>
 
@@ -186,7 +206,7 @@ function openPreview(id: string) {
       </div>
 
       <!-- Empty state -->
-      <div v-if="!generations.length" class="text-center py-20">
+      <div v-if="!items.length" class="text-center py-20">
         <UIcon
           name="i-lucide-images"
           class="size-12 text-zinc-300 dark:text-zinc-600 mx-auto mb-3"
@@ -200,12 +220,12 @@ function openPreview(id: string) {
       <!-- Masonry grid -->
       <div v-else class="columns-2 sm:columns-3 md:columns-4 lg:columns-5 gap-3">
         <div
-          v-for="gen in generations"
-          :key="gen.id"
+          v-for="item in items"
+          :key="item.id"
           class="mb-3 break-inside-avoid"
         >
-          <GenerationCard
-            :generation="gen as never"
+          <MediaCard
+            :item="item"
             :show-author="false"
             :is-owner="isOwner"
             :masonry="true"
@@ -234,6 +254,11 @@ function openPreview(id: string) {
     <GenerationDetailModal
       v-model:open="showPreviewModal"
       :generation-id="previewGenerationId"
+    />
+    <VideoDetailModal
+      v-model:open="showVideoModal"
+      :video-id="previewVideoId"
+      @deleted="handleDeleted"
     />
   </div>
 </template>

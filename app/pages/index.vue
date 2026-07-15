@@ -375,9 +375,9 @@ function getRatioStyle(value: string): Record<string, string> {
 
       <!-- Bottom controls -->
       <div class="border-t border-zinc-100 dark:border-zinc-800">
-        <!-- Mobile-only selection summary strip -->
+        <!-- Selection summary strip (model + ratio) -->
         <div
-          class="flex sm:hidden items-center gap-2 px-4 py-2.5 border-b border-zinc-100 dark:border-zinc-800"
+          class="flex items-center gap-2 px-3 py-2.5 border-b border-zinc-100 dark:border-zinc-800"
         >
           <button
             type="button"
@@ -473,49 +473,6 @@ function getRatioStyle(value: string): Record<string, string> {
               class="size-[18px]"
               :class="isPolishing ? 'animate-pulse' : ''"
             />
-          </button>
-
-          <!-- Divider (desktop only) -->
-          <div
-            class="hidden sm:block w-px h-5 bg-zinc-200 dark:bg-zinc-700 mx-0.5 flex-shrink-0"
-          />
-
-          <!-- Aspect ratio trigger (desktop only) -->
-          <button
-            type="button"
-            :disabled="isGenerating"
-            class="hidden sm:flex h-9 px-2.5 rounded-xl items-center gap-1.5 text-xs font-medium transition-colors disabled:opacity-40 text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex-shrink-0"
-            @click="showRatioSelector = true"
-          >
-            <UIcon name="i-lucide-ratio" class="size-3.5 flex-shrink-0" />
-            <span class="hidden sm:inline">{{
-              selectedAspectRatio.value === "auto"
-                ? "Auto"
-                : selectedAspectRatio.value
-            }}</span>
-          </button>
-
-          <!-- Model trigger (desktop only) -->
-          <button
-            type="button"
-            :disabled="isGenerating"
-            class="hidden sm:flex h-9 px-2.5 rounded-xl items-center gap-1.5 text-xs font-medium transition-colors disabled:opacity-40 text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex-shrink-0 min-w-0"
-            @click="showModelSelector = true"
-          >
-            <UIcon name="i-lucide-cpu" class="size-3.5 flex-shrink-0" />
-            <span class="hidden sm:inline">{{ selectedModel.name }}</span>
-            <span
-              class="text-[10px] px-1 py-0.5 rounded font-medium flex-shrink-0"
-              :class="{
-                'bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400':
-                  selectedModel.tier === 'high',
-                'bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400':
-                  selectedModel.tier === 'mid',
-                'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400':
-                  selectedModel.tier === 'low',
-              }"
-              >{{ selectedModel.tier }}</span
-            >
           </button>
 
           <!-- Generate -->

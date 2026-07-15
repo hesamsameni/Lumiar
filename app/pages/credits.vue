@@ -14,11 +14,13 @@ const PACKS: Array<{
 
 const FAST_MODEL_COST = 3; // GPT Image 1 Mini — cheapest active model
 const PREMIUM_MODEL_COST = 15; // GPT Image 2 — most expensive active model
+const VIDEO_MODEL_COST = 250; // Veo 3.1 Fast — cheapest video model
 
 function packHint(credits: number) {
   return {
     fast: Math.floor(credits / FAST_MODEL_COST),
     premium: Math.floor(credits / PREMIUM_MODEL_COST),
+    videos: Math.floor(credits / VIDEO_MODEL_COST),
   };
 }
 
@@ -238,7 +240,7 @@ async function startCheckout() {
           ~{{ packHint(pack.credits).premium }} premium · ~{{
             packHint(pack.credits).fast
           }}
-          fast
+          fast · ~{{ packHint(pack.credits).videos }} video
         </span>
         <UIcon
           name="i-lucide-check-circle-2"
@@ -262,8 +264,9 @@ async function startCheckout() {
       />
       <p class="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
         <strong>€10</strong> gets you ~{{ packHint(1200).premium }} images with
-        premium models, or ~{{ packHint(1200).fast }} images with fast models.
-        Credits never expire — use them at your own pace.
+        premium models, ~{{ packHint(1200).fast }} images with fast models, or
+        ~{{ packHint(1200).videos }} AI video clips. Credits never expire — use
+        them at your own pace.
       </p>
     </div>
 

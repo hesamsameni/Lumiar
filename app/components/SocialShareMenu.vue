@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { useGenerationService } from "~/services/generation.service";
+import { useVideoGenerationService } from "~/services/videoGeneration.service";
 
 const props = defineProps<{
   generationId: string;
   imageUrl: string;
   prompt: string;
   isShared: boolean;
+  mediaType?: "image" | "video";
   size?: "xs" | "sm" | "md" | "lg" | "xl";
   variant?: "solid" | "outline" | "soft" | "ghost" | "link";
 }>();
@@ -15,7 +17,11 @@ const emit = defineEmits<{
 }>();
 
 const generationService = useGenerationService();
+const videoGenerationService = useVideoGenerationService();
 const toast = useToast();
+
+const isVideo = computed(() => props.mediaType === "video");
+const mediaWord = computed(() => (isVideo.value ? "video" : "image"));
 const isProcessing = ref(false);
 const internalIsShared = ref(props.isShared);
 const showConfirmModal = ref(false);
@@ -63,7 +69,9 @@ const generationUrl = computed(() => {
     typeof window !== "undefined"
       ? window.location.origin
       : "https://www.lumiar.site";
-  return `${base}/generation/${props.generationId}`;
+  return isVideo.value
+    ? `${base}/video/${props.generationId}`
+    : `${base}/generation/${props.generationId}`;
 });
 
 const canWebShare = computed(() => {
@@ -73,15 +81,14 @@ const canWebShare = computed(() => {
 
 async function ensureExploreShared() {
   if (internalIsShared.value) return;
-  const { error } = await generationService.setGenerationShared(
-    props.generationId,
-    true,
-  );
+  const { error } = isVideo.value
+    ? await videoGenerationService.setVideoShared(props.generationId, true)
+    : await generationService.setGenerationShared(props.generationId, true);
   if (!error) {
     internalIsShared.value = true;
     emit("sharedToExplore");
     toast.add({
-      title: "Your image is now public on Explore too",
+      title: `Your ${mediaWord.value} is now public on Explore too`,
       icon: "i-lucide-globe",
       color: "success",
     });
@@ -144,8 +151,10 @@ async function shareViaDevice() {
     try {
       const response = await fetch(props.imageUrl);
       const blob = await response.blob();
-      const file = new File([blob], `lumiar-${props.generationId}.png`, {
-        type: blob.type || "image/png",
+      const ext = isVideo.value ? "mp4" : "png";
+      const fallbackType = isVideo.value ? "video/mp4" : "image/png";
+      const file = new File([blob], `lumiar-${props.generationId}.${ext}`, {
+        type: blob.type || fallbackType,
       });
       if (navigator.canShare?.({ files: [file] })) {
         shareData = { ...shareData, files: [file] };
@@ -224,7 +233,7 @@ const shareItems = computed(() => {
             >
               <UIcon name="i-lucide-globe" class="size-[18px]" />
             </span>
-            Share this image?
+            Share this {{ mediaWord }}?
           </h3>
           <UButton
             color="neutral"
@@ -240,7 +249,7 @@ const shareItems = computed(() => {
 
         <div class="px-4 py-5 sm:p-6 space-y-4">
           <p class="text-sm text-zinc-500 dark:text-zinc-400">
-            Sharing this image will also make it
+            Sharing this {{ mediaWord }} will also make it
             <span class="font-medium text-zinc-700 dark:text-zinc-300"
               >publicly visible on Explore</span
             >

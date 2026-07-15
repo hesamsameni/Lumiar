@@ -9,7 +9,14 @@ const props = defineProps<{
   generationIds?: string[];
   // Optional cover image URL to use when no cover is set yet (bulk mode)
   coverImageUrl?: string;
+  // Whether the item(s) being added are images or videos.
+  mediaType?: "image" | "video";
 }>();
+
+const mediaType = computed(() => props.mediaType ?? "image");
+const itemKey = computed(() =>
+  mediaType.value === "video" ? "video_generation_id" : "generation_id",
+);
 
 const emit = defineEmits<{
   "update:open": [value: boolean];
@@ -25,7 +32,10 @@ interface CollectionListItem {
   id: string;
   name: string;
   cover_image_url: string | null;
-  collection_items: { generation_id: string }[];
+  collection_items: {
+    generation_id?: string | null;
+    video_generation_id?: string | null;
+  }[];
 }
 
 const collections = ref<CollectionListItem[]>([]);
@@ -52,7 +62,10 @@ async function load() {
     ];
     if (props.generationId) {
       queries.push(
-        collectionService.getCollectionsForGeneration(props.generationId),
+        collectionService.getCollectionsForGeneration(
+          props.generationId,
+          mediaType.value,
+        ),
       );
     }
     const [{ data: cols }, membershipsRes] = await Promise.all(queries);
@@ -74,7 +87,12 @@ async function toggle(col: CollectionListItem) {
     try {
       const results = await Promise.allSettled(
         props.generationIds.map((id) =>
-          collectionService.addToCollection(col.id, id),
+          collectionService.addToCollection(
+            col.id,
+            id,
+            undefined,
+            mediaType.value,
+          ),
         ),
       );
       const failures = results.filter((r) => r.status === "rejected");
@@ -111,7 +129,11 @@ async function toggle(col: CollectionListItem) {
   try {
     const idx = collections.value.findIndex((c) => c.id === col.id);
     if (removing) {
-      await collectionService.removeFromCollection(col.id, props.generationId);
+      await collectionService.removeFromCollection(
+        col.id,
+        props.generationId,
+        mediaType.value,
+      );
       memberSet.value = new Set(
         [...memberSet.value].filter((id) => id !== col.id),
       );
@@ -120,7 +142,7 @@ async function toggle(col: CollectionListItem) {
         collections.value[idx] = {
           ...existing,
           collection_items: existing.collection_items.filter(
-            (i) => i.generation_id !== props.generationId,
+            (i) => (i as Record<string, unknown>)[itemKey.value] !== props.generationId,
           ),
         };
       }
@@ -129,6 +151,7 @@ async function toggle(col: CollectionListItem) {
         col.id,
         props.generationId!,
         props.generationImageUrl,
+        mediaType.value,
       );
       memberSet.value = new Set([...memberSet.value, col.id]);
       if (idx !== -1) {
@@ -137,7 +160,7 @@ async function toggle(col: CollectionListItem) {
           ...existing,
           collection_items: [
             ...existing.collection_items,
-            { generation_id: props.generationId },
+            { [itemKey.value]: props.generationId },
           ],
         };
       }
@@ -166,6 +189,7 @@ async function createAndAdd() {
       col.id,
       props.generationId!,
       props.generationImageUrl,
+      mediaType.value,
     );
     memberSet.value = new Set([...memberSet.value, col.id]);
     const newIdx = collections.value.findIndex((c) => c.id === col.id);
@@ -175,7 +199,7 @@ async function createAndAdd() {
         ...existing,
         cover_image_url:
           existing.cover_image_url ?? props.generationImageUrl ?? null,
-        collection_items: [{ generation_id: props.generationId! }],
+        collection_items: [{ [itemKey.value]: props.generationId! }],
       };
     }
     collectionsVersion.value++;
