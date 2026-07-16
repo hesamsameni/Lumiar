@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { AIModel, ModelTier, ModelProvider } from "~/utils/models";
 import { TIER_CONFIG } from "~/utils/models";
+import type { QualityOption } from "~/utils/quality";
 
 definePageMeta({ middleware: ["admin"] });
 
@@ -26,6 +27,8 @@ type FormShape = {
   supports_image_input: boolean;
   max_image_inputs: number;
   max_resolution: string;
+  quality_options: QualityOption[];
+  default_quality: string;
   recommended: boolean;
   is_active: boolean;
   sort_order: number;
@@ -42,10 +45,28 @@ const emptyForm = (): FormShape => ({
   supports_image_input: true,
   max_image_inputs: 1,
   max_resolution: "",
+  quality_options: [],
+  default_quality: "",
   recommended: false,
   is_active: true,
   sort_order: 0,
 });
+
+function addQualityOption() {
+  form.value.quality_options.push({
+    value: "",
+    label: "",
+    hint: "",
+    param: "",
+    multiplier: 1,
+  });
+}
+function removeQualityOption(index: number) {
+  const [removed] = form.value.quality_options.splice(index, 1);
+  if (removed && form.value.default_quality === removed.value) {
+    form.value.default_quality = form.value.quality_options[0]?.value ?? "";
+  }
+}
 
 const form = ref<FormShape>(emptyForm());
 
@@ -85,6 +106,14 @@ function openEdit(model: AIModel) {
     supports_image_input: model.supports_image_input,
     max_image_inputs: model.max_image_inputs ?? 1,
     max_resolution: model.max_resolution ?? "",
+    quality_options: (model.quality_options ?? []).map((o) => ({
+      value: o.value,
+      label: o.label,
+      hint: o.hint ?? "",
+      param: o.param ?? "",
+      multiplier: o.multiplier,
+    })),
+    default_quality: model.default_quality ?? "",
     recommended: model.recommended ?? false,
     is_active: model.is_active,
     sort_order: model.sort_order,
@@ -110,6 +139,16 @@ async function saveModel() {
       supports_image_input: Boolean(form.value.supports_image_input),
       max_image_inputs: Number(form.value.max_image_inputs),
       max_resolution: form.value.max_resolution.trim() || null,
+      quality_options: form.value.quality_options
+        .filter((o) => o.value.trim())
+        .map((o) => ({
+          value: o.value.trim(),
+          label: o.label.trim() || o.value.trim(),
+          hint: o.hint?.trim() || undefined,
+          param: o.param?.trim() || undefined,
+          multiplier: Number(o.multiplier) || 1,
+        })),
+      default_quality: form.value.default_quality.trim() || null,
       recommended: Boolean(form.value.recommended),
       is_active: Boolean(form.value.is_active),
       sort_order: Number(form.value.sort_order),
@@ -561,6 +600,90 @@ await fetchModels();
                     min="0"
                   />
                 </UFormField>
+              </div>
+            </div>
+
+            <USeparator />
+
+            <!-- Quality tiers -->
+            <div class="space-y-3">
+              <div class="flex items-center justify-between">
+                <p
+                  class="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider"
+                >
+                  Quality tiers
+                </p>
+                <UButton
+                  size="xs"
+                  variant="soft"
+                  icon="i-lucide-plus"
+                  @click="addQualityOption"
+                >
+                  Add tier
+                </UButton>
+              </div>
+              <p class="text-xs text-zinc-400 dark:text-zinc-500">
+                Leave empty for no quality control. Credits =
+                tokens/generation × multiplier. Param is the provider value
+                (OpenAI quality: medium/high · Gemini imageSize: 1K/2K/4K).
+              </p>
+
+              <div
+                v-for="(opt, i) in form.quality_options"
+                :key="i"
+                class="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3 space-y-2"
+              >
+                <div class="flex items-center gap-2">
+                  <UInput
+                    v-model="opt.value"
+                    placeholder="value (e.g. standard)"
+                    class="flex-1"
+                    size="sm"
+                  />
+                  <UButton
+                    icon="i-lucide-trash-2"
+                    variant="ghost"
+                    color="error"
+                    size="xs"
+                    @click="removeQualityOption(i)"
+                  />
+                </div>
+                <UInput
+                  v-model="opt.label"
+                  placeholder="label (e.g. Standard (2K))"
+                  size="sm"
+                />
+                <UInput
+                  v-model="opt.hint"
+                  placeholder="hint (e.g. Best for web & social)"
+                  size="sm"
+                />
+                <div class="grid grid-cols-2 gap-2">
+                  <UInput
+                    v-model="opt.param"
+                    placeholder="param (e.g. 2K)"
+                    size="sm"
+                  />
+                  <UInput
+                    v-model.number="opt.multiplier"
+                    type="number"
+                    step="0.05"
+                    min="0"
+                    placeholder="multiplier"
+                    size="sm"
+                  />
+                </div>
+                <label
+                  class="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400 cursor-pointer"
+                >
+                  <input
+                    type="radio"
+                    :checked="form.default_quality === opt.value"
+                    :disabled="!opt.value"
+                    @change="form.default_quality = opt.value"
+                  />
+                  Default tier
+                </label>
               </div>
             </div>
 

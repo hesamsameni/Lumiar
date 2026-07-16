@@ -19,10 +19,15 @@ create table if not exists video_models (
   -- Clip lengths the user can choose from. Credits scale linearly with the
   -- selected duration (providers bill per video-second).
   supported_durations integer[] not null default '{5}',
-  -- Output resolution label, e.g. '720p' | '1080p'.
+  -- Default output resolution label, e.g. '720p' | '1080p'.
   resolution text not null default '720p',
-  -- Whether the model accepts a reference image (image-to-video).
+  -- Selectable resolution tiers: [{ value, label, multiplier }]. Empty = no control.
+  resolution_options jsonb not null default '[]',
+  default_resolution text,
+  -- Whether the model accepts a reference / first-frame image (image-to-video).
   supports_image_input boolean not null default true,
+  -- Whether the model accepts a last-frame image (frame interpolation).
+  supports_last_frame boolean not null default false,
   -- Supported aspect ratios, e.g. {'16:9','9:16','1:1'}.
   supported_aspect_ratios text[] not null default '{"16:9","9:16","1:1"}',
   recommended boolean not null default false,

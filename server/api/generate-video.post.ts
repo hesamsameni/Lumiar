@@ -2,13 +2,17 @@ import { serverSupabaseClient } from "#supabase/server";
 import { submitVideoJob } from "../utils/providers/openrouter-video";
 import { inferTagsFromPrompt } from "../utils/tags";
 import { useServerPostHog } from "../utils/posthog";
+import { resolveQualityOption, type QualityOption } from "../utils/quality";
 
 interface VideoModelRow {
   tokens_per_generation: number;
   duration_seconds: number;
   supported_durations: number[];
   resolution: string | null;
+  resolution_options: QualityOption[] | null;
+  default_resolution: string | null;
   supports_image_input: boolean;
+  supports_last_frame: boolean;
 }
 
 export default defineEventHandler(async (event) => {
@@ -22,10 +26,30 @@ export default defineEventHandler(async (event) => {
     modelName,
     durationSeconds,
     aspectRatio,
+    resolution: requestedResolution,
+    // New explicit image slots.
+    firstFrameUrl,
+    lastFrameUrl,
+    referenceUrl,
+    // Legacy single-image fields (mapped below for backward compat).
     inputImageUrl,
     imageMode,
   } = body;
-  const resolvedImageMode = imageMode === "reference" ? "reference" : "frame";
+
+  // Map legacy { inputImageUrl, imageMode } onto the explicit slots.
+  const legacyFirst =
+    imageMode !== "reference" && typeof inputImageUrl === "string"
+      ? inputImageUrl
+      : null;
+  const legacyReference =
+    imageMode === "reference" && typeof inputImageUrl === "string"
+      ? inputImageUrl
+      : null;
+  const rawFirstFrame =
+    typeof firstFrameUrl === "string" ? firstFrameUrl : legacyFirst;
+  const rawLastFrame = typeof lastFrameUrl === "string" ? lastFrameUrl : null;
+  const rawReference =
+    typeof referenceUrl === "string" ? referenceUrl : legacyReference;
 
   if (
     typeof prompt !== "string" ||
@@ -70,7 +94,7 @@ export default defineEventHandler(async (event) => {
   const { data: modelRow } = (await (supabase as any)
     .from("video_models")
     .select(
-      "tokens_per_generation, duration_seconds, supported_durations, resolution, supports_image_input",
+      "tokens_per_generation, duration_seconds, supported_durations, resolution, resolution_options, default_resolution, supports_image_input, supports_last_frame",
     )
     .eq("id", modelId)
     .maybeSingle()) as { data: VideoModelRow | null };
@@ -88,9 +112,23 @@ export default defineEventHandler(async (event) => {
   const requested = Number(durationSeconds) || baseDuration;
   const duration = supported.includes(requested) ? requested : baseDuration;
 
+  // Resolve the selected resolution tier (authoritative). Falls back to the
+  // model's fixed `resolution` when no options are configured.
+  const resolutionOpt = resolveQualityOption(
+    modelRow.resolution_options,
+    modelRow.default_resolution,
+    typeof requestedResolution === "string" ? requestedResolution : null,
+  );
+  const resolution =
+    resolutionOpt?.value ?? modelRow.resolution ?? "720p";
+  const resolutionMultiplier = resolutionOpt?.multiplier ?? 1;
+
   const cost = Math.max(
     1,
-    Math.round((modelRow.tokens_per_generation * duration) / baseDuration),
+    Math.round(
+      (modelRow.tokens_per_generation * duration * resolutionMultiplier) /
+        baseDuration,
+    ),
   );
 
   const { data: profileRow } = (await (supabase as any)
@@ -110,10 +148,19 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  const resolution = modelRow.resolution ?? "720p";
   const ratio = typeof aspectRatio === "string" ? aspectRatio : "16:9";
-  const frameImageUrl =
-    modelRow.supports_image_input && inputImageUrl ? inputImageUrl : null;
+  // Gate each image slot by the model's capabilities.
+  const firstFrameImageUrl = modelRow.supports_image_input
+    ? (rawFirstFrame ?? null)
+    : null;
+  const referenceImageUrl = modelRow.supports_image_input
+    ? (rawReference ?? null)
+    : null;
+  const lastFrameImageUrl = modelRow.supports_last_frame
+    ? (rawLastFrame ?? null)
+    : null;
+  // Primary image stored in the dedicated column (for feed/detail display).
+  const primaryImageUrl = firstFrameImageUrl ?? referenceImageUrl ?? null;
 
   // Placeholder clip used only in dev mode (public sample video).
   const DEV_SAMPLE_VIDEO =
@@ -131,8 +178,9 @@ export default defineEventHandler(async (event) => {
         durationSeconds: duration,
         resolution,
         aspectRatio: ratio,
-        frameImageUrl,
-        imageMode: resolvedImageMode,
+        firstFrameImageUrl,
+        lastFrameImageUrl,
+        referenceImageUrl,
       });
     } catch (err: unknown) {
       const msg =
@@ -157,12 +205,17 @@ export default defineEventHandler(async (event) => {
       job_id: jobId,
       status: isDevMode ? "completed" : "pending",
       output_video_url: isDevMode ? DEV_SAMPLE_VIDEO : null,
-      input_image_url: frameImageUrl,
+      input_image_url: primaryImageUrl,
       duration_seconds: duration,
       resolution,
       aspect_ratio: ratio,
       tokens_used: isDevMode ? 0 : cost,
-      metadata: { tags: autoTags },
+      metadata: {
+        tags: autoTags,
+        ...(firstFrameImageUrl ? { first_frame_url: firstFrameImageUrl } : {}),
+        ...(lastFrameImageUrl ? { last_frame_url: lastFrameImageUrl } : {}),
+        ...(referenceImageUrl ? { reference_url: referenceImageUrl } : {}),
+      },
     } as never)
     .select("id")
     .single();
@@ -220,9 +273,12 @@ export default defineEventHandler(async (event) => {
       model_id: modelId,
       model_name: modelName,
       duration_seconds: duration,
+      resolution,
       tokens_used: cost,
       aspect_ratio: ratio,
-      has_input_image: !!frameImageUrl,
+      has_input_image: !!primaryImageUrl,
+      has_last_frame: !!lastFrameImageUrl,
+      has_reference: !!referenceImageUrl,
       generation_id: generationId,
     },
   });

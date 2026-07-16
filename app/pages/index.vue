@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import type { AIModel } from "~/utils/models";
+import { imageCreditsForQuality } from "~/utils/models";
+import { buildQualityPicker, currentOptionLabel } from "~/utils/quality";
 import { ASPECT_RATIOS } from "~/utils/constants";
 import { useGenerationService } from "~/services/generation.service";
 import { useProfileService } from "~/services/profile.service";
@@ -25,11 +27,38 @@ const selectedModel = ref<AIModel>(firstModel.value!);
 const inputFiles = ref<File[]>([]);
 const inputPreviewUrls = ref<string[]>([]);
 const selectedAspectRatio = ref(ASPECT_RATIOS[0]!);
+const selectedQuality = ref<string>("auto");
 const editingImageUrl = ref<string | null>(null);
 const editingGenerationId = ref<string | null>(null);
 const showPromptLibrary = ref(false);
 const showModelSelector = ref(false);
 const showRatioSelector = ref(false);
+const showQualitySelector = ref(false);
+
+// Quality tiers offered by the selected model (empty -> hide the control).
+const qualityPicker = computed(() =>
+  buildQualityPicker(
+    selectedModel.value.tokens_per_generation,
+    selectedModel.value.quality_options,
+    selectedModel.value.default_quality,
+  ),
+);
+const hasQuality = computed(() => qualityPicker.value.length > 0);
+const currentQualityLabel = computed(() =>
+  currentOptionLabel(
+    selectedModel.value.quality_options,
+    selectedModel.value.default_quality,
+    selectedQuality.value,
+  ),
+);
+const creditCost = computed(() =>
+  imageCreditsForQuality(selectedModel.value, selectedQuality.value),
+);
+
+// Reset to Auto whenever the model changes (its tiers differ).
+watch(selectedModel, () => {
+  selectedQuality.value = "auto";
+});
 
 const defaultModelApplied = ref(false);
 watch(
@@ -117,6 +146,7 @@ async function handleGenerate() {
     inputImageFiles: inputFiles.value.length > 0 ? inputFiles.value : null,
     inputImageUrl: editingImageUrl.value,
     aspectRatio: selectedAspectRatio.value.value,
+    quality: selectedQuality.value,
     parentId: editingGenerationId.value,
   });
 }
@@ -420,6 +450,17 @@ function getRatioStyle(value: string): Record<string, string> {
               }}</span
             >
           </button>
+          <button
+            v-if="hasQuality"
+            type="button"
+            class="flex items-center gap-1.5 rounded-xl px-3 py-2 bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 transition-colors hover:border-zinc-300 dark:hover:border-zinc-600 flex-shrink-0"
+            @click="showQualitySelector = true"
+          >
+            <UIcon name="i-lucide-sparkles" class="size-3.5 text-zinc-400" />
+            <span class="text-xs font-medium text-zinc-700 dark:text-zinc-300">{{
+              currentQualityLabel
+            }}</span>
+          </button>
         </div>
 
         <div class="flex items-center gap-1.5 px-3 py-2.5">
@@ -484,9 +525,7 @@ function getRatioStyle(value: string): Record<string, string> {
             @click="handleGenerate"
           >
             {{
-              isGenerating
-                ? "Generating…"
-                : `Generate · ${selectedModel.tokens_per_generation} Credits`
+              isGenerating ? "Generating…" : `Generate · ${creditCost} Credits`
             }}
           </UButton>
         </div>
@@ -600,6 +639,84 @@ function getRatioStyle(value: string): Record<string, string> {
       </template>
     </USlideover>
 
+    <!-- Quality sidebar -->
+    <USlideover
+      :open="showQualitySelector"
+      side="right"
+      @update:open="showQualitySelector = $event"
+    >
+      <template #content>
+        <div class="flex flex-col h-full">
+          <div
+            class="relative flex items-center justify-between px-5 py-4 flex-shrink-0"
+          >
+            <div class="flex items-center gap-3">
+              <span
+                class="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/15 via-violet-500/10 to-fuchsia-500/15 text-primary ring-1 ring-primary/15"
+              >
+                <UIcon name="i-lucide-sparkles" class="size-[18px]" />
+              </span>
+              <div>
+                <h2 class="font-display font-bold text-base tracking-tight">
+                  Quality
+                </h2>
+                <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                  Higher quality costs more credits
+                </p>
+              </div>
+            </div>
+            <UButton
+              icon="i-lucide-x"
+              variant="ghost"
+              color="neutral"
+              size="sm"
+              @click="showQualitySelector = false"
+            />
+            <div
+              class="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent"
+            />
+          </div>
+          <div class="flex-1 overflow-y-auto p-5 space-y-2">
+            <button
+              v-for="q in qualityPicker"
+              :key="q.value"
+              class="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl border transition-all text-left"
+              :class="
+                selectedQuality === q.value
+                  ? 'border-primary/40 bg-gradient-to-r from-indigo-500/10 via-violet-500/8 to-fuchsia-500/10 ring-1 ring-primary/25'
+                  : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
+              "
+              @click="
+                selectedQuality = q.value;
+                showQualitySelector = false;
+              "
+            >
+              <div class="flex-1 min-w-0">
+                <p
+                  class="text-sm font-medium"
+                  :class="
+                    selectedQuality === q.value
+                      ? 'text-primary'
+                      : 'text-zinc-800 dark:text-zinc-200'
+                  "
+                >
+                  {{ q.label }}
+                </p>
+                <p class="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
+                  {{ q.hint ? `${q.hint} · ` : "" }}{{ q.credits }} credits
+                </p>
+              </div>
+              <UIcon
+                v-if="selectedQuality === q.value"
+                name="i-lucide-check"
+                class="size-4 text-primary flex-shrink-0"
+              />
+            </button>
+          </div>
+        </div>
+      </template>
+    </USlideover>
+
     <!-- Model sidebar -->
     <USlideover
       :open="showModelSelector"
@@ -622,8 +739,7 @@ function getRatioStyle(value: string): Record<string, string> {
                   Select Model
                 </h2>
                 <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                  {{ selectedModel.name }} ·
-                  {{ selectedModel.tokens_per_generation }} credits
+                  {{ selectedModel.name }} · {{ creditCost }} credits
                 </p>
               </div>
             </div>

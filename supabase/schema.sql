@@ -48,6 +48,7 @@ create table if not exists generations (
   output_image_url text not null,
   tokens_used integer not null default 0,
   aspect_ratio text not null default '1:1',
+  quality text,
   parent_id uuid references generations(id) on delete set null,
   is_shared boolean not null default false,
   metadata jsonb default '{}',
@@ -293,6 +294,9 @@ create table if not exists ai_models (
   supports_image_input boolean not null default true,
   max_image_inputs integer not null default 1,
   max_resolution text,
+  -- Selectable quality tiers: [{ value, label, param?, multiplier }]. Empty = no control.
+  quality_options jsonb not null default '[]',
+  default_quality text,
   recommended boolean not null default false,
   is_active boolean not null default true,
   sort_order integer not null default 0,

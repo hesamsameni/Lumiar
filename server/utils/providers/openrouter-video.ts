@@ -24,11 +24,13 @@ export interface SubmitVideoParams {
   durationSeconds?: number;
   resolution?: string;
   aspectRatio?: string;
-  // Public URL of the input image.
-  frameImageUrl?: string | null;
-  // How the input image is used: "frame" = exact first frame (image-to-video),
-  // "reference" = style/content guidance (reference-to-video).
-  imageMode?: VideoImageMode;
+  // Public URLs of the input images. `frame_images` (first/last) are exact frame
+  // anchors (image-to-video); `input_references` guide style/content
+  // (reference-to-video). If both are sent, OpenRouter treats it as
+  // image-to-video (frames take precedence).
+  firstFrameImageUrl?: string | null;
+  lastFrameImageUrl?: string | null;
+  referenceImageUrl?: string | null;
 }
 
 export interface SubmitVideoResult {
@@ -57,22 +59,30 @@ export async function submitVideoJob(
   if (params.durationSeconds) body.duration = params.durationSeconds;
   if (params.resolution) body.resolution = params.resolution;
   if (params.aspectRatio) body.aspect_ratio = params.aspectRatio;
-  if (params.frameImageUrl) {
-    if (params.imageMode === "reference") {
-      // Reference-to-video: guide style/content without pinning an exact frame.
-      body.input_references = [
-        { type: "image_url", image_url: { url: params.frameImageUrl } },
-      ];
-    } else {
-      // Image-to-video: the image is the first frame.
-      body.frame_images = [
-        {
-          type: "image_url",
-          image_url: { url: params.frameImageUrl },
-          frame_type: "first_frame",
-        },
-      ];
-    }
+
+  // Image-to-video: exact first/last frame anchors.
+  const frameImages: Array<Record<string, unknown>> = [];
+  if (params.firstFrameImageUrl) {
+    frameImages.push({
+      type: "image_url",
+      image_url: { url: params.firstFrameImageUrl },
+      frame_type: "first_frame",
+    });
+  }
+  if (params.lastFrameImageUrl) {
+    frameImages.push({
+      type: "image_url",
+      image_url: { url: params.lastFrameImageUrl },
+      frame_type: "last_frame",
+    });
+  }
+  if (frameImages.length) body.frame_images = frameImages;
+
+  // Reference-to-video: style/content guidance (not an exact frame).
+  if (params.referenceImageUrl) {
+    body.input_references = [
+      { type: "image_url", image_url: { url: params.referenceImageUrl } },
+    ];
   }
 
   const res = await fetch(`${OPENROUTER_BASE}/videos`, {

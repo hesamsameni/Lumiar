@@ -1,13 +1,15 @@
 import OpenAI, { toFile } from "openai";
 
 // Sizes for gpt-image-1 / gpt-image-1.5 / gpt-image-1-mini.
-// These models accept a fixed set of WxH strings.
+// These models accept ONLY three sizes (1024x1024, 1536x1024, 1024x1536), so we
+// clamp every aspect ratio to the nearest valid orientation. (gpt-image-2 uses
+// the flexible map below.)
 export const ASPECT_RATIO_TO_OPENAI_SIZE: Record<string, string> = {
   "1:1": "1024x1024",
-  "4:3": "1365x1024",
-  "3:4": "1024x1365",
-  "16:9": "1792x1024",
-  "9:16": "1024x1792",
+  "4:3": "1536x1024",
+  "3:4": "1024x1536",
+  "16:9": "1536x1024",
+  "9:16": "1024x1536",
   "3:2": "1536x1024",
   "2:3": "1024x1536",
 };
@@ -33,6 +35,8 @@ export async function generateWithOpenAI(
   prompt: string,
   aspectRatio: string,
   inputImagesBase64: string[],
+  // Optional native `quality` (e.g. "low" | "medium" | "high"); omitted -> API default.
+  quality?: string | null,
 ): Promise<string> {
   const client = new OpenAI({ apiKey });
 
@@ -44,6 +48,10 @@ export async function generateWithOpenAI(
     typeof client.images.generate
   >[0]["size"];
 
+  const qualityOpt = quality
+    ? { quality: quality as Parameters<typeof client.images.generate>[0]["quality"] }
+    : {};
+
   console.log("[AI] OpenAI request", {
     provider: "openai",
     model: modelId,
@@ -51,6 +59,7 @@ export async function generateWithOpenAI(
     mode: inputImagesBase64.length > 0 ? "edit" : "generate",
     imageCount: inputImagesBase64.length,
     size,
+    quality: quality ?? "default",
   });
 
   if (inputImagesBase64.length > 0) {
@@ -66,6 +75,7 @@ export async function generateWithOpenAI(
       image: imageFiles.length === 1 ? imageFiles[0]! : imageFiles,
       prompt,
       size,
+      ...qualityOpt,
     });
     const b64 = res.data?.[0]?.b64_json;
     if (!b64) throw new Error("No image returned by OpenAI");
@@ -77,7 +87,12 @@ export async function generateWithOpenAI(
     return `data:image/png;base64,${b64}`;
   }
 
-  const res = await client.images.generate({ model: modelId, prompt, size });
+  const res = await client.images.generate({
+    model: modelId,
+    prompt,
+    size,
+    ...qualityOpt,
+  });
   const b64 = res.data?.[0]?.b64_json;
   if (!b64) throw new Error("No image returned by OpenAI");
   console.log("[AI] OpenAI response", {

@@ -8,20 +8,17 @@ const OPENROUTER_HEADERS = {
   "X-Title": "Lumiar",
 } as const;
 
-interface OpenRouterImageMessage {
-  role: string;
-  content: string | null;
-  images?: Array<{ type: string; image_url: { url: string } }>;
-}
-
 interface OpenRouterUsage {
-  prompt_tokens: number;
-  completion_tokens: number;
-  total_tokens: number;
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+  cost?: number;
 }
 
-interface OpenRouterResponse {
-  choices: Array<{ message: OpenRouterImageMessage }>;
+// Response of the dedicated image router (POST /images).
+interface OpenRouterImagesResponse {
+  created?: number;
+  data?: Array<{ b64_json?: string; media_type?: string }>;
   usage?: OpenRouterUsage;
 }
 
@@ -39,26 +36,26 @@ export async function generateWithOpenRouter(
   prompt: string,
   aspectRatio: string,
   inputImages: string[],
+  // Normalized resolution tier ("512" | "1K" | "2K" | "4K"); providers without a
+  // resolution knob ignore it. Optional native quality ("low"|"medium"|"high").
+  resolution?: string | null,
+  quality?: string | null,
 ): Promise<string> {
-  type ImageUrlItem = { type: "image_url"; image_url: { url: string } };
-  type TextItem = { type: "text"; text: string };
-
-  const userContent: string | Array<ImageUrlItem | TextItem> =
-    inputImages.length > 0
-      ? [
-          ...inputImages.map(
-            (img): ImageUrlItem => ({
-              type: "image_url",
-              image_url: { url: img },
-            }),
-          ),
-          { type: "text", text: prompt },
-        ]
-      : prompt;
-
-  const modalities = modelId.startsWith("google/")
-    ? ["image", "text"]
-    : ["image"];
+  const body: Record<string, unknown> = { model: modelId, prompt };
+  if (aspectRatio && aspectRatio !== "auto") body.aspect_ratio = aspectRatio;
+  if (resolution) body.resolution = resolution;
+  if (quality) body.quality = quality;
+  // Vectorization models (e.g. Recraft *vector) emit SVG markup — ask for it
+  // explicitly, otherwise the router returns a rasterized PNG by default.
+  const isVector = /vector/i.test(modelId);
+  if (isVector) body.output_format = "svg";
+  if (inputImages.length > 0) {
+    // Image-to-image guidance (base64 data URLs or HTTP(S) URLs).
+    body.input_references = inputImages.map((url) => ({
+      type: "image_url",
+      image_url: { url },
+    }));
+  }
 
   const startTime = Date.now();
 
@@ -66,32 +63,24 @@ export async function generateWithOpenRouter(
     provider: "openrouter",
     model: modelId,
     baseUrl: OPENROUTER_BASE_URL,
+    endpoint: "/images",
     imageCount: inputImages.length,
-    modalities,
+    resolution: resolution ?? "default",
+    quality: quality ?? "default",
   });
 
-  let result: OpenRouterResponse;
-  try {
-    result = await $fetch<OpenRouterResponse>(
-      `${OPENROUTER_BASE_URL}/chat/completions`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          ...OPENROUTER_HEADERS,
-        },
-        body: {
-          model: modelId,
-          messages: [{ role: "user", content: userContent }],
-          modalities,
-          ...(aspectRatio !== "auto"
-            ? { image_config: { aspect_ratio: aspectRatio } }
-            : {}),
-        },
+  const callImages = (payload: Record<string, unknown>) =>
+    $fetch<OpenRouterImagesResponse>(`${OPENROUTER_BASE_URL}/images`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        ...OPENROUTER_HEADERS,
       },
-    );
-  } catch (err: unknown) {
+      body: payload,
+    });
+
+  const formatError = (err: unknown): Error => {
     const details =
       typeof err === "object" && err !== null && "data" in err
         ? (err as { data?: unknown }).data
@@ -100,14 +89,40 @@ export async function generateWithOpenRouter(
       details && typeof details === "object"
         ? JSON.stringify(details)
         : String(details ?? "");
-    throw new Error(
+    return new Error(
       msg ? `OpenRouter request failed: ${msg}` : "OpenRouter request failed",
     );
+  };
+
+  let result: OpenRouterImagesResponse;
+  try {
+    result = await callImages(body);
+  } catch (err: unknown) {
+    // Resolution tiers are provider-specific: some endpoints reject a tier that
+    // is below/above their min/max size. If we sent a resolution and the request
+    // fails, retry once without it so the provider's default size is used
+    // instead of hard-failing the whole generation.
+    const status =
+      (err as { status?: number; statusCode?: number })?.status ??
+      (err as { statusCode?: number })?.statusCode;
+    if (resolution && (status === 400 || status === 422 || status === 502)) {
+      console.warn(
+        `[AI] OpenRouter /images rejected resolution "${resolution}" for ${modelId}; retrying without it.`,
+      );
+      const { resolution: _dropped, ...retryBody } = body;
+      try {
+        result = await callImages(retryBody);
+      } catch (retryErr: unknown) {
+        throw formatError(retryErr);
+      }
+    } else {
+      throw formatError(err);
+    }
   }
 
-  const imageUrl =
-    result.choices[0]?.message?.images?.[0]?.image_url?.url ?? null;
-  if (!imageUrl) throw new Error("No image returned by OpenRouter");
+  const item = result.data?.[0];
+  if (!item?.b64_json) throw new Error("No image returned by OpenRouter");
+  const mimeType = item.media_type ?? "image/png";
 
   const latencySeconds = (Date.now() - startTime) / 1000;
 
@@ -133,7 +148,7 @@ export async function generateWithOpenRouter(
     },
   });
 
-  return imageUrl;
+  return `data:${mimeType};base64,${item.b64_json}`;
 }
 
 /**

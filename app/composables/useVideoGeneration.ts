@@ -1,5 +1,5 @@
 import type { VideoModel } from "~/utils/videoModels";
-import { videoCreditsForDuration } from "~/utils/videoModels";
+import { videoCredits } from "~/utils/videoModels";
 import { compressImage } from "~/utils/imageCompression";
 import { captureVideoFrame } from "~/utils/videoThumbnail";
 
@@ -33,8 +33,10 @@ export function useVideoGeneration() {
     prompt: string;
     model: VideoModel;
     durationSeconds?: number;
-    inputImageFiles?: File[] | null;
-    imageMode?: "frame" | "reference";
+    resolution?: string | null;
+    firstFrameFile?: File | null;
+    lastFrameFile?: File | null;
+    referenceFile?: File | null;
     aspectRatio?: string;
   }) {
     if (!profile.value?.id) {
@@ -47,7 +49,7 @@ export function useVideoGeneration() {
     }
 
     const duration = opts.durationSeconds ?? opts.model.duration_seconds;
-    const cost = videoCreditsForDuration(opts.model, duration);
+    const cost = videoCredits(opts.model, duration, opts.resolution);
 
     const balance = profile.value.token_balance ?? 0;
     if (!profile.value.is_admin && balance < cost) {
@@ -67,17 +69,20 @@ export function useVideoGeneration() {
       model_id: opts.model.id,
       credits_required: cost,
       duration_seconds: duration,
-      has_input_images: (opts.inputImageFiles?.length ?? 0) > 0,
+      has_input_images: !!(
+        opts.firstFrameFile ||
+        opts.lastFrameFile ||
+        opts.referenceFile
+      ),
       aspect_ratio: opts.aspectRatio ?? "16:9",
     });
 
     try {
       const headers = await authHeaders();
 
-      // Upload the optional start-frame image so OpenRouter can fetch it.
-      let inputImageUrl: string | null = null;
-      const file = opts.inputImageFiles?.[0];
-      if (file) {
+      // Upload a single image file to R2 so OpenRouter can fetch it.
+      async function uploadImage(file: File | null | undefined) {
+        if (!file) return null;
         const compressed = await compressImage(file);
         const fd = new FormData();
         fd.append("file", compressed);
@@ -86,8 +91,14 @@ export function useVideoGeneration() {
           body: fd,
           headers,
         });
-        inputImageUrl = uploadRes.url;
+        return uploadRes.url;
       }
+
+      const [firstFrameUrl, lastFrameUrl, referenceUrl] = await Promise.all([
+        uploadImage(opts.firstFrameFile),
+        uploadImage(opts.lastFrameFile),
+        uploadImage(opts.referenceFile),
+      ]);
 
       const submit = await $fetch<{
         generationId: string;
@@ -101,9 +112,11 @@ export function useVideoGeneration() {
           modelId: opts.model.id,
           modelName: opts.model.name,
           durationSeconds: duration,
+          resolution: opts.resolution ?? "auto",
           aspectRatio: opts.aspectRatio ?? "16:9",
-          inputImageUrl,
-          imageMode: opts.imageMode ?? "frame",
+          firstFrameUrl,
+          lastFrameUrl,
+          referenceUrl,
         },
       });
 

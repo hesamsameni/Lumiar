@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import type { VideoModel } from "~/utils/videoModels";
-import { videoCreditsForDuration } from "~/utils/videoModels";
+import { videoCredits } from "~/utils/videoModels";
+import { buildQualityPicker, currentOptionLabel } from "~/utils/quality";
 import { VIDEO_ASPECT_RATIOS } from "~/utils/constants";
 import { convertHeicToJpeg } from "~/utils/imageCompression";
 
 const route = useRoute();
 const toast = useToast();
+const supabase = useSupabaseClient();
+const posthog = usePostHog();
 const { generate, isGenerating, result } = useVideoGeneration();
 const { fetchVideoModels, firstModel } = useVideoModels();
 
@@ -15,15 +18,34 @@ const prompt = ref("");
 const selectedModel = ref<VideoModel>(firstModel.value!);
 const selectedDuration = ref<number>(firstModel.value?.duration_seconds ?? 5);
 const selectedAspectRatio = ref(VIDEO_ASPECT_RATIOS[0]!);
-const inputFile = ref<File | null>(null);
-const inputPreviewUrl = ref<string | null>(null);
-// How an attached image is used: "frame" = first frame, "reference" = style guide.
+const selectedResolution = ref<string>("auto");
+// Image inputs: "frame" mode uses first (+ optional last) frame anchors;
+// "reference" mode uses a style/content reference image.
+type ImageSlot = "first" | "last" | "reference";
 const imageMode = ref<"frame" | "reference">("frame");
+const firstFrameFile = ref<File | null>(null);
+const firstFramePreview = ref<string | null>(null);
+const lastFrameFile = ref<File | null>(null);
+const lastFramePreview = ref<string | null>(null);
+const referenceFile = ref<File | null>(null);
+const referencePreview = ref<string | null>(null);
+const firstFrameInput = ref<HTMLInputElement | null>(null);
+const lastFrameInput = ref<HTMLInputElement | null>(null);
+const referenceInput = ref<HTMLInputElement | null>(null);
+
+const supportsImages = computed(
+  () => selectedModel.value?.supports_image_input ?? false,
+);
+const supportsLastFrame = computed(
+  () => selectedModel.value?.supports_last_frame ?? false,
+);
+
 const showModelSelector = ref(false);
 const showRatioSelector = ref(false);
 const showDurationSelector = ref(false);
-const fileInput = ref<HTMLInputElement | null>(null);
+const showResolutionSelector = ref(false);
 const isProcessingImage = ref(false);
+const isPolishing = ref(false);
 
 onMounted(() => {
   const prefilled = route.query.prompt as string | undefined;
@@ -54,10 +76,37 @@ watch(selectedModel, (model) => {
   if (!availableRatios.value.some((r) => r.value === selectedAspectRatio.value.value)) {
     selectedAspectRatio.value = availableRatios.value[0]!;
   }
+  // Resolution tiers differ per model — reset to Auto.
+  selectedResolution.value = "auto";
+  // Image-input capabilities differ per model — clear any staged images.
+  clearImages();
 });
 
+// Resolution tiers offered by the model (empty -> hide the control). Credits in
+// the picker fold in the selected duration so the numbers match the button.
+const resolutionPicker = computed(() =>
+  buildQualityPicker(
+    selectedModel.value.tokens_per_generation,
+    selectedModel.value.resolution_options,
+    selectedModel.value.default_resolution,
+    selectedDuration.value / (selectedModel.value.duration_seconds || 1),
+  ),
+);
+const hasResolution = computed(() => resolutionPicker.value.length > 0);
+const currentResolutionLabel = computed(() =>
+  currentOptionLabel(
+    selectedModel.value.resolution_options,
+    selectedModel.value.default_resolution,
+    selectedResolution.value,
+  ),
+);
+
 const creditCost = computed(() =>
-  videoCreditsForDuration(selectedModel.value, selectedDuration.value),
+  videoCredits(
+    selectedModel.value,
+    selectedDuration.value,
+    selectedResolution.value,
+  ),
 );
 
 const generatingAspect = computed(() => {
@@ -65,58 +114,110 @@ const generatingAspect = computed(() => {
   return v.replace(":", " / ");
 });
 
-async function handleFile(file: File) {
+async function handleSlotFile(slot: ImageSlot, file: File) {
   isProcessingImage.value = true;
   try {
     const previewFile = await convertHeicToJpeg(file);
-    inputFile.value = file;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      inputPreviewUrl.value = ev.target?.result as string;
-    };
-    reader.readAsDataURL(previewFile);
+    const url = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (ev) => resolve(ev.target?.result as string);
+      reader.readAsDataURL(previewFile);
+    });
+    if (slot === "first") {
+      firstFrameFile.value = file;
+      firstFramePreview.value = url;
+    } else if (slot === "last") {
+      lastFrameFile.value = file;
+      lastFramePreview.value = url;
+    } else {
+      referenceFile.value = file;
+      referencePreview.value = url;
+    }
   } finally {
     isProcessingImage.value = false;
   }
 }
 
-function onFileChange(e: Event) {
+function onSlotChange(slot: ImageSlot, e: Event) {
   const selected = Array.from((e.target as HTMLInputElement).files ?? []).find(
     (f) => f.type.startsWith("image/"),
   );
-  if (selected) handleFile(selected);
+  if (selected) handleSlotFile(slot, selected);
   (e.target as HTMLInputElement).value = "";
 }
 
-function removeInputImage() {
-  inputFile.value = null;
-  inputPreviewUrl.value = null;
+function removeSlot(slot: ImageSlot) {
+  if (slot === "first") {
+    firstFrameFile.value = null;
+    firstFramePreview.value = null;
+  } else if (slot === "last") {
+    lastFrameFile.value = null;
+    lastFramePreview.value = null;
+  } else {
+    referenceFile.value = null;
+    referencePreview.value = null;
+  }
+}
+
+function clearImages() {
+  removeSlot("first");
+  removeSlot("last");
+  removeSlot("reference");
   imageMode.value = "frame";
 }
 
 async function handleGenerate() {
-  if (!selectedModel.value.supports_image_input && inputFile.value) {
-    toast.add({
-      title: "Selected model does not support image input",
-      description:
-        "Remove the reference image or choose a model that supports it.",
-      color: "warning",
-    });
-    return;
-  }
+  const useFrames = imageMode.value === "frame";
   await generate({
     prompt: prompt.value,
     model: selectedModel.value,
     durationSeconds: selectedDuration.value,
-    inputImageFiles: inputFile.value ? [inputFile.value] : null,
-    imageMode: imageMode.value,
+    resolution: selectedResolution.value,
+    firstFrameFile: useFrames ? firstFrameFile.value : null,
+    lastFrameFile: useFrames ? lastFrameFile.value : null,
+    referenceFile: useFrames ? null : referenceFile.value,
     aspectRatio: selectedAspectRatio.value.value,
   });
 }
 
+async function polishPrompt() {
+  if (!prompt.value.trim()) {
+    toast.add({ title: "Write a prompt first", color: "warning" });
+    return;
+  }
+  isPolishing.value = true;
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+    const { polished } = await $fetch<{ polished: string }>(
+      "/api/polish-prompt",
+      {
+        method: "POST",
+        body: { prompt: prompt.value },
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+      },
+    );
+    prompt.value = polished;
+    posthog?.capture("prompt_polished", { surface: "video" });
+    toast.add({
+      title: "Prompt polished!",
+      description: "AI has enhanced your prompt.",
+      color: "success",
+    });
+  } catch {
+    toast.add({
+      title: "Polish failed",
+      description: "Could not improve the prompt.",
+      color: "error",
+    });
+  } finally {
+    isPolishing.value = false;
+  }
+}
+
 function handleStartOver() {
   prompt.value = "";
-  removeInputImage();
+  clearImages();
   result.value = null;
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -165,61 +266,164 @@ function getRatioStyle(value: string): Record<string, string> {
       class="group/composer rounded-[calc(var(--radius-panel)+1px)] p-px transition-all duration-300 bg-gradient-to-br from-zinc-200 via-zinc-200 to-zinc-200 dark:from-zinc-800 dark:via-zinc-800 dark:to-zinc-800 focus-within:from-indigo-500/70 focus-within:via-violet-500/60 focus-within:to-fuchsia-500/70"
     >
       <div class="rounded-panel bg-white dark:bg-zinc-900 transition-all duration-200">
-        <!-- Reference image preview -->
+        <!-- Image inputs (frames / reference) -->
         <div
-          v-if="inputPreviewUrl"
-          class="border-b border-zinc-100 dark:border-zinc-800"
+          v-if="supportsImages"
+          class="border-b border-zinc-100 dark:border-zinc-800 p-3 space-y-3"
         >
-          <div class="flex items-start gap-3 p-3">
-            <div class="relative group flex-shrink-0">
-              <img
-                :src="inputPreviewUrl"
-                alt="Input image"
-                class="size-20 object-cover rounded-lg border-2 border-primary/50"
-              />
-              <button
-                type="button"
-                class="absolute top-1 right-1 size-4 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors"
-                @click="removeInputImage"
-              >
-                <UIcon name="i-lucide-x" class="size-2.5" />
-              </button>
-            </div>
+          <!-- Mode: exact frames vs style reference -->
+          <div
+            class="inline-flex items-center gap-0.5 p-0.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700"
+          >
+            <button
+              v-for="opt in [
+                { value: 'frame', label: 'Frames', icon: 'i-lucide-image' },
+                { value: 'reference', label: 'Reference', icon: 'i-lucide-palette' },
+              ]"
+              :key="opt.value"
+              type="button"
+              class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all"
+              :class="
+                imageMode === opt.value
+                  ? 'bg-white dark:bg-zinc-900 text-primary shadow-sm ring-1 ring-zinc-200/70 dark:ring-zinc-700/60'
+                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
+              "
+              @click="imageMode = opt.value as 'frame' | 'reference'"
+            >
+              <UIcon :name="opt.icon" class="size-3.5" />
+              {{ opt.label }}
+            </button>
+          </div>
+          <p class="text-[11px] text-zinc-400 dark:text-zinc-500 leading-snug">
+            {{
+              imageMode === "frame"
+                ? supportsLastFrame
+                  ? "Anchor the exact start frame and, optionally, the end frame."
+                  : "The video will start from this exact frame."
+                : "The style & content guide the video, not an exact frame."
+            }}
+          </p>
 
-            <!-- How the image should be used -->
-            <div class="flex-1 min-w-0">
-              <p class="text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
-                Use this image as
-              </p>
-              <div
-                class="inline-flex items-center gap-0.5 p-0.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700"
-              >
+          <!-- Frames mode: first (+ optional last) frame -->
+          <div v-if="imageMode === 'frame'" class="flex flex-wrap gap-4">
+            <div class="flex flex-col items-center gap-1.5">
+              <div class="relative">
+                <img
+                  v-if="firstFramePreview"
+                  :src="firstFramePreview"
+                  alt="First frame"
+                  class="size-20 object-cover rounded-lg border-2 border-primary/50"
+                />
                 <button
-                  v-for="opt in [
-                    { value: 'frame', label: 'Start frame', icon: 'i-lucide-image' },
-                    { value: 'reference', label: 'Reference', icon: 'i-lucide-palette' },
-                  ]"
-                  :key="opt.value"
+                  v-else
                   type="button"
-                  class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all"
-                  :class="
-                    imageMode === opt.value
-                      ? 'bg-white dark:bg-zinc-900 text-primary shadow-sm ring-1 ring-zinc-200/70 dark:ring-zinc-700/60'
-                      : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
-                  "
-                  @click="imageMode = opt.value as 'frame' | 'reference'"
+                  :disabled="isProcessingImage"
+                  class="size-20 rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-700 flex items-center justify-center text-zinc-400 hover:border-primary/50 hover:text-primary transition-colors"
+                  @click="firstFrameInput?.click()"
                 >
-                  <UIcon :name="opt.icon" class="size-3.5" />
-                  {{ opt.label }}
+                  <UIcon name="i-lucide-plus" class="size-5" />
+                </button>
+                <button
+                  v-if="firstFramePreview"
+                  type="button"
+                  class="absolute top-1 right-1 size-4 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors"
+                  @click="removeSlot('first')"
+                >
+                  <UIcon name="i-lucide-x" class="size-2.5" />
                 </button>
               </div>
-              <p class="text-[11px] text-zinc-400 dark:text-zinc-500 mt-1.5 leading-snug">
-                {{
-                  imageMode === "frame"
-                    ? "The video will start from this exact image."
-                    : "The style & content guide the video, not an exact frame."
-                }}
-              </p>
+              <span class="text-[11px] text-zinc-500 dark:text-zinc-400"
+                >First frame</span
+              >
+              <input
+                ref="firstFrameInput"
+                type="file"
+                accept="image/*"
+                class="hidden"
+                @change="onSlotChange('first', $event)"
+              />
+            </div>
+
+            <div
+              v-if="supportsLastFrame"
+              class="flex flex-col items-center gap-1.5"
+            >
+              <div class="relative">
+                <img
+                  v-if="lastFramePreview"
+                  :src="lastFramePreview"
+                  alt="Last frame"
+                  class="size-20 object-cover rounded-lg border-2 border-primary/50"
+                />
+                <button
+                  v-else
+                  type="button"
+                  :disabled="isProcessingImage"
+                  class="size-20 rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-700 flex items-center justify-center text-zinc-400 hover:border-primary/50 hover:text-primary transition-colors"
+                  @click="lastFrameInput?.click()"
+                >
+                  <UIcon name="i-lucide-plus" class="size-5" />
+                </button>
+                <button
+                  v-if="lastFramePreview"
+                  type="button"
+                  class="absolute top-1 right-1 size-4 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors"
+                  @click="removeSlot('last')"
+                >
+                  <UIcon name="i-lucide-x" class="size-2.5" />
+                </button>
+              </div>
+              <span class="text-[11px] text-zinc-500 dark:text-zinc-400"
+                >Last frame</span
+              >
+              <input
+                ref="lastFrameInput"
+                type="file"
+                accept="image/*"
+                class="hidden"
+                @change="onSlotChange('last', $event)"
+              />
+            </div>
+          </div>
+
+          <!-- Reference mode -->
+          <div v-else class="flex flex-wrap gap-4">
+            <div class="flex flex-col items-center gap-1.5">
+              <div class="relative">
+                <img
+                  v-if="referencePreview"
+                  :src="referencePreview"
+                  alt="Reference"
+                  class="size-20 object-cover rounded-lg border-2 border-primary/50"
+                />
+                <button
+                  v-else
+                  type="button"
+                  :disabled="isProcessingImage"
+                  class="size-20 rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-700 flex items-center justify-center text-zinc-400 hover:border-primary/50 hover:text-primary transition-colors"
+                  @click="referenceInput?.click()"
+                >
+                  <UIcon name="i-lucide-plus" class="size-5" />
+                </button>
+                <button
+                  v-if="referencePreview"
+                  type="button"
+                  class="absolute top-1 right-1 size-4 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors"
+                  @click="removeSlot('reference')"
+                >
+                  <UIcon name="i-lucide-x" class="size-2.5" />
+                </button>
+              </div>
+              <span class="text-[11px] text-zinc-500 dark:text-zinc-400"
+                >Reference</span
+              >
+              <input
+                ref="referenceInput"
+                type="file"
+                accept="image/*"
+                class="hidden"
+                @change="onSlotChange('reference', $event)"
+              />
             </div>
           </div>
         </div>
@@ -248,6 +452,18 @@ function getRatioStyle(value: string): Record<string, string> {
               <span class="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate flex-1">{{
                 selectedModel.name
               }}</span>
+              <span
+                class="text-[10px] px-1.5 py-0.5 rounded-md font-medium flex-shrink-0"
+                :class="{
+                  'bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400':
+                    selectedModel.tier === 'high',
+                  'bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400':
+                    selectedModel.tier === 'mid',
+                  'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400':
+                    selectedModel.tier === 'low',
+                }"
+                >{{ selectedModel.tier }}</span
+              >
             </button>
             <button
               type="button"
@@ -269,21 +485,37 @@ function getRatioStyle(value: string): Record<string, string> {
                 >{{ selectedDuration }}s</span
               >
             </button>
+            <button
+              v-if="hasResolution"
+              type="button"
+              class="flex items-center gap-1.5 rounded-xl px-3 py-2 bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 flex-shrink-0"
+              @click="showResolutionSelector = true"
+            >
+              <UIcon name="i-lucide-monitor" class="size-3.5 text-zinc-400" />
+              <span class="text-xs font-medium text-zinc-700 dark:text-zinc-300">{{
+                currentResolutionLabel
+              }}</span>
+            </button>
           </div>
 
           <div class="flex items-center gap-1.5 px-3 py-2.5">
-            <!-- Attach reference image -->
+            <!-- Polish with AI -->
             <button
               type="button"
-              :disabled="isGenerating || isProcessingImage"
-              title="Add a start frame image"
-              class="size-9 rounded-xl flex items-center justify-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-40 flex-shrink-0"
-              @click="fileInput?.click()"
+              :disabled="isGenerating || !prompt.trim()"
+              title="Polish with AI"
+              class="size-9 rounded-xl flex items-center justify-center transition-colors disabled:opacity-40 flex-shrink-0"
+              :class="
+                isPolishing
+                  ? 'text-primary bg-primary/10'
+                  : 'text-zinc-400 hover:text-primary hover:bg-primary/10 dark:hover:bg-primary/10'
+              "
+              @click="polishPrompt"
             >
               <UIcon
-                :name="isProcessingImage ? 'i-lucide-loader-2' : 'i-lucide-image-plus'"
+                name="i-lucide-wand-sparkles"
                 class="size-[18px]"
-                :class="isProcessingImage ? 'animate-spin' : ''"
+                :class="isPolishing ? 'animate-pulse' : ''"
               />
             </button>
 
@@ -450,11 +682,84 @@ function getRatioStyle(value: string): Record<string, string> {
                   {{ d }} seconds
                 </p>
                 <p class="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
-                  {{ videoCreditsForDuration(selectedModel, d) }} credits
+                  {{ videoCredits(selectedModel, d, selectedResolution) }} credits
                 </p>
               </div>
               <UIcon
                 v-if="selectedDuration === d"
+                name="i-lucide-check"
+                class="size-4 text-primary flex-shrink-0"
+              />
+            </button>
+          </div>
+        </div>
+      </template>
+    </USlideover>
+
+    <!-- Resolution slideover -->
+    <USlideover
+      :open="showResolutionSelector"
+      side="right"
+      @update:open="showResolutionSelector = $event"
+    >
+      <template #content>
+        <div class="flex flex-col h-full">
+          <div class="relative flex items-center justify-between px-5 py-4 flex-shrink-0">
+            <div class="flex items-center gap-3">
+              <span
+                class="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/15 via-violet-500/10 to-fuchsia-500/15 text-primary ring-1 ring-primary/15"
+              >
+                <UIcon name="i-lucide-monitor" class="size-[18px]" />
+              </span>
+              <div>
+                <h2 class="font-display font-bold text-base tracking-tight">
+                  Resolution
+                </h2>
+                <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                  Higher resolution costs more credits
+                </p>
+              </div>
+            </div>
+            <UButton
+              icon="i-lucide-x"
+              variant="ghost"
+              color="neutral"
+              size="sm"
+              @click="showResolutionSelector = false"
+            />
+          </div>
+          <div class="flex-1 overflow-y-auto p-5 space-y-2">
+            <button
+              v-for="r in resolutionPicker"
+              :key="r.value"
+              class="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl border transition-all text-left"
+              :class="
+                selectedResolution === r.value
+                  ? 'border-primary/40 bg-gradient-to-r from-indigo-500/10 via-violet-500/8 to-fuchsia-500/10 ring-1 ring-primary/25'
+                  : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
+              "
+              @click="
+                selectedResolution = r.value;
+                showResolutionSelector = false;
+              "
+            >
+              <div class="flex-1 min-w-0">
+                <p
+                  class="text-sm font-medium"
+                  :class="
+                    selectedResolution === r.value
+                      ? 'text-primary'
+                      : 'text-zinc-800 dark:text-zinc-200'
+                  "
+                >
+                  {{ r.label }}
+                </p>
+                <p class="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
+                  {{ r.hint ? `${r.hint} · ` : "" }}{{ r.credits }} credits
+                </p>
+              </div>
+              <UIcon
+                v-if="selectedResolution === r.value"
                 name="i-lucide-check"
                 class="size-4 text-primary flex-shrink-0"
               />
@@ -506,14 +811,6 @@ function getRatioStyle(value: string): Record<string, string> {
         </div>
       </template>
     </USlideover>
-
-    <input
-      ref="fileInput"
-      type="file"
-      accept="image/*"
-      class="hidden"
-      @change="onFileChange"
-    />
 
     <!-- Generating state -->
     <div v-if="isGenerating" class="mt-12">
