@@ -16,6 +16,7 @@ const generationService = useGenerationService();
 const toast = useToast();
 const { fetchModels, firstModel, getModelById } = useModels();
 const { profile } = useProfile();
+const { isAuthenticated } = useAuthState();
 const profileService = useProfileService();
 const supabase = useSupabaseClient();
 const posthog = usePostHog();
@@ -147,6 +148,11 @@ onMounted(async () => {
 });
 
 async function handleGenerate() {
+  if (!isAuthenticated.value) {
+    await navigateTo("/auth/login");
+    return;
+  }
+
   if (
     !selectedModel.value.supports_image_input &&
     (inputFiles.value.length > 0 || editingImageUrl.value)
@@ -255,6 +261,11 @@ function clearEditingImage() {
 }
 
 async function polishPrompt() {
+  if (!isAuthenticated.value) {
+    await navigateTo("/auth/login");
+    return;
+  }
+
   if (!prompt.value.trim()) {
     toast.add({ title: "Write a prompt first", color: "warning" });
     return;
