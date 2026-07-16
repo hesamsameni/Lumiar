@@ -30,8 +30,9 @@ export function useVideoGenerationService() {
     pageSize: number;
     selectedTag: string | null;
     searchQuery: string;
+    modelId?: string | null;
   }) {
-    const { page, pageSize, selectedTag, searchQuery } = params;
+    const { page, pageSize, selectedTag, searchQuery, modelId } = params;
 
     let query = supabase
       .from("video_generations")
@@ -43,6 +44,7 @@ export function useVideoGenerationService() {
       .order("created_at", { ascending: false })
       .range((page - 1) * pageSize, page * pageSize - 1);
 
+    if (modelId) query = query.eq("model_id", modelId);
     if (selectedTag) query = query.contains("metadata", { tags: [selectedTag] });
     if (searchQuery.trim())
       query = query.ilike("prompt", `%${searchQuery.trim()}%`);

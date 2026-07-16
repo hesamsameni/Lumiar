@@ -55,6 +55,7 @@ const navLinks = computed(() => [
   { label: "Image", to: "/", icon: "i-lucide-image" },
   { label: "Video", to: "/video", icon: "i-lucide-video" },
   { label: "Explore", to: "/explore", icon: "i-lucide-compass" },
+  { label: "Models", to: "/models", icon: "i-lucide-boxes" },
   { label: "Tools", to: "/ai", icon: "i-lucide-wand-2" },
   { label: "Prompts", to: "/prompt-library", icon: "i-lucide-library" },
   ...(profile.value?.is_admin
@@ -268,9 +269,7 @@ async function handleSignOut() {
         >
           <template v-if="isAuthenticated">
             <div class="flex items-center gap-3 mb-3 px-1">
-              <span
-                class="rounded-full p-px bg-conic-brand flex-shrink-0"
-              >
+              <span class="rounded-full p-px bg-conic-brand flex-shrink-0">
                 <UAvatar
                   :src="
                     profile?.avatar_url ||

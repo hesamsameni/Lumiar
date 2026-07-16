@@ -29,6 +29,7 @@ export default defineEventHandler(async (event) => {
   urls.push(
     { loc: `${siteUrl}/`, changefreq: "daily", priority: "1.0" },
     { loc: `${siteUrl}/explore`, changefreq: "hourly", priority: "0.9" },
+    { loc: `${siteUrl}/models`, changefreq: "weekly", priority: "0.8" },
     { loc: `${siteUrl}/prompt-library`, changefreq: "weekly", priority: "0.7" },
     { loc: `${siteUrl}/ai`, changefreq: "weekly", priority: "0.8" },
     { loc: `${siteUrl}/terms`, changefreq: "yearly", priority: "0.2" },
@@ -55,7 +56,12 @@ export default defineEventHandler(async (event) => {
       auth: { persistSession: false },
     });
 
-    const [{ data: gens }, { data: profiles }] = await Promise.all([
+    const [
+      { data: gens },
+      { data: profiles },
+      { data: aiModels },
+      { data: videoModels },
+    ] = await Promise.all([
       supabase
         .from("generations")
         .select("id, created_at")
@@ -67,7 +73,24 @@ export default defineEventHandler(async (event) => {
         .select("username, updated_at")
         .not("username", "is", null)
         .limit(5000),
+      supabase.from("ai_models").select("id").eq("is_active", true),
+      supabase.from("video_models").select("id").eq("is_active", true),
     ]);
+
+    for (const m of (aiModels ?? []) as { id: string }[]) {
+      urls.push({
+        loc: `${siteUrl}/models/image/${m.id}`,
+        changefreq: "weekly",
+        priority: "0.7",
+      });
+    }
+    for (const m of (videoModels ?? []) as { id: string }[]) {
+      urls.push({
+        loc: `${siteUrl}/models/video/${m.id}`,
+        changefreq: "weekly",
+        priority: "0.7",
+      });
+    }
 
     for (const g of (gens ?? []) as { id: string; created_at: string }[]) {
       urls.push({

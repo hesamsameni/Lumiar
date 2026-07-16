@@ -65,8 +65,9 @@ export function useGenerationService() {
     pageSize: number;
     selectedTag: string | null;
     searchQuery: string;
+    modelId?: string | null;
   }) {
-    const { page, pageSize, selectedTag, searchQuery } = params;
+    const { page, pageSize, selectedTag, searchQuery, modelId } = params;
 
     let query = supabase
       .from("generations")
@@ -76,6 +77,10 @@ export function useGenerationService() {
       .eq("is_shared", true)
       .order("created_at", { ascending: false })
       .range((page - 1) * pageSize, page * pageSize - 1);
+
+    if (modelId) {
+      query = query.eq("model_id", modelId);
+    }
 
     if (selectedTag) {
       query = query.contains("metadata", { tags: [selectedTag] });

@@ -10,13 +10,31 @@ const toast = useToast();
 const supabase = useSupabaseClient();
 const posthog = usePostHog();
 const { generate, isGenerating, result } = useVideoGeneration();
-const { fetchVideoModels, firstModel } = useVideoModels();
+const { fetchVideoModels, firstModel, getModelById } = useVideoModels();
 
 await fetchVideoModels();
 
 const prompt = ref("");
 const selectedModel = ref<VideoModel>(firstModel.value!);
 const selectedDuration = ref<number>(firstModel.value?.duration_seconds ?? 5);
+
+// Deep-link from Models (?model=...)
+const queryModelId = computed(() => {
+  const q = route.query.model;
+  return typeof q === "string" && q ? q : null;
+});
+if (queryModelId.value) {
+  const fromQuery = getModelById(queryModelId.value);
+  if (fromQuery) {
+    selectedModel.value = fromQuery;
+    selectedDuration.value = fromQuery.duration_seconds;
+  }
+}
+watch(queryModelId, (id) => {
+  if (!id) return;
+  const fromQuery = getModelById(id);
+  if (fromQuery) selectedModel.value = fromQuery;
+});
 const selectedAspectRatio = ref(VIDEO_ASPECT_RATIOS[0]!);
 const selectedResolution = ref<string>("auto");
 // Image inputs: "frame" mode uses first (+ optional last) frame anchors;
@@ -63,7 +81,9 @@ const availableRatios = computed(() => {
 
 const availableDurations = computed(() => {
   const d = selectedModel.value?.supported_durations ?? [];
-  return d.length ? [...d].sort((a, b) => a - b) : [selectedModel.value.duration_seconds];
+  return d.length
+    ? [...d].sort((a, b) => a - b)
+    : [selectedModel.value.duration_seconds];
 });
 
 // Keep duration + aspect ratio valid whenever the model changes.
@@ -73,7 +93,11 @@ watch(selectedModel, (model) => {
     selectedDuration.value =
       model.duration_seconds ?? availableDurations.value[0]!;
   }
-  if (!availableRatios.value.some((r) => r.value === selectedAspectRatio.value.value)) {
+  if (
+    !availableRatios.value.some(
+      (r) => r.value === selectedAspectRatio.value.value,
+    )
+  ) {
     selectedAspectRatio.value = availableRatios.value[0]!;
   }
   // Resolution tiers differ per model — reset to Auto.
@@ -265,7 +289,9 @@ function getRatioStyle(value: string): Record<string, string> {
     <div
       class="group/composer rounded-[calc(var(--radius-panel)+1px)] p-px transition-all duration-300 bg-gradient-to-br from-zinc-200 via-zinc-200 to-zinc-200 dark:from-zinc-800 dark:via-zinc-800 dark:to-zinc-800 focus-within:from-indigo-500/70 focus-within:via-violet-500/60 focus-within:to-fuchsia-500/70"
     >
-      <div class="rounded-panel bg-white dark:bg-zinc-900 transition-all duration-200">
+      <div
+        class="rounded-panel bg-white dark:bg-zinc-900 transition-all duration-200"
+      >
         <!-- Image inputs (frames / reference) -->
         <div
           v-if="supportsImages"
@@ -278,7 +304,11 @@ function getRatioStyle(value: string): Record<string, string> {
             <button
               v-for="opt in [
                 { value: 'frame', label: 'Frames', icon: 'i-lucide-image' },
-                { value: 'reference', label: 'Reference', icon: 'i-lucide-palette' },
+                {
+                  value: 'reference',
+                  label: 'Reference',
+                  icon: 'i-lucide-palette',
+                },
               ]"
               :key="opt.value"
               type="button"
@@ -448,10 +478,14 @@ function getRatioStyle(value: string): Record<string, string> {
               class="flex-1 flex items-center gap-2 rounded-xl px-3 py-2 bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 text-left"
               @click="showModelSelector = true"
             >
-              <UIcon name="i-lucide-clapperboard" class="size-3.5 text-zinc-400 flex-shrink-0" />
-              <span class="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate flex-1">{{
-                selectedModel.name
-              }}</span>
+              <UIcon
+                name="i-lucide-clapperboard"
+                class="size-3.5 text-zinc-400 flex-shrink-0"
+              />
+              <span
+                class="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate flex-1"
+                >{{ selectedModel.name }}</span
+              >
               <span
                 class="text-[10px] px-1.5 py-0.5 rounded-md font-medium flex-shrink-0"
                 :class="{
@@ -471,9 +505,10 @@ function getRatioStyle(value: string): Record<string, string> {
               @click="showRatioSelector = true"
             >
               <UIcon name="i-lucide-ratio" class="size-3.5 text-zinc-400" />
-              <span class="text-xs font-medium text-zinc-700 dark:text-zinc-300">{{
-                selectedAspectRatio.value
-              }}</span>
+              <span
+                class="text-xs font-medium text-zinc-700 dark:text-zinc-300"
+                >{{ selectedAspectRatio.value }}</span
+              >
             </button>
             <button
               type="button"
@@ -492,9 +527,10 @@ function getRatioStyle(value: string): Record<string, string> {
               @click="showResolutionSelector = true"
             >
               <UIcon name="i-lucide-monitor" class="size-3.5 text-zinc-400" />
-              <span class="text-xs font-medium text-zinc-700 dark:text-zinc-300">{{
-                currentResolutionLabel
-              }}</span>
+              <span
+                class="text-xs font-medium text-zinc-700 dark:text-zinc-300"
+                >{{ currentResolutionLabel }}</span
+              >
             </button>
           </div>
 
@@ -528,7 +564,9 @@ function getRatioStyle(value: string): Record<string, string> {
               @click="handleGenerate"
             >
               {{
-                isGenerating ? "Generating…" : `Generate · ${creditCost} Credits`
+                isGenerating
+                  ? "Generating…"
+                  : `Generate · ${creditCost} Credits`
               }}
             </UButton>
           </div>
@@ -544,7 +582,9 @@ function getRatioStyle(value: string): Record<string, string> {
     >
       <template #content>
         <div class="flex flex-col h-full">
-          <div class="relative flex items-center justify-between px-5 py-4 flex-shrink-0">
+          <div
+            class="relative flex items-center justify-between px-5 py-4 flex-shrink-0"
+          >
             <div class="flex items-center gap-3">
               <span
                 class="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/15 via-violet-500/10 to-fuchsia-500/15 text-primary ring-1 ring-primary/15"
@@ -631,7 +671,9 @@ function getRatioStyle(value: string): Record<string, string> {
     >
       <template #content>
         <div class="flex flex-col h-full">
-          <div class="relative flex items-center justify-between px-5 py-4 flex-shrink-0">
+          <div
+            class="relative flex items-center justify-between px-5 py-4 flex-shrink-0"
+          >
             <div class="flex items-center gap-3">
               <span
                 class="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/15 via-violet-500/10 to-fuchsia-500/15 text-primary ring-1 ring-primary/15"
@@ -682,7 +724,10 @@ function getRatioStyle(value: string): Record<string, string> {
                   {{ d }} seconds
                 </p>
                 <p class="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
-                  {{ videoCredits(selectedModel, d, selectedResolution) }} credits
+                  {{
+                    videoCredits(selectedModel, d, selectedResolution)
+                  }}
+                  credits
                 </p>
               </div>
               <UIcon
@@ -704,7 +749,9 @@ function getRatioStyle(value: string): Record<string, string> {
     >
       <template #content>
         <div class="flex flex-col h-full">
-          <div class="relative flex items-center justify-between px-5 py-4 flex-shrink-0">
+          <div
+            class="relative flex items-center justify-between px-5 py-4 flex-shrink-0"
+          >
             <div class="flex items-center gap-3">
               <span
                 class="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/15 via-violet-500/10 to-fuchsia-500/15 text-primary ring-1 ring-primary/15"
@@ -777,7 +824,9 @@ function getRatioStyle(value: string): Record<string, string> {
     >
       <template #content>
         <div class="flex flex-col h-full">
-          <div class="relative flex items-center justify-between px-5 py-4 flex-shrink-0">
+          <div
+            class="relative flex items-center justify-between px-5 py-4 flex-shrink-0"
+          >
             <div class="flex items-center gap-3">
               <span
                 class="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/15 via-violet-500/10 to-fuchsia-500/15 text-primary ring-1 ring-primary/15"
@@ -828,16 +877,23 @@ function getRatioStyle(value: string): Record<string, string> {
         class="relative rounded-3xl overflow-hidden border border-zinc-200 dark:border-zinc-800"
         :style="{ aspectRatio: generatingAspect }"
       >
-        <div class="absolute inset-0 bg-gradient-brand opacity-20 animate-gradient-pan" />
+        <div
+          class="absolute inset-0 bg-gradient-brand opacity-20 animate-gradient-pan"
+        />
         <div class="absolute inset-0 bg-grain opacity-10 mix-blend-overlay" />
         <div
           class="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/25 to-transparent"
         />
-        <div class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center px-6">
+        <div
+          class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center px-6"
+        >
           <span
             class="flex size-12 items-center justify-center rounded-2xl bg-white/80 dark:bg-zinc-900/80 backdrop-blur shadow-glow-brand"
           >
-            <UIcon name="i-lucide-clapperboard" class="size-6 text-primary animate-pulse" />
+            <UIcon
+              name="i-lucide-clapperboard"
+              class="size-6 text-primary animate-pulse"
+            />
           </span>
           <p class="text-sm font-medium text-zinc-700 dark:text-zinc-200">
             Generating your video…

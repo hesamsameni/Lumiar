@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { imageCreditsForQuality } from "~/utils/models";
+import { videoCredits } from "~/utils/videoModels";
+
 const PACKS: Array<{
   id: string;
   label: string;
@@ -12,15 +15,42 @@ const PACKS: Array<{
   { id: "pro", label: "Pro", euros: 25, credits: 3250 },
 ];
 
-const FAST_MODEL_COST = 3; // GPT Image 1 Mini — cheapest active model
-const PREMIUM_MODEL_COST = 15; // GPT Image 2 — most expensive active model
-const VIDEO_MODEL_COST = 250; // Veo 3.1 Fast — cheapest video model
+// Derive estimate costs from the live active catalog so pack hints stay correct
+// as model pricing changes. Fallbacks match recent seed defaults.
+const { fetchModels, models: imageModels } = useModels();
+const { fetchVideoModels, models: videoModels } = useVideoModels();
+await Promise.all([fetchModels(), fetchVideoModels()]);
+
+const FAST_MODEL_COST = computed(() => {
+  const costs = imageModels.value.map((m) =>
+    imageCreditsForQuality(m, m.default_quality ?? "auto"),
+  );
+  return costs.length ? Math.min(...costs) : 2;
+});
+
+const PREMIUM_MODEL_COST = computed(() => {
+  const costs = imageModels.value.map((m) => {
+    const options = m.quality_options ?? [];
+    if (!options.length) return m.tokens_per_generation;
+    return Math.max(
+      ...options.map((o) => imageCreditsForQuality(m, o.value)),
+    );
+  });
+  return costs.length ? Math.max(...costs) : 32;
+});
+
+const VIDEO_MODEL_COST = computed(() => {
+  const costs = videoModels.value.map((m) =>
+    videoCredits(m, m.duration_seconds, m.default_resolution ?? "auto"),
+  );
+  return costs.length ? Math.min(...costs) : 100;
+});
 
 function packHint(credits: number) {
   return {
-    fast: Math.floor(credits / FAST_MODEL_COST),
-    premium: Math.floor(credits / PREMIUM_MODEL_COST),
-    videos: Math.floor(credits / VIDEO_MODEL_COST),
+    fast: Math.floor(credits / FAST_MODEL_COST.value),
+    premium: Math.floor(credits / PREMIUM_MODEL_COST.value),
+    videos: Math.floor(credits / VIDEO_MODEL_COST.value),
   };
 }
 

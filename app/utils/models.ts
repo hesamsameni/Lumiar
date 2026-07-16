@@ -3,6 +3,10 @@ import { creditsForOption, type QualityOption } from "./quality";
 export type ModelTier = "low" | "mid" | "high";
 export type ModelProvider = "openai" | "openrouter" | "google";
 
+// Preselected for new users (no profiles.default_model_id) and when no
+// query deep-link is present. Independent of the `recommended` badge.
+export const DEFAULT_IMAGE_MODEL_ID = "google/gemini-3.1-flash-lite-image";
+
 export interface AIModel {
   id: string;
   name: string;

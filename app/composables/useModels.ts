@@ -1,4 +1,4 @@
-import type { AIModel } from "~/utils/models";
+import { DEFAULT_IMAGE_MODEL_ID, type AIModel } from "~/utils/models";
 import { useAuthState } from "~/composables/useAuthState";
 
 export function useModels() {
@@ -43,8 +43,13 @@ export function useModels() {
     }
   }
 
+  // Prefer the configured default, then any recommended model, then first in list.
+  // `recommended` can be true on many models (UI badge only).
   const firstModel = computed<AIModel | undefined>(
-    () => models.value.find((m) => m.recommended) ?? models.value[0],
+    () =>
+      models.value.find((m) => m.id === DEFAULT_IMAGE_MODEL_ID) ??
+      models.value.find((m) => m.recommended) ??
+      models.value[0],
   );
 
   function getModelById(id: string): AIModel | undefined {

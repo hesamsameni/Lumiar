@@ -61,6 +61,8 @@ export default defineNuxtConfig({
       exclude: [
         "/",
         "/explore",
+        "/models",
+        "/models/*",
         "/generation/*",
         "/auth/*",
         "/prompt-library",

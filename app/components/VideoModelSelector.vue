@@ -1,5 +1,11 @@
 <script setup lang="ts">
 import type { VideoModel } from "~/utils/videoModels";
+import {
+  groupVideoModels,
+  inferVideoMaker,
+  TIER_BADGE,
+  TIER_LABEL,
+} from "~/utils/modelCompanies";
 
 const props = defineProps<{
   modelValue: VideoModel;
@@ -11,114 +17,7 @@ const emit = defineEmits<{
 
 const { models } = useVideoModels();
 
-// Group by the model's *maker* (the company that built it, e.g. Google/OpenAI/
-// ByteDance) — never by our internal serving route (OpenRouter or Google). The
-// maker is inferred from the model name/id, so grouping stays correct even if
-// the id is prefixed with the serving provider (e.g. "openrouter/sora-2-pro").
-type CompanyMeta = { label: string; subtitle: string; logo: string | null };
-
-const companyMeta: Record<string, CompanyMeta> = {
-  google: { label: "Google", subtitle: "Veo family", logo: "/ai-logos/gemini.svg" },
-  openai: { label: "OpenAI", subtitle: "Sora family", logo: "/ai-logos/openai.svg" },
-  bytedance: {
-    label: "Bytedance",
-    subtitle: "Seedance family",
-    logo: "/ai-logos/bytedance.svg",
-  },
-  "black-forest-labs": {
-    label: "Black Forest Labs",
-    subtitle: "FLUX family",
-    logo: "/ai-logos/flux.svg",
-  },
-  "x-ai": { label: "xAI", subtitle: "Grok family", logo: "/ai-logos/xai.svg" },
-  alibaba: {
-    label: "Alibaba",
-    subtitle: "Wan · HappyHorse",
-    logo: "/ai-logos/alibaba.svg",
-  },
-  kuaishou: {
-    label: "Kuaishou",
-    subtitle: "Kling family",
-    logo: "/ai-logos/kuaishou.svg",
-  },
-  minimax: {
-    label: "MiniMax",
-    subtitle: "Hailuo family",
-    logo: "/ai-logos/minimax.svg",
-  },
-};
-
-const companyOrder = [
-  "google",
-  "openai",
-  "bytedance",
-  "alibaba",
-  "kuaishou",
-  "black-forest-labs",
-  "x-ai",
-];
-
-// Prefixes that are serving providers, not makers — ignore them when deciding
-// the maker from the id and fall back to name-based detection.
-const SERVING_PREFIXES = new Set(["openrouter", "fal", "fal-ai", "replicate"]);
-
-// Map raw maker id-prefixes to a canonical key.
-const MAKER_ALIASES: Record<string, string> = {
-  "bytedance-seed": "bytedance",
-  "x": "x-ai",
-  xai: "x-ai",
-};
-
-// Detect the maker from the model name/id via keyword matching.
-function inferMaker(model: VideoModel): string {
-  const prefix = (model.id.split("/")[0] ?? "").toLowerCase();
-  const aliased = MAKER_ALIASES[prefix] ?? prefix;
-  if (aliased && aliased in companyMeta && !SERVING_PREFIXES.has(aliased)) {
-    return aliased;
-  }
-
-  const text = `${model.name} ${model.id}`.toLowerCase();
-  if (/veo|imagen|gemini|nano.?banana/.test(text)) return "google";
-  if (/sora|gpt|dall.?e/.test(text)) return "openai";
-  if (/seedance|seedream|bytedance/.test(text)) return "bytedance";
-  if (/\bwan\b|alibaba|tongyi|qwen/.test(text)) return "alibaba";
-  if (/kling|kuaishou/.test(text)) return "kuaishou";
-  if (/flux|black.?forest/.test(text)) return "black-forest-labs";
-  if (/grok|x-?ai/.test(text)) return "x-ai";
-
-  return aliased || "other";
-}
-
-function metaFor(company: string): CompanyMeta {
-  return (
-    companyMeta[company] ?? {
-      label: company.charAt(0).toUpperCase() + company.slice(1),
-      subtitle: "",
-      logo: null,
-    }
-  );
-}
-
-const groupedModels = computed(() => {
-  const groups = new Map<string, VideoModel[]>();
-  for (const model of models.value) {
-    const company = inferMaker(model);
-    if (!groups.has(company)) groups.set(company, []);
-    groups.get(company)!.push(model);
-  }
-
-  // Known companies first (in preferred order), then any others.
-  const orderedKeys = [
-    ...companyOrder.filter((c) => groups.has(c)),
-    ...[...groups.keys()].filter((c) => !companyOrder.includes(c)),
-  ];
-
-  return orderedKeys.map((company) => ({
-    company,
-    ...metaFor(company),
-    models: groups.get(company)!,
-  }));
-});
+const groupedModels = computed(() => groupVideoModels(models.value));
 
 // Track logos that fail to load (file not added yet) so we can fall back to an
 // icon instead of showing a broken image.
@@ -136,21 +35,13 @@ watch(
   [groupedModels, () => props.modelValue],
   ([groups, model]) => {
     if (groups[0]) openGroups.value.add(groups[0].company);
-    if (model) openGroups.value.add(inferMaker(model));
+    if (model) openGroups.value.add(inferVideoMaker(model));
   },
   { immediate: true },
 );
 
-const tierBadge: Record<string, string> = {
-  high: "bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400",
-  mid: "bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-400",
-  low: "bg-green-100 dark:bg-green-950/50 text-green-700 dark:text-green-400",
-};
-const tierLabel: Record<string, string> = {
-  high: "High",
-  mid: "Mid",
-  low: "Low",
-};
+const tierBadge = TIER_BADGE;
+const tierLabel = TIER_LABEL;
 </script>
 
 <template>
