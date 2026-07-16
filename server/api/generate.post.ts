@@ -14,6 +14,11 @@ import {
 import { inferTagsFromPrompt } from "../utils/tags";
 import { useServerPostHog } from "../utils/posthog";
 import { condensePrompt } from "../utils/polishPrompt";
+import {
+  creditsForOption,
+  resolveQualityOption,
+  type QualityOption,
+} from "../utils/quality";
 
 const INPUT_IMAGE_REQUEST_HEADERS = {
   Referer: "https://lumiar.app",
@@ -37,6 +42,7 @@ export default defineEventHandler(async (event) => {
     inputImagesBase64,
     inputImageUrls,
     aspectRatio,
+    quality,
     parentId,
   } = body;
 
@@ -133,6 +139,9 @@ export default defineEventHandler(async (event) => {
   if (aspectRatio != null && typeof aspectRatio !== "string") {
     throw createError({ statusCode: 400, message: "Invalid aspect ratio" });
   }
+  if (quality != null && typeof quality !== "string") {
+    throw createError({ statusCode: 400, message: "Invalid quality" });
+  }
 
   // --- Resolve the real cost + balance server-side (never trust the client) ---
   // The authoritative per-generation cost comes from `ai_models`, and the
@@ -141,14 +150,35 @@ export default defineEventHandler(async (event) => {
 
   const { data: modelRow } = (await (supabase as any)
     .from("ai_models")
-    .select("tokens_per_generation")
+    .select("tokens_per_generation, quality_options, default_quality")
     .eq("id", modelId)
-    .maybeSingle()) as { data: { tokens_per_generation: number } | null };
+    .maybeSingle()) as {
+    data: {
+      tokens_per_generation: number;
+      quality_options: QualityOption[] | null;
+      default_quality: string | null;
+    } | null;
+  };
 
   if (!modelRow) {
     throw createError({ statusCode: 400, message: "Unknown model" });
   }
-  const tokenCost = Math.max(0, Math.round(modelRow.tokens_per_generation ?? 0));
+
+  // Resolve the selected quality tier against the model's options (authoritative).
+  const qualityOpt = resolveQualityOption(
+    modelRow.quality_options,
+    modelRow.default_quality,
+    typeof quality === "string" ? quality : null,
+  );
+  const resolvedQuality = qualityOpt?.value ?? null;
+  // Native provider value (OpenAI `quality` / Gemini `imageSize`).
+  const providerQuality = qualityOpt ? (qualityOpt.param ?? qualityOpt.value) : null;
+  const tokenCost = creditsForOption(
+    modelRow.tokens_per_generation,
+    modelRow.quality_options,
+    modelRow.default_quality,
+    typeof quality === "string" ? quality : null,
+  );
 
   const { data: profileRow } = (await (supabase as any)
     .from("profiles")
@@ -235,6 +265,7 @@ export default defineEventHandler(async (event) => {
         trimmedPrompt,
         aspectRatio ?? "1:1",
         allImagesBase64,
+        providerQuality,
       );
     } else if (isGoogle) {
       imageBase64 = await generateWithGoogle(
@@ -243,14 +274,18 @@ export default defineEventHandler(async (event) => {
         trimmedPrompt,
         aspectRatio ?? "1:1",
         allImagesBase64,
+        providerQuality,
       );
     } else {
+      // OpenRouter's /images router: the tier param is a resolution
+      // ("1K"/"2K"/"4K"); providers without a resolution knob ignore it.
       imageBase64 = await generateWithOpenRouter(
         config.openrouterApiKey as string,
         actualModelId,
         trimmedPrompt,
         aspectRatio ?? "1:1",
         allImagesBase64,
+        providerQuality,
       );
     }
   } catch (err: unknown) {
@@ -284,18 +319,28 @@ export default defineEventHandler(async (event) => {
   }
 
   // --- Upload to R2 (tags are already resolving in background) ---
-  const imageBuffer = Buffer.from(
-    imageBase64.replace(/^data:image\/[a-z]+;base64,/, ""),
-    "base64",
-  );
-  const outputPath = `lumiar-generations/${user.id}/${generateStorageFilename("png")}`;
+  // The result is a data URL whose media type may be png/jpeg/webp (raster) or
+  // image/svg+xml (vectorization models). Parse it generically so SVG output
+  // is stored + served with the right extension and content type.
+  const EXT_BY_MIME: Record<string, string> = {
+    "image/png": "png",
+    "image/jpeg": "jpeg",
+    "image/webp": "webp",
+    "image/svg+xml": "svg",
+  };
+  const dataUrlMatch = /^data:([^;]+);base64,([\s\S]*)$/.exec(imageBase64);
+  const outputMime = dataUrlMatch?.[1] ?? "image/png";
+  const base64Payload = dataUrlMatch?.[2] ?? imageBase64;
+  const outputExt = EXT_BY_MIME[outputMime] ?? "png";
+  const imageBuffer = Buffer.from(base64Payload, "base64");
+  const outputPath = `lumiar-generations/${user.id}/${generateStorageFilename(outputExt)}`;
 
   let outputImageUrl: string;
   let autoTags: string[];
   try {
     [outputImageUrl, autoTags] = await Promise.all([
       (async () => {
-        await uploadToR2(r2Config, outputPath, imageBuffer, "image/png");
+        await uploadToR2(r2Config, outputPath, imageBuffer, outputMime);
         return buildCdnUrl(r2Config.cdnUrl, outputPath);
       })(),
       tagsPromise,
@@ -326,6 +371,7 @@ export default defineEventHandler(async (event) => {
       output_image_url: outputImageUrl,
       tokens_used: tokenCost,
       aspect_ratio: aspectRatio ?? "1:1",
+      quality: resolvedQuality,
       parent_id: parentId ?? null,
       metadata: {
         tags: autoTags,
@@ -389,6 +435,7 @@ export default defineEventHandler(async (event) => {
       provider: resolvedProvider,
       tokens_used: tokenCost,
       aspect_ratio: aspectRatio ?? "1:1",
+      quality: resolvedQuality,
       has_input_images: rawBase64Inputs.length > 0 || !!inputImageUrl,
       is_edit: !!parentId,
       generation_id: generationId,

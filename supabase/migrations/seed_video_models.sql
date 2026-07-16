@@ -147,3 +147,20 @@ on conflict (id) do update set
   is_active = excluded.is_active,
   sort_order = excluded.sort_order,
   updated_at = now();
+
+-- Models that support a first+last frame (frame interpolation).
+update video_models set supports_last_frame = true
+where id in (
+  'google/veo-3.1',
+  'google/veo-3.1-fast',
+  'google/veo-3.1-lite',
+  'bytedance/seedance-2.0',
+  'bytedance/seedance-2.0-fast',
+  'bytedance/seedance-1-5-pro',
+  'kwaivgi/kling-v3.0-pro',
+  'kwaivgi/kling-v3.0-std',
+  'kwaivgi/kling-video-o1',
+  'alibaba/wan-2.7',
+  'alibaba/wan-2.6',
+  'minimax/hailuo-2.3'
+);

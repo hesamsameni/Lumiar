@@ -1,4 +1,5 @@
 import type { AIModel } from "~/utils/models";
+import { imageCreditsForQuality } from "~/utils/models";
 import { compressImage } from "~/utils/imageCompression";
 
 function friendlyErrorMessage(err: unknown): {
@@ -124,6 +125,7 @@ export function useGeneration() {
     inputImageFiles?: File[] | null;
     inputImageUrl?: string | null;
     aspectRatio?: string;
+    quality?: string | null;
     parentId?: string | null;
   }) {
     if (!profile.value?.id) {
@@ -135,11 +137,12 @@ export function useGeneration() {
       return null;
     }
 
+    const cost = imageCreditsForQuality(opts.model, opts.quality);
     const balance = profile.value.token_balance ?? 0;
-    if (!profile.value.is_admin && balance < opts.model.tokens_per_generation) {
+    if (!profile.value.is_admin && balance < cost) {
       toast.add({
         title: "Insufficient tokens",
-        description: `This model requires ${opts.model.tokens_per_generation} tokens but you only have ${balance}. Purchase more tokens to continue.`,
+        description: `This model requires ${cost} tokens but you only have ${balance}. Purchase more tokens to continue.`,
         color: "warning",
       });
       return null;
@@ -154,7 +157,8 @@ export function useGeneration() {
       model_name: opts.model.name,
       model_id: opts.model.id,
       provider: opts.model.provider,
-      tokens_required: opts.model.tokens_per_generation,
+      tokens_required: cost,
+      quality: opts.quality ?? "auto",
       has_input_images:
         (opts.inputImageFiles?.length ?? 0) > 0 || !!opts.inputImageUrl,
       aspect_ratio: opts.aspectRatio ?? "1:1",
@@ -215,8 +219,9 @@ export function useGeneration() {
           inputImageUrls:
             inputImageUrls.length > 0 ? inputImageUrls : undefined,
           inputImageUrl: inputImageUrl,
-          tokensUsed: opts.model.tokens_per_generation,
+          tokensUsed: cost,
           aspectRatio: opts.aspectRatio ?? "1:1",
+          quality: opts.quality ?? "auto",
           parentId: opts.parentId ?? null,
         },
         headers: authHeaders,
@@ -232,7 +237,8 @@ export function useGeneration() {
         model_name: opts.model.name,
         model_id: opts.model.id,
         provider: opts.model.provider,
-        tokens_used: opts.model.tokens_per_generation,
+        tokens_used: cost,
+        quality: opts.quality ?? "auto",
         has_input_images:
           (opts.inputImageFiles?.length ?? 0) > 0 || !!opts.inputImageUrl,
         aspect_ratio: opts.aspectRatio ?? "1:1",

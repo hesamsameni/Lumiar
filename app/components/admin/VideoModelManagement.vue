@@ -6,6 +6,7 @@ import type {
 } from "~/utils/videoModels";
 import { VIDEO_TIER_CONFIG } from "~/utils/videoModels";
 import { VIDEO_ASPECT_RATIOS } from "~/utils/constants";
+import type { QualityOption } from "~/utils/quality";
 
 const { session } = useAuthState();
 const toast = useToast();
@@ -29,7 +30,10 @@ type FormShape = {
   duration_seconds: number;
   supported_durations: string;
   resolution: string;
+  resolution_options: QualityOption[];
+  default_resolution: string;
   supports_image_input: boolean;
+  supports_last_frame: boolean;
   supported_aspect_ratios: string[];
   recommended: boolean;
   is_active: boolean;
@@ -47,7 +51,10 @@ const emptyForm = (): FormShape => ({
   duration_seconds: 5,
   supported_durations: "5",
   resolution: "720p",
+  resolution_options: [],
+  default_resolution: "",
   supports_image_input: true,
+  supports_last_frame: false,
   supported_aspect_ratios: ["16:9", "9:16", "1:1"],
   recommended: false,
   is_active: true,
@@ -55,6 +62,22 @@ const emptyForm = (): FormShape => ({
 });
 
 const form = ref<FormShape>(emptyForm());
+
+function addResolutionOption() {
+  form.value.resolution_options.push({
+    value: "",
+    label: "",
+    hint: "",
+    multiplier: 1,
+  });
+}
+function removeResolutionOption(index: number) {
+  const [removed] = form.value.resolution_options.splice(index, 1);
+  if (removed && form.value.default_resolution === removed.value) {
+    form.value.default_resolution =
+      form.value.resolution_options[0]?.value ?? "";
+  }
+}
 
 const authHeaders = computed(() => ({
   Authorization: `Bearer ${session.value?.access_token ?? ""}`,
@@ -93,7 +116,15 @@ function openEdit(model: VideoModel) {
     supported_durations: (model.supported_durations ?? [model.duration_seconds])
       .join(", "),
     resolution: model.resolution,
+    resolution_options: (model.resolution_options ?? []).map((o) => ({
+      value: o.value,
+      label: o.label,
+      hint: o.hint ?? "",
+      multiplier: o.multiplier,
+    })),
+    default_resolution: model.default_resolution ?? "",
     supports_image_input: model.supports_image_input,
+    supports_last_frame: model.supports_last_frame ?? false,
     supported_aspect_ratios: [...(model.supported_aspect_ratios ?? [])],
     recommended: model.recommended ?? false,
     is_active: model.is_active,
@@ -143,7 +174,17 @@ async function saveModel() {
       duration_seconds: Number(form.value.duration_seconds),
       supported_durations: durations,
       resolution: form.value.resolution.trim() || "720p",
+      resolution_options: form.value.resolution_options
+        .filter((o) => o.value.trim())
+        .map((o) => ({
+          value: o.value.trim(),
+          label: o.label.trim() || o.value.trim(),
+          hint: o.hint?.trim() || undefined,
+          multiplier: Number(o.multiplier) || 1,
+        })),
+      default_resolution: form.value.default_resolution.trim() || null,
       supports_image_input: Boolean(form.value.supports_image_input),
+      supports_last_frame: Boolean(form.value.supports_last_frame),
       supported_aspect_ratios: form.value.supported_aspect_ratios,
       recommended: Boolean(form.value.recommended),
       is_active: Boolean(form.value.is_active),
@@ -542,6 +583,85 @@ onMounted(fetchModels);
 
           <USeparator />
 
+          <!-- Resolution tiers -->
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <p
+                class="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider"
+              >
+                Resolution tiers
+              </p>
+              <UButton
+                size="xs"
+                variant="soft"
+                icon="i-lucide-plus"
+                @click="addResolutionOption"
+              >
+                Add tier
+              </UButton>
+            </div>
+            <p class="text-xs text-zinc-400 dark:text-zinc-500">
+              Leave empty for no resolution control. Value is the OpenRouter
+              resolution (e.g. 720p, 1080p). Credits = base × multiplier ×
+              duration.
+            </p>
+
+            <div
+              v-for="(opt, i) in form.resolution_options"
+              :key="i"
+              class="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3 space-y-2"
+            >
+              <div class="flex items-center gap-2">
+                <UInput
+                  v-model="opt.value"
+                  placeholder="value (e.g. 1080p)"
+                  class="flex-1"
+                  size="sm"
+                />
+                <UButton
+                  icon="i-lucide-trash-2"
+                  variant="ghost"
+                  color="error"
+                  size="xs"
+                  @click="removeResolutionOption(i)"
+                />
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <UInput
+                  v-model="opt.label"
+                  placeholder="label (e.g. 1080p · High)"
+                  size="sm"
+                />
+                <UInput
+                  v-model.number="opt.multiplier"
+                  type="number"
+                  step="0.05"
+                  min="0"
+                  placeholder="multiplier"
+                  size="sm"
+                />
+              </div>
+              <UInput
+                v-model="opt.hint"
+                placeholder="hint (e.g. Best for social clips)"
+                size="sm"
+              />
+              <label
+                class="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400 cursor-pointer"
+              >
+                <input
+                  type="radio"
+                  :checked="form.default_resolution === opt.value"
+                  :disabled="!opt.value"
+                  @change="form.default_resolution = opt.value"
+                />
+                Default resolution
+              </label>
+            </div>
+          </div>
+
+          <USeparator />
+
           <!-- Flags -->
           <div class="space-y-3">
             <p
@@ -584,10 +704,23 @@ onMounted(fetchModels);
                     Supports image input
                   </p>
                   <p class="text-xs text-zinc-400 dark:text-zinc-500">
-                    Model accepts a start-frame image (image-to-video)
+                    Model accepts a start-frame / reference image (image-to-video)
                   </p>
                 </div>
                 <USwitch v-model="form.supports_image_input" />
+              </label>
+              <label
+                class="flex items-center justify-between cursor-pointer group"
+              >
+                <div>
+                  <p class="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                    Supports last frame
+                  </p>
+                  <p class="text-xs text-zinc-400 dark:text-zinc-500">
+                    Model accepts an end-frame image (frame interpolation)
+                  </p>
+                </div>
+                <USwitch v-model="form.supports_last_frame" />
               </label>
             </div>
           </div>

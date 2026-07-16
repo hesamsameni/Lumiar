@@ -21,6 +21,8 @@ export async function generateWithGoogle(
   prompt: string,
   aspectRatio: string,
   inputImagesBase64: string[],
+  // Optional Gemini image resolution ("1K" | "2K" | "4K"); omitted -> model default.
+  imageSize?: string | null,
 ): Promise<string> {
   const client = new GoogleGenAI({ apiKey });
 
@@ -75,11 +77,17 @@ export async function generateWithGoogle(
 
   parts.push({ text: prompt });
 
+  // Gemini image resolution + shape are set via imageConfig (imageSize: 1K/2K/4K).
+  const imageConfig: { imageSize?: string; aspectRatio?: string } = {};
+  if (imageSize) imageConfig.imageSize = imageSize;
+  if (aspectRatio && aspectRatio !== "auto") imageConfig.aspectRatio = aspectRatio;
+
   const response = await client.models.generateContent({
     model: modelId,
     contents: [{ role: "user", parts }],
     config: {
       responseModalities: [Modality.IMAGE, Modality.TEXT],
+      ...(Object.keys(imageConfig).length > 0 ? { imageConfig } : {}),
     },
   });
 

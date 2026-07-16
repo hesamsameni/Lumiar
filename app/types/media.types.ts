@@ -12,6 +12,7 @@ export interface ImageGeneration {
   created_at: string;
   is_shared?: boolean;
   aspect_ratio?: string;
+  quality?: string | null;
   metadata?: { tags?: string[] } | null;
   profiles?: { username: string; avatar_url?: string | null };
   likes?: { id: string }[];

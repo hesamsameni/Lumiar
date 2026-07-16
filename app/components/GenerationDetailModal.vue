@@ -42,6 +42,15 @@ const model = computed(() =>
   generation.value ? getModelById(generation.value.model_id as string) : null,
 );
 
+// Friendly label for the quality tier used (resolved via the model's options).
+const qualityLabel = computed(() => {
+  const q = generation.value?.quality as string | null | undefined;
+  if (!q) return null;
+  const opts = model.value?.quality_options ?? [];
+  const found = opts.find((o) => o.value === q);
+  return found?.label ?? q.charAt(0).toUpperCase() + q.slice(1);
+});
+
 const isOwner = computed(
   () =>
     !!authUser.value?.id &&
@@ -537,6 +546,21 @@ watch(
                     }"
                   >
                     {{ model.name }}
+                  </span>
+                </div>
+
+                <!-- Quality -->
+                <div v-if="qualityLabel" class="flex items-center gap-2">
+                  <p
+                    class="text-xs text-zinc-400 dark:text-zinc-500 uppercase tracking-wide"
+                  >
+                    Quality
+                  </p>
+                  <span
+                    class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-lg font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300"
+                  >
+                    <UIcon name="i-lucide-sparkles" class="size-3" />
+                    {{ qualityLabel }}
                   </span>
                 </div>
 

@@ -1,3 +1,5 @@
+import { resolveQualityOption, type QualityOption } from "./quality";
+
 export type VideoModelTier = "low" | "mid" | "high";
 
 // Internal serving route for a video model. All video models are served through
@@ -23,10 +25,15 @@ export interface VideoModel {
   // Clip lengths (seconds) the user can choose from. Credits scale linearly
   // with duration (video providers bill per second).
   supported_durations: number[];
-  // Output resolution label, e.g. "720p" | "1080p".
+  // Default output resolution label, e.g. "720p" | "1080p".
   resolution: string;
-  // Whether the model accepts a reference image (image-to-video).
+  // Selectable resolution tiers (empty = no resolution control). See utils/quality.ts.
+  resolution_options?: QualityOption[];
+  default_resolution?: string | null;
+  // Whether the model accepts a reference / first-frame image (image-to-video).
   supports_image_input: boolean;
+  // Whether the model accepts a last-frame image (frame interpolation).
+  supports_last_frame?: boolean;
   supported_aspect_ratios: string[];
   recommended?: boolean;
   is_active: boolean;
@@ -55,5 +62,31 @@ export function videoCreditsForDuration(
   return Math.max(
     1,
     Math.round((model.tokens_per_generation * seconds) / base),
+  );
+}
+
+// Credits for a clip at the selected duration AND resolution. Resolution scales
+// cost via its option multiplier (on top of the per-second duration scaling).
+export function videoCredits(
+  model: Pick<
+    VideoModel,
+    | "tokens_per_generation"
+    | "duration_seconds"
+    | "resolution_options"
+    | "default_resolution"
+  >,
+  seconds: number,
+  resolution?: string | null,
+): number {
+  const base = model.duration_seconds || 1;
+  const opt = resolveQualityOption(
+    model.resolution_options,
+    model.default_resolution,
+    resolution,
+  );
+  const multiplier = opt?.multiplier ?? 1;
+  return Math.max(
+    1,
+    Math.round((model.tokens_per_generation * seconds * multiplier) / base),
   );
 }

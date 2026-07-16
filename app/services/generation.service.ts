@@ -48,7 +48,7 @@ export function useGenerationService() {
     let query = supabase
       .from("generations")
       .select(
-        "id, output_image_url, prompt, model_name, created_at, metadata, likes(id), is_shared, aspect_ratio",
+        "id, output_image_url, prompt, model_name, created_at, metadata, likes(id), is_shared, aspect_ratio, quality",
       )
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
@@ -71,7 +71,7 @@ export function useGenerationService() {
     let query = supabase
       .from("generations")
       .select(
-        "id, user_id, output_image_url, prompt, model_name, created_at, metadata, likes(id), aspect_ratio",
+        "id, user_id, output_image_url, prompt, model_name, created_at, metadata, likes(id), aspect_ratio, quality",
       )
       .eq("is_shared", true)
       .order("created_at", { ascending: false })
