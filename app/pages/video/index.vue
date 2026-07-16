@@ -9,6 +9,7 @@ const route = useRoute();
 const toast = useToast();
 const supabase = useSupabaseClient();
 const posthog = usePostHog();
+const { isAuthenticated } = useAuthState();
 const { generate, isGenerating, result } = useVideoGeneration();
 const { fetchVideoModels, firstModel, getModelById } = useVideoModels();
 
@@ -191,6 +192,11 @@ function clearImages() {
 }
 
 async function handleGenerate() {
+  if (!isAuthenticated.value) {
+    await navigateTo("/auth/login");
+    return;
+  }
+
   const useFrames = imageMode.value === "frame";
   await generate({
     prompt: prompt.value,
@@ -205,6 +211,11 @@ async function handleGenerate() {
 }
 
 async function polishPrompt() {
+  if (!isAuthenticated.value) {
+    await navigateTo("/auth/login");
+    return;
+  }
+
   if (!prompt.value.trim()) {
     toast.add({ title: "Write a prompt first", color: "warning" });
     return;
