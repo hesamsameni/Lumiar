@@ -61,6 +61,20 @@ watch(selectedModel, () => {
 });
 
 const defaultModelApplied = ref(false);
+
+// Deep-link from Models (?model=...) takes priority over profile default.
+const queryModelId = computed(() => {
+  const q = route.query.model;
+  return typeof q === "string" && q ? q : null;
+});
+if (queryModelId.value) {
+  const fromQuery = getModelById(queryModelId.value);
+  if (fromQuery) {
+    selectedModel.value = fromQuery;
+    defaultModelApplied.value = true;
+  }
+}
+
 watch(
   () => profile.value?.default_model_id,
   (defaultModelId) => {
@@ -74,6 +88,12 @@ watch(
   },
   { immediate: true },
 );
+
+watch(queryModelId, (id) => {
+  if (!id) return;
+  const fromQuery = getModelById(id);
+  if (fromQuery) selectedModel.value = fromQuery;
+});
 
 async function handleSetDefault(modelId: string | null) {
   if (!profile.value?.id) return;

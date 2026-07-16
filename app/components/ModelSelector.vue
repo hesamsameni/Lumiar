@@ -1,5 +1,12 @@
 <script setup lang="ts">
 import type { AIModel } from "~/utils/models";
+import {
+  groupImageModels,
+  IMAGE_COMPANY_ORDER,
+  inferImageMaker,
+  TIER_BADGE,
+  TIER_LABEL,
+} from "~/utils/modelCompanies";
 
 const props = defineProps<{
   modelValue: AIModel;
@@ -13,108 +20,14 @@ const emit = defineEmits<{
 
 const { models } = useModels();
 
-type CompanyKey =
-  | "openai"
-  | "google"
-  | "recraft"
-  | "black-forest-labs"
-  | "bytedance"
-  | "x-ai"
-  | "microsoft"
-  | "sourceful";
-
-const companyMeta: Record<
-  CompanyKey,
-  { label: string; subtitle: string; logo: string }
-> = {
-  google: {
-    label: "Google",
-    subtitle: "Nano Banana family",
-    logo: "/ai-logos/gemini.svg",
-  },
-  openai: {
-    label: "OpenAI",
-    subtitle: "GPT Image family",
-    logo: "/ai-logos/openai.svg",
-  },
-  recraft: {
-    label: "Recraft",
-    subtitle: "Recraft V3 / V4 family",
-    logo: "/ai-logos/recraft.svg",
-  },
-  "black-forest-labs": {
-    label: "Black Forest Labs",
-    subtitle: "FLUX family",
-    logo: "/ai-logos/flux.svg",
-  },
-  bytedance: {
-    label: "Bytedance",
-    subtitle: "Bytedance family",
-    logo: "/ai-logos/bytedance.svg",
-  },
-  "x-ai": {
-    label: "xAI",
-    subtitle: "Grok Imagine family",
-    logo: "/ai-logos/xai.svg",
-  },
-  microsoft: {
-    label: "Microsoft",
-    subtitle: "MAI Image family",
-    logo: "/ai-logos/microsoft.svg",
-  },
-  sourceful: {
-    label: "Sourceful",
-    subtitle: "Riverflow family",
-    logo: "/ai-logos/sourceful.jpeg",
-  },
-};
-
-const companyOrder: CompanyKey[] = [
-  "google",
-  "openai",
-  "microsoft",
-  "recraft",
-  "black-forest-labs",
-  "bytedance",
-  "x-ai",
-  "sourceful",
-];
-
-const COMPANY_ID_MAP: Partial<Record<string, CompanyKey>> = {
-  "bytedance-seed": "bytedance",
-};
-
-const groupedModels = computed(() => {
-  const groups: Record<CompanyKey, AIModel[]> = {
-    openai: [],
-    google: [],
-    microsoft: [],
-    recraft: [],
-    "black-forest-labs": [],
-    bytedance: [],
-    "x-ai": [],
-    sourceful: [],
-  };
-  for (const model of models.value) {
-    const prefix = model.id.split("/")[0] ?? "";
-    const company = (COMPANY_ID_MAP[prefix] ?? prefix) as CompanyKey;
-    if (company in groups) groups[company].push(model);
-  }
-  return companyOrder
-    .map((company) => ({
-      company,
-      ...companyMeta[company],
-      models: groups[company],
-    }))
-    .filter((g) => g.models.length > 0);
-});
+const groupedModels = computed(() => groupImageModels(models.value));
 
 // First group open by default, rest collapsed
-const openGroups = ref<Set<CompanyKey>>(
-  new Set<CompanyKey>([companyOrder[0] as CompanyKey]),
+const openGroups = ref<Set<string>>(
+  new Set<string>([IMAGE_COMPANY_ORDER[0]!]),
 );
 
-function toggleGroup(company: CompanyKey) {
+function toggleGroup(company: string) {
   if (openGroups.value.has(company)) {
     openGroups.value.delete(company);
   } else {
@@ -126,23 +39,13 @@ function toggleGroup(company: CompanyKey) {
 watch(
   () => props.modelValue,
   (model) => {
-    const prefix = model.id.split("/")[0] ?? "";
-    const company = (COMPANY_ID_MAP[prefix] ?? prefix) as CompanyKey;
-    openGroups.value.add(company);
+    openGroups.value.add(inferImageMaker(model));
   },
   { immediate: true },
 );
 
-const tierBadge: Record<string, string> = {
-  high: "bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400",
-  mid: "bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-400",
-  low: "bg-green-100 dark:bg-green-950/50 text-green-700 dark:text-green-400",
-};
-const tierLabel: Record<string, string> = {
-  high: "High",
-  mid: "Mid",
-  low: "Low",
-};
+const tierBadge = TIER_BADGE;
+const tierLabel = TIER_LABEL;
 </script>
 
 <template>
@@ -155,9 +58,10 @@ const tierLabel: Record<string, string> = {
       <!-- Group header (clickable to collapse/expand) -->
       <button
         class="w-full flex items-center gap-2.5 px-3 py-2.5 bg-zinc-50 dark:bg-zinc-900/80 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-colors text-left"
-        @click="toggleGroup(group.company as CompanyKey)"
+        @click="toggleGroup(group.company)"
       >
         <LogoColorMode
+          v-if="group.logo"
           :src="group.logo"
           :alt="`${group.label} logo`"
           class="size-4 shrink-0"
@@ -174,15 +78,13 @@ const tierLabel: Record<string, string> = {
         <UIcon
           name="i-lucide-chevron-down"
           class="size-4 text-zinc-400 transition-transform shrink-0"
-          :class="
-            openGroups.has(group.company as CompanyKey) ? 'rotate-180' : ''
-          "
+          :class="openGroups.has(group.company) ? 'rotate-180' : ''"
         />
       </button>
 
       <!-- Models list -->
       <div
-        v-if="openGroups.has(group.company as CompanyKey)"
+        v-if="openGroups.has(group.company)"
         class="divide-y divide-zinc-100 dark:divide-zinc-800"
       >
         <div
