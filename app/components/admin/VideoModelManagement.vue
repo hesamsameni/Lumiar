@@ -234,7 +234,7 @@ async function toggleActive(model: VideoModel) {
   }
 }
 
-async function deleteModel(id: string) {
+async function deleteModel(id: string): Promise<boolean> {
   deleting.value = id;
   try {
     await $fetch(`/api/admin/video-models/${encodeURIComponent(id)}`, {
@@ -243,12 +243,48 @@ async function deleteModel(id: string) {
     });
     models.value = models.value.filter((m) => m.id !== id);
     toast.add({ title: "Video model deleted", color: "success" });
+    return true;
   } catch {
     toast.add({ title: "Failed to delete model", color: "error" });
+    return false;
   } finally {
     deleting.value = null;
   }
 }
+
+const showDeleteModal = ref(false);
+const pendingDelete = ref<VideoModel | null>(null);
+
+function requestDelete(model: VideoModel) {
+  pendingDelete.value = model;
+  showDeleteModal.value = true;
+}
+
+async function confirmDelete() {
+  if (!pendingDelete.value) return;
+  const ok = await deleteModel(pendingDelete.value.id);
+  if (ok) {
+    showDeleteModal.value = false;
+    pendingDelete.value = null;
+  }
+}
+
+const modelSearch = ref("");
+const hideInactiveModels = ref(false);
+
+const filteredModels = computed(() => {
+  const q = modelSearch.value.trim().toLowerCase();
+  return models.value.filter((m) => {
+    if (hideInactiveModels.value && !m.is_active) return false;
+    if (!q) return true;
+    return (
+      m.name.toLowerCase().includes(q) ||
+      m.id.toLowerCase().includes(q) ||
+      m.provider.toLowerCase().includes(q) ||
+      m.description.toLowerCase().includes(q)
+    );
+  });
+});
 
 const tierBadgeClass: Record<VideoModelTier, string> = {
   high: "bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400",
@@ -267,11 +303,37 @@ onMounted(fetchModels);
 
 <template>
   <div>
-    <!-- Add button -->
-    <div class="flex justify-end mb-5">
+    <AdminModelGuide kind="video" />
+
+    <!-- Toolbar -->
+    <div class="flex flex-col sm:flex-row sm:items-center gap-3 mb-5">
+      <div class="relative flex-1 min-w-0">
+        <UIcon
+          name="i-lucide-search"
+          class="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-zinc-400 pointer-events-none"
+        />
+        <input
+          id="admin-video-model-search"
+          v-model="modelSearch"
+          type="search"
+          aria-label="Search video models"
+          placeholder="Search by name, ID, or provider…"
+          class="w-full pl-9 pr-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-sm outline-none focus:border-primary/40 focus:ring-1 focus:ring-primary/20"
+        />
+      </div>
+      <div
+        class="inline-flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400 whitespace-nowrap select-none"
+      >
+        <USwitch
+          v-model="hideInactiveModels"
+          size="xs"
+          aria-label="Hide inactive video models"
+        />
+        Hide inactive
+      </div>
       <UButton
         icon="i-lucide-plus"
-        class="!bg-gradient-brand !text-white shadow-glow-brand hover:!brightness-110 transition-all"
+        class="!bg-gradient-brand !text-white shadow-glow-brand hover:!brightness-110 transition-all sm:ml-auto"
         @click="openCreate"
         >Add Video Model</UButton
       >
@@ -303,10 +365,18 @@ onMounted(fetchModels);
         </UButton>
       </div>
 
+      <div
+        v-else-if="filteredModels.length === 0"
+        class="flex flex-col items-center justify-center py-16 gap-2 text-zinc-400"
+      >
+        <UIcon name="i-lucide-search-x" class="size-8" />
+        <p class="text-sm">No models match your filters.</p>
+      </div>
+
       <!-- Table -->
       <div
         v-else
-        class="rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden"
+        class="rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-x-auto"
       >
         <table class="w-full text-sm">
           <thead>
@@ -326,9 +396,9 @@ onMounted(fetchModels);
           </thead>
           <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
             <tr
-              v-for="model in models"
+              v-for="model in filteredModels"
               :key="model.id"
-              class="group hover:bg-zinc-50 dark:hover:bg-zinc-900/40 transition-colors"
+              class="hover:bg-zinc-50 dark:hover:bg-zinc-900/40 transition-colors"
               :class="!model.is_active ? 'opacity-40' : ''"
             >
               <td class="px-4 py-3">
@@ -400,7 +470,7 @@ onMounted(fetchModels);
                     variant="ghost"
                     color="neutral"
                     size="xs"
-                    class="opacity-0 group-hover:opacity-100 transition-opacity"
+                    aria-label="Edit video model"
                     @click="openEdit(model)"
                   />
                   <UButton
@@ -409,8 +479,8 @@ onMounted(fetchModels);
                     color="error"
                     size="xs"
                     :loading="deleting === model.id"
-                    class="opacity-0 group-hover:opacity-100 transition-opacity"
-                    @click="deleteModel(model.id)"
+                    aria-label="Delete video model"
+                    @click="requestDelete(model)"
                   />
                 </div>
               </td>
@@ -419,6 +489,17 @@ onMounted(fetchModels);
         </table>
       </div>
     </template>
+
+    <ConfirmModal
+      v-model:open="showDeleteModal"
+      title="Delete video model"
+      :description="`Delete “${pendingDelete?.name ?? ''}”? This removes it from the video picker. Existing generations keep their model id.`"
+      confirm-text="Delete"
+      confirm-color="error"
+      icon="i-lucide-trash-2"
+      :loading="!!deleting"
+      @confirm="confirmDelete"
+    />
 
     <!-- Slideover form panel -->
     <USlideover

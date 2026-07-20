@@ -120,3 +120,14 @@ update video_models set
     {"value":"1080p","label":"1080p · Standard","hint":"Best for crisp, detailed final videos","multiplier":1}
   ]'::jsonb
 where resolution = '1080p';
+
+-- Grok Imagine Video 1.5: OpenRouter bills 480p/720p/1080p separately
+-- ($0.08 / $0.14 / $0.25 per second). Multipliers are relative to 720p.
+update video_models set
+  default_resolution = '720p',
+  resolution_options = '[
+    {"value":"480p","label":"480p · Fast","hint":"Best for cheap drafts & quick previews","multiplier":0.57},
+    {"value":"720p","label":"720p · Standard","hint":"Best for social clips","multiplier":1},
+    {"value":"1080p","label":"1080p · High","hint":"Best for crisp, detailed final videos","multiplier":1.8}
+  ]'::jsonb
+where id = 'x-ai/grok-imagine-video-1.5';

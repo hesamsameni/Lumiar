@@ -230,11 +230,11 @@ async function startCheckout() {
         v-for="pack in PACKS"
         :key="pack.id"
         type="button"
-        class="relative flex flex-col items-center text-center px-4 py-5 rounded-2xl border-2 transition-all focus:outline-none"
+        class="relative flex flex-col items-center text-center px-4 py-5 rounded-2xl border-2 bg-white dark:bg-zinc-900 transition-all focus:outline-none"
         :class="
           selectedPackId === pack.id
-            ? 'border-primary/50 bg-gradient-to-br from-indigo-500/10 via-violet-500/8 to-fuchsia-500/10 ring-1 ring-primary/20 shadow-sm'
-            : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
+            ? 'border-primary/50 ring-1 ring-primary/20 shadow-sm'
+            : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700'
         "
         @click="selectPack(pack.id)"
       >
@@ -315,10 +315,10 @@ async function startCheckout() {
 
     <div class="mb-8">
       <div
-        class="flex items-center gap-2 px-4 py-3 rounded-2xl border-2 transition-all"
+        class="flex items-center gap-2 px-4 py-3 rounded-2xl border-2 bg-white dark:bg-zinc-900 transition-all"
         :class="
           !selectedPackId && customEuros
-            ? 'border-primary/50 bg-gradient-to-br from-indigo-500/10 via-violet-500/8 to-fuchsia-500/10 ring-1 ring-primary/20'
+            ? 'border-primary/50 ring-1 ring-primary/20'
             : 'border-zinc-200 dark:border-zinc-800 focus-within:border-zinc-300 dark:focus-within:border-zinc-700'
         "
       >

@@ -124,12 +124,20 @@ insert into video_models (
     '1080p', true, '{"16:9"}', false, true, 15
   ),
   (
+    'x-ai/grok-imagine-video-1.5', 'Grok Imagine Video 1.5',
+    'xAI image-to-video with stronger motion, physics, and synchronized audio.',
+    'mid', 'openrouter', 170, '~$0.14/s', 5,
+    '{1,2,3,4,5,6,7,8,9,10,11,12,13,14,15}',
+    '720p', true, '{"16:9","9:16","1:1","4:3","3:4","3:2","2:3"}',
+    false, true, 16
+  ),
+  (
     'x-ai/grok-imagine-video', 'Grok Imagine Video',
     'xAI Grok Imagine for quick, flexible short-form video.',
     'low', 'openrouter', 100, '~$0.07/s', 5,
     '{1,2,3,4,5,6,7,8,9,10,11,12,13,14,15}',
     '720p', true, '{"16:9","9:16","1:1","4:3","3:4","3:2","2:3"}',
-    false, true, 16
+    false, true, 17
   )
 on conflict (id) do update set
   name = excluded.name,
