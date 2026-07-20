@@ -45,28 +45,24 @@ useHead({
 
 <template>
   <div class="relative isolate">
-    <section class="relative isolate">
-      <AuroraBackdrop />
-      <div class="max-w-3xl mx-auto px-4 pt-16 sm:pt-24 pb-10 text-center">
-        <span
-          class="inline-flex items-center gap-1.5 mb-5 rounded-full border border-zinc-200/80 dark:border-zinc-700/60 bg-white/60 dark:bg-zinc-900/50 backdrop-blur px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400"
-        >
-          <UIcon name="i-lucide-wand-2" class="size-3 text-primary" />
-          AI Tools
-        </span>
-        <h1
-          class="font-display text-4xl sm:text-5xl font-bold tracking-tight leading-[1.05] mb-4"
-        >
-          AI tools for
-          <span class="text-gradient-brand animate-gradient-pan"
-            >every idea</span
-          >
-        </h1>
-        <p class="text-base sm:text-lg text-zinc-500 dark:text-zinc-400">
-          Purpose-built AI image and photo tools — pick one and create in
-          seconds.
-        </p>
-      </div>
+    <AuroraBackdrop />
+
+    <section class="max-w-3xl mx-auto px-4 pt-16 sm:pt-24 pb-10 text-center">
+      <span
+        class="inline-flex items-center gap-1.5 mb-5 rounded-full border border-zinc-200/80 dark:border-zinc-700/60 bg-white dark:bg-zinc-900 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400"
+      >
+        <UIcon name="i-lucide-wand-2" class="size-3 text-primary" />
+        AI Tools
+      </span>
+      <h1
+        class="font-display text-4xl sm:text-5xl font-bold tracking-tight leading-[1.05] mb-4"
+      >
+        AI tools for
+        <span class="text-gradient-brand animate-gradient-pan">every idea</span>
+      </h1>
+      <p class="text-base sm:text-lg text-zinc-500 dark:text-zinc-400">
+        Purpose-built AI image and photo tools — pick one and create in seconds.
+      </p>
     </section>
 
     <section class="max-w-6xl mx-auto px-4 pb-20">

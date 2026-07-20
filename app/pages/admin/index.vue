@@ -194,7 +194,7 @@ async function toggleActive(model: AIModel) {
   }
 }
 
-async function deleteModel(id: string) {
+async function deleteModel(id: string): Promise<boolean> {
   deleting.value = id;
   try {
     await $fetch(`/api/admin/models/${encodeURIComponent(id)}`, {
@@ -203,12 +203,48 @@ async function deleteModel(id: string) {
     });
     models.value = models.value.filter((m) => m.id !== id);
     toast.add({ title: "Model deleted", color: "success" });
+    return true;
   } catch {
     toast.add({ title: "Failed to delete model", color: "error" });
+    return false;
   } finally {
     deleting.value = null;
   }
 }
+
+const showDeleteModal = ref(false);
+const pendingDelete = ref<AIModel | null>(null);
+
+function requestDelete(model: AIModel) {
+  pendingDelete.value = model;
+  showDeleteModal.value = true;
+}
+
+async function confirmDelete() {
+  if (!pendingDelete.value) return;
+  const ok = await deleteModel(pendingDelete.value.id);
+  if (ok) {
+    showDeleteModal.value = false;
+    pendingDelete.value = null;
+  }
+}
+
+const modelSearch = ref("");
+const hideInactiveModels = ref(false);
+
+const filteredModels = computed(() => {
+  const q = modelSearch.value.trim().toLowerCase();
+  return models.value.filter((m) => {
+    if (hideInactiveModels.value && !m.is_active) return false;
+    if (!q) return true;
+    return (
+      m.name.toLowerCase().includes(q) ||
+      m.id.toLowerCase().includes(q) ||
+      m.provider.toLowerCase().includes(q) ||
+      m.description.toLowerCase().includes(q)
+    );
+  });
+});
 
 const tierBadgeClass: Record<ModelTier, string> = {
   high: "bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400",
@@ -229,9 +265,40 @@ const providerOptions: { label: string; value: ModelProvider; icon: string }[] =
     { label: "Google", value: "google", icon: "i-lucide-brain-circuit" },
   ];
 
-const activeTab = ref<
-  "models" | "video-models" | "prompts" | "users" | "landing"
->("models");
+type AdminTab = "models" | "video-models" | "prompts" | "users" | "landing";
+const ADMIN_TABS: AdminTab[] = [
+  "models",
+  "video-models",
+  "prompts",
+  "landing",
+  "users",
+];
+
+const route = useRoute();
+const router = useRouter();
+
+function isAdminTab(value: unknown): value is AdminTab {
+  return typeof value === "string" && (ADMIN_TABS as string[]).includes(value);
+}
+
+const activeTab = computed<AdminTab>({
+  get: () => (isAdminTab(route.query.tab) ? route.query.tab : "models"),
+  set: (tab) => {
+    router.replace({ query: { ...route.query, tab } });
+  },
+});
+
+const tabItems: { id: AdminTab; label: string; icon: string }[] = [
+  { id: "models", label: "AI Models", icon: "i-lucide-cpu" },
+  {
+    id: "video-models",
+    label: "Video Models",
+    icon: "i-lucide-clapperboard",
+  },
+  { id: "prompts", label: "Prompt Library", icon: "i-lucide-library" },
+  { id: "landing", label: "Landing Pages", icon: "i-lucide-wand-2" },
+  { id: "users", label: "Users", icon: "i-lucide-users" },
+];
 
 await fetchModels();
 </script>
@@ -259,36 +326,19 @@ await fetchModels();
 
     <!-- Tab switcher -->
     <div
-      class="flex items-center gap-0.5 p-1 rounded-full bg-zinc-100/70 dark:bg-zinc-900/60 border border-zinc-200/60 dark:border-zinc-800/60 mb-8 w-fit"
+      class="flex items-center gap-0.5 p-1 rounded-full bg-zinc-100/70 dark:bg-zinc-900/60 border border-zinc-200/60 dark:border-zinc-800/60 mb-8 w-fit max-w-full overflow-x-auto"
     >
       <button
-        v-for="tab in [
-          { id: 'models', label: 'AI Models', icon: 'i-lucide-cpu' },
-          {
-            id: 'video-models',
-            label: 'Video Models',
-            icon: 'i-lucide-clapperboard',
-          },
-          { id: 'prompts', label: 'Prompt Library', icon: 'i-lucide-library' },
-          { id: 'landing', label: 'Landing Pages', icon: 'i-lucide-wand-2' },
-          { id: 'users', label: 'Users', icon: 'i-lucide-users' },
-        ]"
+        v-for="tab in tabItems"
         :key="tab.id"
         type="button"
-        class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-medium transition-all"
+        class="flex shrink-0 items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all"
         :class="
           activeTab === tab.id
             ? 'bg-white dark:bg-zinc-800 shadow-sm ring-1 ring-zinc-200/70 dark:ring-zinc-700/60'
             : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
         "
-        @click="
-          activeTab = tab.id as
-            | 'models'
-            | 'video-models'
-            | 'prompts'
-            | 'users'
-            | 'landing'
-        "
+        @click="activeTab = tab.id"
       >
         <UIcon
           :name="tab.icon"
@@ -303,11 +353,39 @@ await fetchModels();
 
     <!-- ── AI Models tab ── -->
     <div v-show="activeTab === 'models'">
-      <!-- Add button -->
-      <div class="flex justify-end mb-5">
+      <AdminModelGuide kind="image" />
+
+      <!-- Toolbar -->
+      <div
+        class="flex flex-col sm:flex-row sm:items-center gap-3 mb-5"
+      >
+        <div class="relative flex-1 min-w-0">
+          <UIcon
+            name="i-lucide-search"
+            class="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-zinc-400 pointer-events-none"
+          />
+          <input
+            id="admin-image-model-search"
+            v-model="modelSearch"
+            type="search"
+            aria-label="Search image models"
+            placeholder="Search by name, ID, or provider…"
+            class="w-full pl-9 pr-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-sm outline-none focus:border-primary/40 focus:ring-1 focus:ring-primary/20"
+          />
+        </div>
+        <div
+          class="inline-flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400 whitespace-nowrap select-none"
+        >
+          <USwitch
+            v-model="hideInactiveModels"
+            size="xs"
+            aria-label="Hide inactive image models"
+          />
+          Hide inactive
+        </div>
         <UButton
           icon="i-lucide-plus"
-          class="!bg-gradient-brand !text-white shadow-glow-brand hover:!brightness-110 transition-all"
+          class="!bg-gradient-brand !text-white shadow-glow-brand hover:!brightness-110 transition-all sm:ml-auto"
           @click="openCreate"
           >Add Model</UButton
         >
@@ -339,10 +417,18 @@ await fetchModels();
           </UButton>
         </div>
 
+        <div
+          v-else-if="filteredModels.length === 0"
+          class="flex flex-col items-center justify-center py-16 gap-2 text-zinc-400"
+        >
+          <UIcon name="i-lucide-search-x" class="size-8" />
+          <p class="text-sm">No models match your filters.</p>
+        </div>
+
         <!-- Table -->
         <div
           v-else
-          class="rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden"
+          class="rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-x-auto"
         >
           <table class="w-full text-sm">
             <thead>
@@ -365,9 +451,9 @@ await fetchModels();
             </thead>
             <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
               <tr
-                v-for="model in models"
+                v-for="model in filteredModels"
                 :key="model.id"
-                class="group hover:bg-zinc-50 dark:hover:bg-zinc-900/40 transition-colors"
+                class="hover:bg-zinc-50 dark:hover:bg-zinc-900/40 transition-colors"
                 :class="!model.is_active ? 'opacity-40' : ''"
               >
                 <td class="px-4 py-3">
@@ -435,7 +521,7 @@ await fetchModels();
                       variant="ghost"
                       color="neutral"
                       size="xs"
-                      class="opacity-0 group-hover:opacity-100 transition-opacity"
+                      aria-label="Edit model"
                       @click="openEdit(model)"
                     />
                     <UButton
@@ -444,8 +530,8 @@ await fetchModels();
                       color="error"
                       size="xs"
                       :loading="deleting === model.id"
-                      class="opacity-0 group-hover:opacity-100 transition-opacity"
-                      @click="deleteModel(model.id)"
+                      aria-label="Delete model"
+                      @click="requestDelete(model)"
                     />
                   </div>
                 </td>
@@ -454,6 +540,17 @@ await fetchModels();
           </table>
         </div>
       </template>
+
+      <ConfirmModal
+        v-model:open="showDeleteModal"
+        title="Delete model"
+        :description="`Delete “${pendingDelete?.name ?? ''}”? This removes it from the picker. Existing generations keep their model id.`"
+        confirm-text="Delete"
+        confirm-color="error"
+        icon="i-lucide-trash-2"
+        :loading="!!deleting"
+        @confirm="confirmDelete"
+      />
 
       <!-- Slideover form panel -->
       <USlideover

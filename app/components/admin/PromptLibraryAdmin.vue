@@ -132,7 +132,7 @@ async function saveCat() {
   }
 }
 
-async function deleteCat(id: string) {
+async function deleteCat(id: string): Promise<boolean> {
   deletingCat.value = id;
   try {
     await $fetch(
@@ -141,10 +141,29 @@ async function deleteCat(id: string) {
     );
     categories.value = categories.value.filter((c) => c.id !== id);
     toast.add({ title: "Category deleted", color: "success" });
+    return true;
   } catch {
     toast.add({ title: "Failed to delete category", color: "error" });
+    return false;
   } finally {
     deletingCat.value = null;
+  }
+}
+
+const showDeleteCatModal = ref(false);
+const pendingDeleteCat = ref<PromptCategory | null>(null);
+
+function requestDeleteCat(cat: PromptCategory) {
+  pendingDeleteCat.value = cat;
+  showDeleteCatModal.value = true;
+}
+
+async function confirmDeleteCat() {
+  if (!pendingDeleteCat.value) return;
+  const ok = await deleteCat(pendingDeleteCat.value.id);
+  if (ok) {
+    showDeleteCatModal.value = false;
+    pendingDeleteCat.value = null;
   }
 }
 
@@ -320,7 +339,7 @@ async function savePrompt() {
   }
 }
 
-async function deletePrompt(id: string) {
+async function deletePrompt(id: string): Promise<boolean> {
   deletingPrompt.value = id;
   try {
     await $fetch(
@@ -329,10 +348,29 @@ async function deletePrompt(id: string) {
     );
     prompts.value = prompts.value.filter((p) => p.id !== id);
     toast.add({ title: "Prompt deleted", color: "success" });
+    return true;
   } catch {
     toast.add({ title: "Failed to delete prompt", color: "error" });
+    return false;
   } finally {
     deletingPrompt.value = null;
+  }
+}
+
+const showDeletePromptModal = ref(false);
+const pendingDeletePrompt = ref<PromptItem | null>(null);
+
+function requestDeletePrompt(prompt: PromptItem) {
+  pendingDeletePrompt.value = prompt;
+  showDeletePromptModal.value = true;
+}
+
+async function confirmDeletePrompt() {
+  if (!pendingDeletePrompt.value) return;
+  const ok = await deletePrompt(pendingDeletePrompt.value.id);
+  if (ok) {
+    showDeletePromptModal.value = false;
+    pendingDeletePrompt.value = null;
   }
 }
 
@@ -448,7 +486,7 @@ await Promise.all([fetchCategories(), fetchPrompts()]);
                     variant="ghost"
                     color="neutral"
                     size="xs"
-                    class="opacity-0 group-hover:opacity-100 transition-opacity"
+                    aria-label="Edit category"
                     @click="openEditCat(cat)"
                   />
                   <UButton
@@ -457,8 +495,8 @@ await Promise.all([fetchCategories(), fetchPrompts()]);
                     color="error"
                     size="xs"
                     :loading="deletingCat === cat.id"
-                    class="opacity-0 group-hover:opacity-100 transition-opacity"
-                    @click="deleteCat(cat.id)"
+                    aria-label="Delete category"
+                    @click="requestDeleteCat(cat)"
                   />
                 </div>
               </td>
@@ -593,7 +631,7 @@ await Promise.all([fetchCategories(), fetchPrompts()]);
                     variant="ghost"
                     color="neutral"
                     size="xs"
-                    class="opacity-0 group-hover:opacity-100 transition-opacity"
+                    aria-label="Edit prompt"
                     @click="openEditPrompt(p)"
                   />
                   <UButton
@@ -602,8 +640,8 @@ await Promise.all([fetchCategories(), fetchPrompts()]);
                     color="error"
                     size="xs"
                     :loading="deletingPrompt === p.id"
-                    class="opacity-0 group-hover:opacity-100 transition-opacity"
-                    @click="deletePrompt(p.id)"
+                    aria-label="Delete prompt"
+                    @click="requestDeletePrompt(p)"
                   />
                 </div>
               </td>
@@ -612,6 +650,28 @@ await Promise.all([fetchCategories(), fetchPrompts()]);
         </table>
       </div>
     </div>
+
+    <ConfirmModal
+      v-model:open="showDeleteCatModal"
+      title="Delete category"
+      :description="`Delete “${pendingDeleteCat?.name ?? ''}”? Prompts in this category may become orphaned or fail to load.`"
+      confirm-text="Delete"
+      confirm-color="error"
+      icon="i-lucide-trash-2"
+      :loading="!!deletingCat"
+      @confirm="confirmDeleteCat"
+    />
+
+    <ConfirmModal
+      v-model:open="showDeletePromptModal"
+      title="Delete prompt"
+      :description="`Delete “${pendingDeletePrompt?.title ?? ''}”? This cannot be undone.`"
+      confirm-text="Delete"
+      confirm-color="error"
+      icon="i-lucide-trash-2"
+      :loading="!!deletingPrompt"
+      @confirm="confirmDeletePrompt"
+    />
 
     <!-- ── Category Slideover ── -->
     <USlideover

@@ -236,7 +236,6 @@ await fetchUsers();
                     variant="ghost"
                     color="neutral"
                     size="xs"
-                    class="opacity-0 group-hover:opacity-100 transition-opacity"
                     @click="openAddCredits(user)"
                   >
                     Add Credits

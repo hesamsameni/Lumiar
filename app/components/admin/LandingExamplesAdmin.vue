@@ -195,7 +195,7 @@ async function toggleActive(item: LandingExample) {
   }
 }
 
-async function remove(id: string) {
+async function remove(id: string): Promise<boolean> {
   deleting.value = id;
   try {
     await $fetch(`/api/admin/landing-examples/${id}`, {
@@ -204,10 +204,29 @@ async function remove(id: string) {
     });
     items.value = items.value.filter((i) => i.id !== id);
     toast.add({ title: "Image removed", color: "success" });
+    return true;
   } catch {
     toast.add({ title: "Failed to delete", color: "error" });
+    return false;
   } finally {
     deleting.value = null;
+  }
+}
+
+const showDeleteModal = ref(false);
+const pendingDelete = ref<LandingExample | null>(null);
+
+function requestDelete(item: LandingExample) {
+  pendingDelete.value = item;
+  showDeleteModal.value = true;
+}
+
+async function confirmDelete() {
+  if (!pendingDelete.value) return;
+  const ok = await remove(pendingDelete.value.id);
+  if (ok) {
+    showDeleteModal.value = false;
+    pendingDelete.value = null;
   }
 }
 
@@ -374,9 +393,7 @@ onMounted(fetchItems);
               class="w-full h-full object-cover"
             />
             <!-- Reorder controls -->
-            <div
-              class="absolute top-2 left-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
-            >
+            <div class="absolute top-2 left-2 flex flex-col gap-1">
               <button
                 type="button"
                 :disabled="idx === 0"
@@ -432,7 +449,8 @@ onMounted(fetchItems);
                   color="error"
                   size="xs"
                   :loading="deleting === item.id"
-                  @click="remove(item.id)"
+                  aria-label="Delete image"
+                  @click="requestDelete(item)"
                 />
               </div>
             </div>
@@ -440,6 +458,17 @@ onMounted(fetchItems);
         </div>
       </div>
     </template>
+
+    <ConfirmModal
+      v-model:open="showDeleteModal"
+      title="Remove landing image"
+      :description="`Remove this image from “${selectedUseCase?.heading ?? 'landing page'}”? This cannot be undone.`"
+      confirm-text="Remove"
+      confirm-color="error"
+      icon="i-lucide-trash-2"
+      :loading="!!deleting"
+      @confirm="confirmDelete"
+    />
 
     <!-- Add / Edit slideover -->
     <USlideover
