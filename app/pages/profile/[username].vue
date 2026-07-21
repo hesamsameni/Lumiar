@@ -309,6 +309,18 @@ const groupedGenerations = computed(() => {
   return groups;
 });
 
+/** CSS aspect-ratio for select-mode tiles (matches masonry cards). */
+function mediaAspectStyle(item: MediaItem): { aspectRatio: string } {
+  const ar = item.aspect_ratio;
+  if (ar && ar !== "auto") {
+    const [w, h] = ar.split(":").map(Number);
+    if (w && h) return { aspectRatio: `${w} / ${h}` };
+  }
+  return {
+    aspectRatio: item.media_type === "video" ? "16 / 9" : "1 / 1",
+  };
+}
+
 const filterEmptyMessage = computed(() => {
   if (!isOwnProfile.value) return "No shared images yet";
   if (activeTab.value === "shared") return "No shared generations yet";
@@ -708,22 +720,25 @@ const firstSelectedImageUrl = computed(() => {
               {{ group.label }}
             </p>
             <div
-              class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 grid-flow-row-dense auto-rows-[168px] sm:auto-rows-[190px] lg:auto-rows-[210px]"
+              class="columns-2 sm:columns-3 md:columns-4 lg:columns-5 gap-3"
             >
               <div
-                v-for="(gen, gidx) in group.items"
+                v-for="gen in group.items"
                 :key="(gen as any).id"
-                class="relative group/tile"
-                :class="mosaicSpan(gidx)"
+                class="relative group/tile mb-3 break-inside-avoid"
               >
                 <!-- Selection overlay -->
                 <template v-if="isSelectMode">
                   <button
-                    class="block w-full h-full rounded-2xl overflow-hidden focus:outline-none"
+                    class="block w-full rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 focus:outline-none"
+                    :style="mediaAspectStyle(gen)"
                     @click="toggleSelect((gen as any).id)"
                   >
                     <img
-                      :src="(gen as any).output_image_url"
+                      :src="
+                        (gen as any).output_image_url ||
+                        (gen as any).thumbnail_url
+                      "
                       :alt="(gen as any).prompt"
                       class="w-full h-full object-cover transition-opacity duration-150"
                       :class="
@@ -757,7 +772,7 @@ const firstSelectedImageUrl = computed(() => {
                     :item="gen"
                     :show-author="false"
                     :is-owner="isOwnProfile"
-                    :fill="true"
+                    :masonry="true"
                     :initial-is-liked="likedIds.has(gen.id)"
                     @deleted="handleDeleted"
                     @share-toggled="handleShareToggled"

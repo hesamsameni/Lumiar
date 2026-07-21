@@ -41,6 +41,8 @@ export default defineEventHandler(async (event) => {
     // Multi-image fields
     inputImagesBase64,
     inputImageUrls,
+    // CDN library picks (already in R2 — resolve server-side, no re-upload)
+    libraryImageUrls,
     aspectRatio,
     quality,
     parentId,
@@ -112,30 +114,32 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  // Validate the editing URL (legacy single, server-resolved)
-  if (inputImageUrl != null) {
-    if (typeof inputImageUrl !== "string") {
-      throw createError({
-        statusCode: 400,
-        message: "Invalid input image URL",
-      });
+  function assertHttpUrl(value: unknown, label: string): string {
+    if (typeof value !== "string") {
+      throw createError({ statusCode: 400, message: `Invalid ${label}` });
     }
     let parsedUrl: URL;
     try {
-      parsedUrl = new URL(inputImageUrl);
+      parsedUrl = new URL(value);
     } catch {
-      throw createError({
-        statusCode: 400,
-        message: "Invalid input image URL",
-      });
+      throw createError({ statusCode: 400, message: `Invalid ${label}` });
     }
     if (!["http:", "https:"].includes(parsedUrl.protocol)) {
-      throw createError({
-        statusCode: 400,
-        message: "Invalid input image URL",
-      });
+      throw createError({ statusCode: 400, message: `Invalid ${label}` });
     }
+    return value;
   }
+
+  // Validate the editing URL (legacy single, server-resolved)
+  if (inputImageUrl != null) {
+    assertHttpUrl(inputImageUrl, "input image URL");
+  }
+
+  const libraryUrls: string[] = Array.isArray(libraryImageUrls)
+    ? (libraryImageUrls as unknown[])
+        .map((u) => assertHttpUrl(u, "library image URL"))
+        .slice(0, 8)
+    : [];
   if (aspectRatio != null && typeof aspectRatio !== "string") {
     throw createError({ statusCode: 400, message: "Invalid aspect ratio" });
   }
@@ -253,8 +257,22 @@ export default defineEventHandler(async (event) => {
       r2Config,
     ).catch(() => null);
 
+    const resolvedLibraryBase64 = (
+      await Promise.all(
+        libraryUrls.map((url) =>
+          resolveInputImageBase64(
+            null,
+            url,
+            INPUT_IMAGE_REQUEST_HEADERS,
+            r2Config,
+          ).catch(() => null),
+        ),
+      )
+    ).filter((v): v is string => !!v);
+
     const allImagesBase64: string[] = [
       ...(resolvedEditingBase64 ? [resolvedEditingBase64] : []),
+      ...resolvedLibraryBase64,
       ...rawBase64Inputs,
     ];
 
@@ -356,6 +374,7 @@ export default defineEventHandler(async (event) => {
   // For multi-image: store first CDN URL in the dedicated column; all URLs in metadata.
   const allInputCdnUrls: string[] = [
     ...(inputImageUrl ? [inputImageUrl as string] : []),
+    ...libraryUrls,
     ...(Array.isArray(inputImageUrls) ? (inputImageUrls as string[]) : []),
   ];
   const primaryInputUrl = allInputCdnUrls[0] ?? null;
@@ -436,7 +455,8 @@ export default defineEventHandler(async (event) => {
       tokens_used: tokenCost,
       aspect_ratio: aspectRatio ?? "1:1",
       quality: resolvedQuality,
-      has_input_images: rawBase64Inputs.length > 0 || !!inputImageUrl,
+      has_input_images:
+        rawBase64Inputs.length > 0 || !!inputImageUrl || libraryUrls.length > 0,
       is_edit: !!parentId,
       generation_id: generationId,
     },

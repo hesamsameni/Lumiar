@@ -27,6 +27,9 @@ const prompt = ref("");
 const selectedModel = ref<AIModel>(firstModel.value!);
 const inputFiles = ref<File[]>([]);
 const inputPreviewUrls = ref<string[]>([]);
+/** CDN URLs picked from the media library (no re-upload). */
+const libraryImageUrls = ref<string[]>([]);
+const showMediaPicker = ref(false);
 const selectedAspectRatio = ref(ASPECT_RATIOS[0]!);
 const selectedQuality = ref<string>("auto");
 const editingImageUrl = ref<string | null>(null);
@@ -114,10 +117,16 @@ async function handleSetDefault(modelId: string | null) {
 }
 
 const maxImages = computed(() => selectedModel.value.max_image_inputs ?? 1);
-const canAddMore = computed(() => {
-  const editingSlots = editingImageUrl.value ? 1 : 0;
-  return inputFiles.value.length + editingSlots < maxImages.value;
-});
+const usedImageSlots = computed(
+  () =>
+    inputFiles.value.length +
+    libraryImageUrls.value.length +
+    (editingImageUrl.value ? 1 : 0),
+);
+const canAddMore = computed(() => usedImageSlots.value < maxImages.value);
+const remainingImageSlots = computed(() =>
+  Math.max(0, maxImages.value - usedImageSlots.value),
+);
 
 const generatingAspect = computed(() => {
   const v = selectedAspectRatio.value.value;
@@ -155,7 +164,9 @@ async function handleGenerate() {
 
   if (
     !selectedModel.value.supports_image_input &&
-    (inputFiles.value.length > 0 || editingImageUrl.value)
+    (inputFiles.value.length > 0 ||
+      libraryImageUrls.value.length > 0 ||
+      editingImageUrl.value)
   ) {
     toast.add({
       title: "Selected model does not support image input",
@@ -171,6 +182,8 @@ async function handleGenerate() {
     model: selectedModel.value,
     inputImageFiles: inputFiles.value.length > 0 ? inputFiles.value : null,
     inputImageUrl: editingImageUrl.value,
+    libraryImageUrls:
+      libraryImageUrls.value.length > 0 ? libraryImageUrls.value : null,
     aspectRatio: selectedAspectRatio.value.value,
     quality: selectedQuality.value,
     parentId: editingGenerationId.value,
@@ -182,6 +195,7 @@ function handleEditResult(imageUrl: string, generationId: string) {
   editingGenerationId.value = generationId;
   inputFiles.value = [];
   inputPreviewUrls.value = [];
+  libraryImageUrls.value = [];
   prompt.value = "";
   result.value = null;
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -191,6 +205,7 @@ function handleStartOver() {
   prompt.value = "";
   inputFiles.value = [];
   inputPreviewUrls.value = [];
+  libraryImageUrls.value = [];
   editingImageUrl.value = null;
   editingGenerationId.value = null;
   result.value = null;
@@ -247,9 +262,49 @@ function removeFile(index: number) {
   inputPreviewUrls.value = inputPreviewUrls.value.filter((_, i) => i !== index);
 }
 
+function removeLibraryImage(index: number) {
+  libraryImageUrls.value = libraryImageUrls.value.filter((_, i) => i !== index);
+}
+
+async function openMediaPicker() {
+  if (!canAddMore.value || isProcessingImage.value) return;
+  if (!isAuthenticated.value) {
+    await navigateTo("/auth/login");
+    return;
+  }
+  showMediaPicker.value = true;
+}
+
+function onMediaPicked(result: {
+  source: "device" | "library";
+  files?: File[];
+  urls?: string[];
+}) {
+  if (result.source === "device" && result.files?.length) {
+    for (const file of result.files) {
+      if (usedImageSlots.value >= maxImages.value) break;
+      handleFile(file);
+    }
+    return;
+  }
+  if (result.source === "library" && result.urls?.length) {
+    for (const url of result.urls) {
+      if (usedImageSlots.value >= maxImages.value) break;
+      if (
+        libraryImageUrls.value.includes(url) ||
+        editingImageUrl.value === url
+      ) {
+        continue;
+      }
+      libraryImageUrls.value = [...libraryImageUrls.value, url];
+    }
+  }
+}
+
 function clearAll() {
   inputFiles.value = [];
   inputPreviewUrls.value = [];
+  libraryImageUrls.value = [];
   editingImageUrl.value = null;
   editingGenerationId.value = null;
   if (fileInput.value) fileInput.value.value = "";
@@ -357,7 +412,11 @@ function getRatioStyle(value: string): Record<string, string> {
       >
       <!-- Attached images preview -->
       <div
-        v-if="inputPreviewUrls.length > 0 || editingImageUrl"
+        v-if="
+          inputPreviewUrls.length > 0 ||
+          libraryImageUrls.length > 0 ||
+          editingImageUrl
+        "
         class="border-b border-zinc-100 dark:border-zinc-800"
       >
         <div class="flex items-start gap-2 p-3 flex-wrap">
@@ -383,10 +442,30 @@ function getRatioStyle(value: string): Record<string, string> {
             </div>
           </div>
 
+          <!-- Library CDN thumbnails -->
+          <div
+            v-for="(url, idx) in libraryImageUrls"
+            :key="`lib-${url}-${idx}`"
+            class="relative group flex-shrink-0"
+          >
+            <img
+              :src="url"
+              :alt="`Library image ${idx + 1}`"
+              class="size-20 object-cover rounded-lg border border-zinc-200 dark:border-zinc-700"
+            />
+            <button
+              type="button"
+              class="absolute top-1 right-1 size-4 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors opacity-0 group-hover:opacity-100"
+              @click="removeLibraryImage(idx)"
+            >
+              <UIcon name="i-lucide-x" class="size-2.5" />
+            </button>
+          </div>
+
           <!-- Uploaded file thumbnails -->
           <div
             v-for="(url, idx) in inputPreviewUrls"
-            :key="idx"
+            :key="`file-${idx}`"
             class="relative group flex-shrink-0"
           >
             <img
@@ -409,7 +488,7 @@ function getRatioStyle(value: string): Record<string, string> {
             type="button"
             :disabled="isProcessingImage"
             class="size-20 flex-shrink-0 flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-600 text-zinc-400 dark:text-zinc-500 hover:border-primary/60 hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            @click="fileInput?.click()"
+            @click="openMediaPicker"
           >
             <UIcon
               :name="isProcessingImage ? 'i-lucide-loader-2' : 'i-lucide-plus'"
@@ -505,7 +584,7 @@ function getRatioStyle(value: string): Record<string, string> {
                 : `Max ${maxImages} image${maxImages > 1 ? 's' : ''} reached`
             "
             class="size-9 rounded-xl flex items-center justify-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-40 flex-shrink-0"
-            @click="fileInput?.click()"
+            @click="openMediaPicker"
           >
             <UIcon
               :name="
@@ -804,6 +883,13 @@ function getRatioStyle(value: string): Record<string, string> {
       :multiple="maxImages > 1"
       class="hidden"
       @change="onFileChange"
+    />
+
+    <MediaPickerModal
+      v-model:open="showMediaPicker"
+      :max-select="remainingImageSlots || 1"
+      title="Add reference image"
+      @select="onMediaPicked"
     />
 
     <PromptLibrarySlideover

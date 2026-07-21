@@ -281,20 +281,22 @@ const feedItems = computed<MediaItem[]>(() => {
 
     <div v-else>
       <div
-        class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 grid-flow-row-dense auto-rows-[168px] sm:auto-rows-[190px] lg:auto-rows-[210px]"
+        class="columns-2 sm:columns-3 lg:columns-4 xl:columns-5 gap-3"
       >
-        <MediaCard
+        <div
           v-for="(item, idx) in feedItems"
           :key="item.id"
-          :item="item"
-          :show-author="true"
-          :fill="true"
-          :initial-is-liked="likedIds.has(item.id)"
-          class="animate-fade-up"
-          :class="mosaicSpan(idx)"
+          class="mb-3 break-inside-avoid animate-fade-up"
           :style="{ animationDelay: `${(idx % 12) * 40}ms` }"
-          @preview="openPreview"
-        />
+        >
+          <MediaCard
+            :item="item"
+            :show-author="true"
+            :masonry="true"
+            :initial-is-liked="likedIds.has(item.id)"
+            @preview="openPreview"
+          />
+        </div>
       </div>
 
       <div v-if="hasMore && mediaFilter !== 'video'" class="text-center mt-8">

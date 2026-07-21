@@ -123,7 +123,10 @@ export function useGeneration() {
     prompt: string;
     model: AIModel;
     inputImageFiles?: File[] | null;
+    /** Existing CDN URL used as the primary/edit source (resolved server-side). */
     inputImageUrl?: string | null;
+    /** Extra CDN library picks — resolved server-side, no re-upload. */
+    libraryImageUrls?: string[] | null;
     aspectRatio?: string;
     quality?: string | null;
     parentId?: string | null;
@@ -160,14 +163,17 @@ export function useGeneration() {
       tokens_required: cost,
       quality: opts.quality ?? "auto",
       has_input_images:
-        (opts.inputImageFiles?.length ?? 0) > 0 || !!opts.inputImageUrl,
+        (opts.inputImageFiles?.length ?? 0) > 0 ||
+        !!opts.inputImageUrl ||
+        (opts.libraryImageUrls?.length ?? 0) > 0,
       aspect_ratio: opts.aspectRatio ?? "1:1",
       is_edit: !!opts.parentId,
     });
 
     try {
-      let inputImageUrl: string | null = opts.inputImageUrl ?? null;
-      // Arrays for multi-image support
+      const inputImageUrl: string | null = opts.inputImageUrl ?? null;
+      const libraryImageUrls = (opts.libraryImageUrls ?? []).filter(Boolean);
+      // Arrays for multi-image support (fresh device uploads)
       const inputImagesBase64: string[] = [];
       const inputImageUrls: string[] = [];
 
@@ -219,6 +225,8 @@ export function useGeneration() {
           inputImageUrls:
             inputImageUrls.length > 0 ? inputImageUrls : undefined,
           inputImageUrl: inputImageUrl,
+          libraryImageUrls:
+            libraryImageUrls.length > 0 ? libraryImageUrls : undefined,
           tokensUsed: cost,
           aspectRatio: opts.aspectRatio ?? "1:1",
           quality: opts.quality ?? "auto",
@@ -240,7 +248,9 @@ export function useGeneration() {
         tokens_used: cost,
         quality: opts.quality ?? "auto",
         has_input_images:
-          (opts.inputImageFiles?.length ?? 0) > 0 || !!opts.inputImageUrl,
+          (opts.inputImageFiles?.length ?? 0) > 0 ||
+          !!opts.inputImageUrl ||
+          (opts.libraryImageUrls?.length ?? 0) > 0,
         aspect_ratio: opts.aspectRatio ?? "1:1",
         is_edit: !!opts.parentId,
         generation_id: genRes.generationId,

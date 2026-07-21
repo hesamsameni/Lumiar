@@ -37,6 +37,10 @@ export function useVideoGeneration() {
     firstFrameFile?: File | null;
     lastFrameFile?: File | null;
     referenceFile?: File | null;
+    /** Existing CDN URLs — skip re-upload when set. */
+    firstFrameUrl?: string | null;
+    lastFrameUrl?: string | null;
+    referenceUrl?: string | null;
     aspectRatio?: string;
   }) {
     if (!profile.value?.id) {
@@ -72,7 +76,10 @@ export function useVideoGeneration() {
       has_input_images: !!(
         opts.firstFrameFile ||
         opts.lastFrameFile ||
-        opts.referenceFile
+        opts.referenceFile ||
+        opts.firstFrameUrl ||
+        opts.lastFrameUrl ||
+        opts.referenceUrl
       ),
       aspect_ratio: opts.aspectRatio ?? "16:9",
     });
@@ -81,7 +88,12 @@ export function useVideoGeneration() {
       const headers = await authHeaders();
 
       // Upload a single image file to R2 so OpenRouter can fetch it.
-      async function uploadImage(file: File | null | undefined) {
+      // Library picks already have a CDN URL — reuse them as-is.
+      async function resolveImage(
+        file: File | null | undefined,
+        existingUrl: string | null | undefined,
+      ) {
+        if (existingUrl) return existingUrl;
         if (!file) return null;
         const compressed = await compressImage(file);
         const fd = new FormData();
@@ -95,9 +107,9 @@ export function useVideoGeneration() {
       }
 
       const [firstFrameUrl, lastFrameUrl, referenceUrl] = await Promise.all([
-        uploadImage(opts.firstFrameFile),
-        uploadImage(opts.lastFrameFile),
-        uploadImage(opts.referenceFile),
+        resolveImage(opts.firstFrameFile, opts.firstFrameUrl),
+        resolveImage(opts.lastFrameFile, opts.lastFrameUrl),
+        resolveImage(opts.referenceFile, opts.referenceUrl),
       ]);
 
       const submit = await $fetch<{

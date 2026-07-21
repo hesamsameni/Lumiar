@@ -43,14 +43,19 @@ const selectedResolution = ref<string>("auto");
 type ImageSlot = "first" | "last" | "reference";
 const imageMode = ref<"frame" | "reference">("frame");
 const firstFrameFile = ref<File | null>(null);
+const firstFrameUrl = ref<string | null>(null);
 const firstFramePreview = ref<string | null>(null);
 const lastFrameFile = ref<File | null>(null);
+const lastFrameUrl = ref<string | null>(null);
 const lastFramePreview = ref<string | null>(null);
 const referenceFile = ref<File | null>(null);
+const referenceUrl = ref<string | null>(null);
 const referencePreview = ref<string | null>(null);
 const firstFrameInput = ref<HTMLInputElement | null>(null);
 const lastFrameInput = ref<HTMLInputElement | null>(null);
 const referenceInput = ref<HTMLInputElement | null>(null);
+const showMediaPicker = ref(false);
+const mediaPickerSlot = ref<ImageSlot>("first");
 
 const supportsImages = computed(
   () => selectedModel.value?.supports_image_input ?? false,
@@ -150,16 +155,59 @@ async function handleSlotFile(slot: ImageSlot, file: File) {
     });
     if (slot === "first") {
       firstFrameFile.value = file;
+      firstFrameUrl.value = null;
       firstFramePreview.value = url;
     } else if (slot === "last") {
       lastFrameFile.value = file;
+      lastFrameUrl.value = null;
       lastFramePreview.value = url;
     } else {
       referenceFile.value = file;
+      referenceUrl.value = null;
       referencePreview.value = url;
     }
   } finally {
     isProcessingImage.value = false;
+  }
+}
+
+function handleSlotLibraryUrl(slot: ImageSlot, url: string) {
+  if (slot === "first") {
+    firstFrameFile.value = null;
+    firstFrameUrl.value = url;
+    firstFramePreview.value = url;
+  } else if (slot === "last") {
+    lastFrameFile.value = null;
+    lastFrameUrl.value = url;
+    lastFramePreview.value = url;
+  } else {
+    referenceFile.value = null;
+    referenceUrl.value = url;
+    referencePreview.value = url;
+  }
+}
+
+async function openMediaPicker(slot: ImageSlot) {
+  if (!isAuthenticated.value) {
+    await navigateTo("/auth/login");
+    return;
+  }
+  mediaPickerSlot.value = slot;
+  showMediaPicker.value = true;
+}
+
+function onMediaPicked(result: {
+  source: "device" | "library";
+  files?: File[];
+  urls?: string[];
+}) {
+  const slot = mediaPickerSlot.value;
+  if (result.source === "device" && result.files?.[0]) {
+    handleSlotFile(slot, result.files[0]);
+    return;
+  }
+  if (result.source === "library" && result.urls?.[0]) {
+    handleSlotLibraryUrl(slot, result.urls[0]);
   }
 }
 
@@ -174,12 +222,15 @@ function onSlotChange(slot: ImageSlot, e: Event) {
 function removeSlot(slot: ImageSlot) {
   if (slot === "first") {
     firstFrameFile.value = null;
+    firstFrameUrl.value = null;
     firstFramePreview.value = null;
   } else if (slot === "last") {
     lastFrameFile.value = null;
+    lastFrameUrl.value = null;
     lastFramePreview.value = null;
   } else {
     referenceFile.value = null;
+    referenceUrl.value = null;
     referencePreview.value = null;
   }
 }
@@ -206,6 +257,9 @@ async function handleGenerate() {
     firstFrameFile: useFrames ? firstFrameFile.value : null,
     lastFrameFile: useFrames ? lastFrameFile.value : null,
     referenceFile: useFrames ? null : referenceFile.value,
+    firstFrameUrl: useFrames ? firstFrameUrl.value : null,
+    lastFrameUrl: useFrames ? lastFrameUrl.value : null,
+    referenceUrl: useFrames ? null : referenceUrl.value,
     aspectRatio: selectedAspectRatio.value.value,
   });
 }
@@ -360,7 +414,7 @@ function getRatioStyle(value: string): Record<string, string> {
                   type="button"
                   :disabled="isProcessingImage"
                   class="size-20 rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-700 flex items-center justify-center text-zinc-400 hover:border-primary/50 hover:text-primary transition-colors"
-                  @click="firstFrameInput?.click()"
+                  @click="openMediaPicker('first')"
                 >
                   <UIcon name="i-lucide-plus" class="size-5" />
                 </button>
@@ -401,7 +455,7 @@ function getRatioStyle(value: string): Record<string, string> {
                   type="button"
                   :disabled="isProcessingImage"
                   class="size-20 rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-700 flex items-center justify-center text-zinc-400 hover:border-primary/50 hover:text-primary transition-colors"
-                  @click="lastFrameInput?.click()"
+                  @click="openMediaPicker('last')"
                 >
                   <UIcon name="i-lucide-plus" class="size-5" />
                 </button>
@@ -442,7 +496,7 @@ function getRatioStyle(value: string): Record<string, string> {
                   type="button"
                   :disabled="isProcessingImage"
                   class="size-20 rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-700 flex items-center justify-center text-zinc-400 hover:border-primary/50 hover:text-primary transition-colors"
-                  @click="referenceInput?.click()"
+                  @click="openMediaPicker('reference')"
                 >
                   <UIcon name="i-lucide-plus" class="size-5" />
                 </button>
@@ -928,6 +982,19 @@ function getRatioStyle(value: string): Record<string, string> {
       :prompt="prompt"
       @deleted="result = null"
       @start-over="handleStartOver"
+    />
+
+    <MediaPickerModal
+      v-model:open="showMediaPicker"
+      :max-select="1"
+      :title="
+        mediaPickerSlot === 'first'
+          ? 'Choose first frame'
+          : mediaPickerSlot === 'last'
+            ? 'Choose last frame'
+            : 'Choose reference image'
+      "
+      @select="onMediaPicked"
     />
   </div>
 </template>
