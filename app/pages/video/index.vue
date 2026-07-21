@@ -4,6 +4,7 @@ import { videoCredits } from "~/utils/videoModels";
 import { buildQualityPicker, currentOptionLabel } from "~/utils/quality";
 import { VIDEO_ASPECT_RATIOS } from "~/utils/constants";
 import { convertHeicToJpeg } from "~/utils/imageCompression";
+import type { PickedAsset } from "~/utils/assetPicker";
 
 const route = useRoute();
 const toast = useToast();
@@ -51,6 +52,14 @@ const referencePreview = ref<string | null>(null);
 const firstFrameInput = ref<HTMLInputElement | null>(null);
 const lastFrameInput = ref<HTMLInputElement | null>(null);
 const referenceInput = ref<HTMLInputElement | null>(null);
+// Already-hosted image picked per slot (bucket / past generation). When set,
+// the slot uses this URL directly instead of uploading a device file.
+const firstFrameUrl = ref<string | null>(null);
+const lastFrameUrl = ref<string | null>(null);
+const referenceUrl = ref<string | null>(null);
+// Asset picker state (per-slot, single selection).
+const showAssetPicker = ref(false);
+const pickerSlot = ref<ImageSlot>("first");
 
 const supportsImages = computed(
   () => selectedModel.value?.supports_image_input ?? false,
@@ -151,12 +160,15 @@ async function handleSlotFile(slot: ImageSlot, file: File) {
     if (slot === "first") {
       firstFrameFile.value = file;
       firstFramePreview.value = url;
+      firstFrameUrl.value = null;
     } else if (slot === "last") {
       lastFrameFile.value = file;
       lastFramePreview.value = url;
+      lastFrameUrl.value = null;
     } else {
       referenceFile.value = file;
       referencePreview.value = url;
+      referenceUrl.value = null;
     }
   } finally {
     isProcessingImage.value = false;
@@ -175,12 +187,44 @@ function removeSlot(slot: ImageSlot) {
   if (slot === "first") {
     firstFrameFile.value = null;
     firstFramePreview.value = null;
+    firstFrameUrl.value = null;
   } else if (slot === "last") {
     lastFrameFile.value = null;
     lastFramePreview.value = null;
+    lastFrameUrl.value = null;
   } else {
     referenceFile.value = null;
     referencePreview.value = null;
+    referenceUrl.value = null;
+  }
+}
+
+function openSlotPicker(slot: ImageSlot) {
+  pickerSlot.value = slot;
+  showAssetPicker.value = true;
+}
+
+async function onSlotPickerConfirm(assets: PickedAsset[]) {
+  const asset = assets[0];
+  if (!asset) return;
+  const slot = pickerSlot.value;
+  if (asset.kind === "file") {
+    await handleSlotFile(slot, asset.file);
+    return;
+  }
+  // Existing hosted image — use its URL directly for the slot.
+  if (slot === "first") {
+    firstFrameFile.value = null;
+    firstFrameUrl.value = asset.url;
+    firstFramePreview.value = asset.url;
+  } else if (slot === "last") {
+    lastFrameFile.value = null;
+    lastFrameUrl.value = asset.url;
+    lastFramePreview.value = asset.url;
+  } else {
+    referenceFile.value = null;
+    referenceUrl.value = asset.url;
+    referencePreview.value = asset.url;
   }
 }
 
@@ -206,6 +250,9 @@ async function handleGenerate() {
     firstFrameFile: useFrames ? firstFrameFile.value : null,
     lastFrameFile: useFrames ? lastFrameFile.value : null,
     referenceFile: useFrames ? null : referenceFile.value,
+    firstFrameUrl: useFrames ? firstFrameUrl.value : null,
+    lastFrameUrl: useFrames ? lastFrameUrl.value : null,
+    referenceUrl: useFrames ? null : referenceUrl.value,
     aspectRatio: selectedAspectRatio.value.value,
   });
 }
@@ -356,11 +403,11 @@ function getRatioStyle(value: string): Record<string, string> {
                   class="size-20 object-cover rounded-lg border-2 border-primary/50"
                 />
                 <button
-                  v-else
+                  v-else-if="isAuthenticated"
                   type="button"
                   :disabled="isProcessingImage"
                   class="size-20 rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-700 flex items-center justify-center text-zinc-400 hover:border-primary/50 hover:text-primary transition-colors"
-                  @click="firstFrameInput?.click()"
+                  @click="openSlotPicker('first')"
                 >
                   <UIcon name="i-lucide-plus" class="size-5" />
                 </button>
@@ -397,11 +444,11 @@ function getRatioStyle(value: string): Record<string, string> {
                   class="size-20 object-cover rounded-lg border-2 border-primary/50"
                 />
                 <button
-                  v-else
+                  v-else-if="isAuthenticated"
                   type="button"
                   :disabled="isProcessingImage"
                   class="size-20 rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-700 flex items-center justify-center text-zinc-400 hover:border-primary/50 hover:text-primary transition-colors"
-                  @click="lastFrameInput?.click()"
+                  @click="openSlotPicker('last')"
                 >
                   <UIcon name="i-lucide-plus" class="size-5" />
                 </button>
@@ -438,11 +485,11 @@ function getRatioStyle(value: string): Record<string, string> {
                   class="size-20 object-cover rounded-lg border-2 border-primary/50"
                 />
                 <button
-                  v-else
+                  v-else-if="isAuthenticated"
                   type="button"
                   :disabled="isProcessingImage"
                   class="size-20 rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-700 flex items-center justify-center text-zinc-400 hover:border-primary/50 hover:text-primary transition-colors"
-                  @click="referenceInput?.click()"
+                  @click="openSlotPicker('reference')"
                 >
                   <UIcon name="i-lucide-plus" class="size-5" />
                 </button>
@@ -871,6 +918,13 @@ function getRatioStyle(value: string): Record<string, string> {
         </div>
       </template>
     </USlideover>
+
+    <AssetPickerModal
+      v-model:open="showAssetPicker"
+      mode="single"
+      title="Choose an image"
+      @confirm="onSlotPickerConfirm"
+    />
 
     <!-- Generating state -->
     <div v-if="isGenerating" class="mt-12">

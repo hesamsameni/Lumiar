@@ -64,6 +64,7 @@ export default defineEventHandler(async (event) => {
       },
       path,
       buffer,
+      file.type,
     );
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Upload failed";

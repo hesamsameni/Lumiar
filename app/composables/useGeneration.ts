@@ -124,6 +124,8 @@ export function useGeneration() {
     model: AIModel;
     inputImageFiles?: File[] | null;
     inputImageUrl?: string | null;
+    // Already-hosted images the user picked (bucket assets / past generations).
+    existingImageUrls?: string[] | null;
     aspectRatio?: string;
     quality?: string | null;
     parentId?: string | null;
@@ -160,7 +162,9 @@ export function useGeneration() {
       tokens_required: cost,
       quality: opts.quality ?? "auto",
       has_input_images:
-        (opts.inputImageFiles?.length ?? 0) > 0 || !!opts.inputImageUrl,
+        (opts.inputImageFiles?.length ?? 0) > 0 ||
+        (opts.existingImageUrls?.length ?? 0) > 0 ||
+        !!opts.inputImageUrl,
       aspect_ratio: opts.aspectRatio ?? "1:1",
       is_edit: !!opts.parentId,
     });
@@ -218,6 +222,10 @@ export function useGeneration() {
             inputImagesBase64.length > 0 ? inputImagesBase64 : undefined,
           inputImageUrls:
             inputImageUrls.length > 0 ? inputImageUrls : undefined,
+          existingImageUrls:
+            (opts.existingImageUrls?.length ?? 0) > 0
+              ? opts.existingImageUrls
+              : undefined,
           inputImageUrl: inputImageUrl,
           tokensUsed: cost,
           aspectRatio: opts.aspectRatio ?? "1:1",
@@ -240,7 +248,9 @@ export function useGeneration() {
         tokens_used: cost,
         quality: opts.quality ?? "auto",
         has_input_images:
-          (opts.inputImageFiles?.length ?? 0) > 0 || !!opts.inputImageUrl,
+          (opts.inputImageFiles?.length ?? 0) > 0 ||
+          (opts.existingImageUrls?.length ?? 0) > 0 ||
+          !!opts.inputImageUrl,
         aspect_ratio: opts.aspectRatio ?? "1:1",
         is_edit: !!opts.parentId,
         generation_id: genRes.generationId,

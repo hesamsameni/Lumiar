@@ -7,6 +7,7 @@ import { useGenerationService } from "~/services/generation.service";
 import { useProfileService } from "~/services/profile.service";
 import { convertHeicToJpeg } from "~/utils/imageCompression";
 import { useHints } from "~/composables/useHints";
+import type { PickedAsset } from "~/utils/assetPicker";
 
 const route = useRoute();
 const { generate, isGenerating, isPendingInBackground, result } =
@@ -27,6 +28,9 @@ const prompt = ref("");
 const selectedModel = ref<AIModel>(firstModel.value!);
 const inputFiles = ref<File[]>([]);
 const inputPreviewUrls = ref<string[]>([]);
+// Already-hosted images picked from the bucket / past generations.
+const existingImageUrls = ref<string[]>([]);
+const showAssetPicker = ref(false);
 const selectedAspectRatio = ref(ASPECT_RATIOS[0]!);
 const selectedQuality = ref<string>("auto");
 const editingImageUrl = ref<string | null>(null);
@@ -114,10 +118,16 @@ async function handleSetDefault(modelId: string | null) {
 }
 
 const maxImages = computed(() => selectedModel.value.max_image_inputs ?? 1);
-const canAddMore = computed(() => {
-  const editingSlots = editingImageUrl.value ? 1 : 0;
-  return inputFiles.value.length + editingSlots < maxImages.value;
-});
+const usedImageSlots = computed(
+  () =>
+    inputFiles.value.length +
+    existingImageUrls.value.length +
+    (editingImageUrl.value ? 1 : 0),
+);
+const canAddMore = computed(() => usedImageSlots.value < maxImages.value);
+const remainingImageSlots = computed(() =>
+  Math.max(0, maxImages.value - usedImageSlots.value),
+);
 
 const generatingAspect = computed(() => {
   const v = selectedAspectRatio.value.value;
@@ -155,7 +165,9 @@ async function handleGenerate() {
 
   if (
     !selectedModel.value.supports_image_input &&
-    (inputFiles.value.length > 0 || editingImageUrl.value)
+    (inputFiles.value.length > 0 ||
+      existingImageUrls.value.length > 0 ||
+      editingImageUrl.value)
   ) {
     toast.add({
       title: "Selected model does not support image input",
@@ -171,6 +183,8 @@ async function handleGenerate() {
     model: selectedModel.value,
     inputImageFiles: inputFiles.value.length > 0 ? inputFiles.value : null,
     inputImageUrl: editingImageUrl.value,
+    existingImageUrls:
+      existingImageUrls.value.length > 0 ? existingImageUrls.value : null,
     aspectRatio: selectedAspectRatio.value.value,
     quality: selectedQuality.value,
     parentId: editingGenerationId.value,
@@ -182,6 +196,7 @@ function handleEditResult(imageUrl: string, generationId: string) {
   editingGenerationId.value = generationId;
   inputFiles.value = [];
   inputPreviewUrls.value = [];
+  existingImageUrls.value = [];
   prompt.value = "";
   result.value = null;
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -191,10 +206,30 @@ function handleStartOver() {
   prompt.value = "";
   inputFiles.value = [];
   inputPreviewUrls.value = [];
+  existingImageUrls.value = [];
   editingImageUrl.value = null;
   editingGenerationId.value = null;
   result.value = null;
   window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+async function onAssetPickerConfirm(assets: PickedAsset[]) {
+  for (const asset of assets) {
+    if (usedImageSlots.value >= maxImages.value) break;
+    if (asset.kind === "url") {
+      if (!existingImageUrls.value.includes(asset.url)) {
+        existingImageUrls.value = [...existingImageUrls.value, asset.url];
+      }
+    } else {
+      await handleFile(asset.file);
+    }
+  }
+}
+
+function removeExistingImage(index: number) {
+  existingImageUrls.value = existingImageUrls.value.filter(
+    (_, i) => i !== index,
+  );
 }
 
 function onDrop(e: DragEvent) {
@@ -250,6 +285,7 @@ function removeFile(index: number) {
 function clearAll() {
   inputFiles.value = [];
   inputPreviewUrls.value = [];
+  existingImageUrls.value = [];
   editingImageUrl.value = null;
   editingGenerationId.value = null;
   if (fileInput.value) fileInput.value.value = "";
@@ -357,7 +393,11 @@ function getRatioStyle(value: string): Record<string, string> {
       >
       <!-- Attached images preview -->
       <div
-        v-if="inputPreviewUrls.length > 0 || editingImageUrl"
+        v-if="
+          inputPreviewUrls.length > 0 ||
+          existingImageUrls.length > 0 ||
+          editingImageUrl
+        "
         class="border-b border-zinc-100 dark:border-zinc-800"
       >
         <div class="flex items-start gap-2 p-3 flex-wrap">
@@ -403,13 +443,33 @@ function getRatioStyle(value: string): Record<string, string> {
             </button>
           </div>
 
+          <!-- Picked bucket / generation thumbnails -->
+          <div
+            v-for="(url, idx) in existingImageUrls"
+            :key="`existing-${idx}`"
+            class="relative group flex-shrink-0"
+          >
+            <img
+              :src="url"
+              :alt="`Selected image ${idx + 1}`"
+              class="size-20 object-cover rounded-lg border border-zinc-200 dark:border-zinc-700"
+            />
+            <button
+              type="button"
+              class="absolute top-1 right-1 size-4 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors opacity-0 group-hover:opacity-100"
+              @click="removeExistingImage(idx)"
+            >
+              <UIcon name="i-lucide-x" class="size-2.5" />
+            </button>
+          </div>
+
           <!-- Add more slot -->
           <button
-            v-if="canAddMore"
+            v-if="canAddMore && isAuthenticated"
             type="button"
             :disabled="isProcessingImage"
             class="size-20 flex-shrink-0 flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-600 text-zinc-400 dark:text-zinc-500 hover:border-primary/60 hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            @click="fileInput?.click()"
+            @click="showAssetPicker = true"
           >
             <UIcon
               :name="isProcessingImage ? 'i-lucide-loader-2' : 'i-lucide-plus'"
@@ -497,6 +557,7 @@ function getRatioStyle(value: string): Record<string, string> {
         <div class="flex items-center gap-1.5 px-3 py-2.5">
           <!-- Attach image -->
           <button
+            v-if="isAuthenticated"
             type="button"
             :disabled="isGenerating || !canAddMore || isProcessingImage"
             :title="
@@ -505,7 +566,7 @@ function getRatioStyle(value: string): Record<string, string> {
                 : `Max ${maxImages} image${maxImages > 1 ? 's' : ''} reached`
             "
             class="size-9 rounded-xl flex items-center justify-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-40 flex-shrink-0"
-            @click="fileInput?.click()"
+            @click="showAssetPicker = true"
           >
             <UIcon
               :name="
@@ -810,6 +871,14 @@ function getRatioStyle(value: string): Record<string, string> {
       :open="showPromptLibrary"
       @update:open="showPromptLibrary = $event"
       @select="prompt = $event"
+    />
+
+    <AssetPickerModal
+      v-model:open="showAssetPicker"
+      mode="multi"
+      :max-select="remainingImageSlots"
+      title="Add reference images"
+      @confirm="onAssetPickerConfirm"
     />
 
     <!-- New-joiner hints: pre-generation (model & prompt library) -->

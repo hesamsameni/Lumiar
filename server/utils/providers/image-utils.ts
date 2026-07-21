@@ -71,9 +71,38 @@ export async function resolveInputImageBase64(
 
   if (!response.ok) throw new Error("Failed to fetch input image");
 
-  const contentType = response.headers.get("content-type") ?? "image/png";
-  if (!contentType.startsWith("image/"))
-    throw new Error("Input URL did not return an image");
+  const rawContentType = (
+    response.headers.get("content-type") ?? ""
+  ).toLowerCase();
+
+  // R2 objects uploaded without an explicit content-type are served as
+  // `application/octet-stream`, so fall back to the URL's file extension.
+  const mimeByExt: Record<string, string> = {
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    png: "image/png",
+    webp: "image/webp",
+    gif: "image/gif",
+    svg: "image/svg+xml",
+  };
+  let contentType = rawContentType;
+  if (!contentType.startsWith("image/")) {
+    const ext = parsedUrl.pathname.split(".").pop()?.toLowerCase() ?? "";
+    const byExt = mimeByExt[ext];
+    if (byExt) {
+      contentType = byExt;
+    } else if (
+      rawContentType === "" ||
+      rawContentType.startsWith("application/octet-stream") ||
+      rawContentType.startsWith("binary/")
+    ) {
+      // Unknown but generic binary — assume JPEG (our uploads are validated
+      // to be jpg/png/webp on the way in).
+      contentType = "image/jpeg";
+    } else {
+      throw new Error("Input URL did not return an image");
+    }
+  }
 
   const arrayBuffer = await response.arrayBuffer();
   const base64 = Buffer.from(arrayBuffer).toString("base64");
