@@ -41,6 +41,9 @@ export default defineEventHandler(async (event) => {
     // Multi-image fields
     inputImagesBase64,
     inputImageUrls,
+    // Already-hosted images the user picked (bucket assets / past generations).
+    // These are resolved to base64 server-side so the AI actually receives them.
+    existingImageUrls,
     aspectRatio,
     quality,
     parentId,
@@ -135,6 +138,42 @@ export default defineEventHandler(async (event) => {
         message: "Invalid input image URL",
       });
     }
+  }
+  // Validate picked, already-hosted image URLs (bucket assets / generations).
+  const existingUrls: string[] = Array.isArray(existingImageUrls)
+    ? existingImageUrls
+    : [];
+  for (const u of existingUrls) {
+    if (typeof u !== "string") {
+      throw createError({
+        statusCode: 400,
+        message: "Invalid selected image URL",
+      });
+    }
+    let parsed: URL;
+    try {
+      parsed = new URL(u);
+    } catch {
+      throw createError({
+        statusCode: 400,
+        message: "Invalid selected image URL",
+      });
+    }
+    if (!["http:", "https:"].includes(parsed.protocol)) {
+      throw createError({
+        statusCode: 400,
+        message: "Invalid selected image URL",
+      });
+    }
+  }
+  if (
+    rawBase64Inputs.length + existingUrls.length + (inputImageUrl ? 1 : 0) >
+    8
+  ) {
+    throw createError({
+      statusCode: 400,
+      message: "Too many input images (max 8)",
+    });
   }
   if (aspectRatio != null && typeof aspectRatio !== "string") {
     throw createError({ statusCode: 400, message: "Invalid aspect ratio" });
@@ -253,8 +292,31 @@ export default defineEventHandler(async (event) => {
       r2Config,
     ).catch(() => null);
 
+    // Fetch each picked bucket/generation image and inline it as base64 so the
+    // provider receives the actual pixels (URLs alone are not sent to the AI).
+    const resolvedExisting = (
+      await Promise.all(
+        existingUrls.map((u) =>
+          resolveInputImageBase64(
+            null,
+            u,
+            INPUT_IMAGE_REQUEST_HEADERS,
+            r2Config,
+          ).catch(() => null),
+        ),
+      )
+    ).filter((b): b is string => !!b);
+
+    if (resolvedExisting.length < existingUrls.length) {
+      throw createError({
+        statusCode: 502,
+        message: "Failed to load a selected image. Please try again.",
+      });
+    }
+
     const allImagesBase64: string[] = [
       ...(resolvedEditingBase64 ? [resolvedEditingBase64] : []),
+      ...resolvedExisting,
       ...rawBase64Inputs,
     ];
 
@@ -356,6 +418,7 @@ export default defineEventHandler(async (event) => {
   // For multi-image: store first CDN URL in the dedicated column; all URLs in metadata.
   const allInputCdnUrls: string[] = [
     ...(inputImageUrl ? [inputImageUrl as string] : []),
+    ...existingUrls,
     ...(Array.isArray(inputImageUrls) ? (inputImageUrls as string[]) : []),
   ];
   const primaryInputUrl = allInputCdnUrls[0] ?? null;
@@ -436,7 +499,10 @@ export default defineEventHandler(async (event) => {
       tokens_used: tokenCost,
       aspect_ratio: aspectRatio ?? "1:1",
       quality: resolvedQuality,
-      has_input_images: rawBase64Inputs.length > 0 || !!inputImageUrl,
+      has_input_images:
+        rawBase64Inputs.length > 0 ||
+        existingUrls.length > 0 ||
+        !!inputImageUrl,
       is_edit: !!parentId,
       generation_id: generationId,
     },

@@ -37,6 +37,10 @@ export function useVideoGeneration() {
     firstFrameFile?: File | null;
     lastFrameFile?: File | null;
     referenceFile?: File | null;
+    // Already-hosted images picked from the bucket / past generations.
+    firstFrameUrl?: string | null;
+    lastFrameUrl?: string | null;
+    referenceUrl?: string | null;
     aspectRatio?: string;
   }) {
     if (!profile.value?.id) {
@@ -72,7 +76,10 @@ export function useVideoGeneration() {
       has_input_images: !!(
         opts.firstFrameFile ||
         opts.lastFrameFile ||
-        opts.referenceFile
+        opts.referenceFile ||
+        opts.firstFrameUrl ||
+        opts.lastFrameUrl ||
+        opts.referenceUrl
       ),
       aspect_ratio: opts.aspectRatio ?? "16:9",
     });
@@ -80,8 +87,13 @@ export function useVideoGeneration() {
     try {
       const headers = await authHeaders();
 
-      // Upload a single image file to R2 so OpenRouter can fetch it.
-      async function uploadImage(file: File | null | undefined) {
+      // Resolve a slot to a hosted URL: prefer an already-hosted pick, else
+      // upload the device file to R2 so OpenRouter can fetch it.
+      async function resolveSlot(
+        file: File | null | undefined,
+        existingUrl: string | null | undefined,
+      ) {
+        if (existingUrl) return existingUrl;
         if (!file) return null;
         const compressed = await compressImage(file);
         const fd = new FormData();
@@ -95,9 +107,9 @@ export function useVideoGeneration() {
       }
 
       const [firstFrameUrl, lastFrameUrl, referenceUrl] = await Promise.all([
-        uploadImage(opts.firstFrameFile),
-        uploadImage(opts.lastFrameFile),
-        uploadImage(opts.referenceFile),
+        resolveSlot(opts.firstFrameFile, opts.firstFrameUrl),
+        resolveSlot(opts.lastFrameFile, opts.lastFrameUrl),
+        resolveSlot(opts.referenceFile, opts.referenceUrl),
       ]);
 
       const submit = await $fetch<{
