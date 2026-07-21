@@ -374,6 +374,16 @@ function getRatioStyle(value: string): Record<string, string> {
       <p class="text-sm sm:text-base text-zinc-500 dark:text-zinc-400">
         Describe an image and let AI bring it to life
       </p>
+      <div class="mt-5 flex justify-center">
+        <UButton
+          to="/studio"
+          size="sm"
+          icon="i-lucide-sparkles"
+          class="rounded-full !bg-gradient-brand !text-white shadow-glow-brand hover:!brightness-110 hover:animate-gradient-pan transition-all"
+        >
+          Try Studio Mode
+        </UButton>
+      </div>
     </div>
 
     <!-- Composer card (gradient border wrapper) -->
