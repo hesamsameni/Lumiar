@@ -9,6 +9,7 @@ const props = defineProps<{
   initialIsLiked?: boolean;
   collectionId?: string;
   fill?: boolean;
+  showRemix?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -36,6 +37,7 @@ const isVideo = computed(
     :initial-is-liked="initialIsLiked"
     :collection-id="collectionId"
     :fill="fill"
+    :show-remix="showRemix"
     @deleted="emit('deleted', $event)"
     @removed-from-collection="emit('removedFromCollection', $event)"
     @preview="emit('preview', $event)"
@@ -49,6 +51,7 @@ const isVideo = computed(
     :initial-is-liked="initialIsLiked"
     :collection-id="collectionId"
     :fill="fill"
+    :show-remix="showRemix"
     @deleted="emit('deleted', $event)"
     @share-toggled="(id, s) => emit('shareToggled', id, s)"
     @removed-from-collection="emit('removedFromCollection', $event)"

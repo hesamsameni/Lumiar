@@ -4,6 +4,7 @@ import { useProfile } from "~/composables/useProfile";
 
 const { profile } = useProfile();
 const { user, ready, isAuthenticated } = useAuthState();
+const { balance } = useTokens();
 const colorMode = useColorMode();
 const router = useRouter();
 const route = useRoute();
@@ -29,27 +30,27 @@ const avatarLabel = computed(() => {
   return name.slice(0, 1).toUpperCase();
 });
 
-const profileItems = computed(() => [
-  [
-    {
-      label: profile.value?.username ?? user.value?.email ?? "",
-      disabled: true,
-    },
-  ],
-  [
-    {
-      label: "My Profile",
-      icon: "i-lucide-user",
-      onSelect: () => navigateTo("/profile"),
-    },
-    {
-      label: "Edit Profile",
-      icon: "i-lucide-pencil",
-      onSelect: () => navigateTo("/profile/edit"),
-    },
-  ],
-  [{ label: "Sign out", icon: "i-lucide-log-out", onSelect: handleSignOut }],
-]);
+const menuOpen = ref(false);
+
+const accountName = computed(
+  () => profile.value?.username ?? user.value?.email ?? "",
+);
+const avatarSrc = computed(
+  () =>
+    profile.value?.avatar_url ||
+    (user.value?.user_metadata?.avatar_url as string | undefined) ||
+    undefined,
+);
+
+function go(path: string) {
+  menuOpen.value = false;
+  navigateTo(path);
+}
+
+async function signOutFromMenu() {
+  menuOpen.value = false;
+  await handleSignOut();
+}
 
 const navLinks = computed(() => [
   { label: "Image", to: "/", icon: "i-lucide-image" },
@@ -124,6 +125,28 @@ async function handleSignOut() {
       </nav>
 
       <div class="flex items-center gap-2">
+        <!-- Studio CTA (desktop) -->
+        <UButton
+          v-if="isAuthenticated"
+          to="/studio"
+          size="sm"
+          icon="i-lucide-sparkles"
+          class="hidden md:inline-flex rounded-full !bg-gradient-brand !text-white shadow-glow-brand hover:!brightness-110 hover:animate-gradient-pan transition-all"
+        >
+          Try Studio Mode
+        </UButton>
+        <!-- Studio CTA (mobile, compact) -->
+        <UButton
+          v-if="isAuthenticated"
+          to="/studio"
+          size="sm"
+          icon="i-lucide-sparkles"
+          class="md:hidden rounded-full !bg-gradient-brand !text-white shadow-glow-brand transition-all"
+          aria-label="Try Studio Mode"
+        >
+          <span class="text-xs font-semibold">Studio</span>
+        </UButton>
+
         <UButton
           :icon="isDark ? 'i-lucide-sun' : 'i-lucide-moon'"
           variant="ghost"
@@ -134,26 +157,117 @@ async function handleSignOut() {
         />
 
         <template v-if="isAuthenticated">
-          <TokenBadge class="hidden sm:flex" />
-          <UDropdownMenu :items="profileItems">
+          <UPopover
+            v-model:open="menuOpen"
+            :content="{ align: 'end', sideOffset: 10 }"
+            :ui="{ content: 'rounded-2xl' }"
+          >
             <button
               type="button"
               aria-label="Open account menu"
               class="rounded-full p-px bg-conic-brand hover:shadow-glow-brand transition-all"
             >
               <UAvatar
-                :src="
-                  profile?.avatar_url ||
-                  (user?.user_metadata?.avatar_url as string | undefined) ||
-                  undefined
-                "
+                :src="avatarSrc"
                 :alt="avatarLabel"
                 :fallback="avatarLabel"
                 size="sm"
                 class="ring-2 ring-white dark:ring-zinc-950"
               />
             </button>
-          </UDropdownMenu>
+
+            <template #content>
+              <div class="w-72 p-2">
+                <!-- Account header: avatar + name + credits button -->
+                <div class="flex items-center gap-3 px-1.5 py-1.5">
+                  <span
+                    class="rounded-full p-px bg-conic-brand flex-shrink-0"
+                  >
+                    <UAvatar
+                      :src="avatarSrc"
+                      :fallback="avatarLabel"
+                      size="sm"
+                      class="ring-2 ring-white dark:ring-zinc-950"
+                    />
+                  </span>
+                  <div class="flex-1 min-w-0">
+                    <p
+                      class="text-sm font-semibold text-zinc-900 dark:text-white truncate"
+                    >
+                      {{ accountName }}
+                    </p>
+                    <p class="text-xs text-zinc-500 dark:text-zinc-400 truncate">
+                      {{ profile?.username ? user?.email : "Signed in" }}
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Credits button -->
+                <NuxtLink
+                  to="/credits"
+                  class="group mt-1 block rounded-xl p-px bg-gradient-brand hover:shadow-glow-brand transition-all"
+                  @click="menuOpen = false"
+                >
+                  <span
+                    class="flex items-center gap-2 px-3 py-2 rounded-[11px] bg-white dark:bg-zinc-950 transition-colors group-hover:bg-zinc-50 dark:group-hover:bg-zinc-900"
+                  >
+                    <UIcon name="i-lucide-zap" class="size-4 text-amber-500" />
+                    <span
+                      class="text-sm font-semibold text-zinc-900 dark:text-white tabular-nums"
+                      >{{ balance ?? "—" }}</span
+                    >
+                    <span class="text-xs text-zinc-500 dark:text-zinc-400"
+                      >credits</span
+                    >
+                    <span
+                      class="ml-auto flex items-center gap-0.5 text-xs font-semibold text-gradient-brand"
+                    >
+                      Buy
+                      <UIcon
+                        name="i-lucide-chevron-right"
+                        class="size-3.5 text-primary"
+                      />
+                    </span>
+                  </span>
+                </NuxtLink>
+
+                <div
+                  class="my-1.5 h-px bg-zinc-100 dark:bg-zinc-800"
+                />
+
+                <!-- Links -->
+                <button
+                  type="button"
+                  class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-colors"
+                  @click="go('/profile')"
+                >
+                  <UIcon name="i-lucide-user" class="size-4 text-zinc-400" />
+                  My Profile
+                </button>
+                <button
+                  type="button"
+                  class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-colors"
+                  @click="go('/profile/edit')"
+                >
+                  <UIcon name="i-lucide-pencil" class="size-4 text-zinc-400" />
+                  Edit Profile
+                </button>
+
+                <div
+                  class="my-1.5 h-px bg-zinc-100 dark:bg-zinc-800"
+                />
+
+                <button
+                  type="button"
+                  class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+                  @click="signOutFromMenu"
+                >
+                  <UIcon name="i-lucide-log-out" class="size-4" />
+                  Sign out
+                </button>
+              </div>
+            </template>
+          </UPopover>
         </template>
 
         <template v-else-if="ready">
@@ -243,6 +357,14 @@ async function handleSignOut() {
           aria-label="Mobile navigation"
           class="flex-1 overflow-y-auto p-4 space-y-1"
         >
+          <NuxtLink
+            v-if="isAuthenticated"
+            to="/studio"
+            class="mb-2 flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-brand shadow-glow-brand hover:brightness-110 transition-all"
+          >
+            <UIcon name="i-lucide-sparkles" class="size-4 flex-shrink-0" />
+            Try Studio Mode
+          </NuxtLink>
           <NuxtLink
             v-for="link in navLinks"
             :key="link.to"

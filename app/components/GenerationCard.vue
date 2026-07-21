@@ -26,6 +26,8 @@ const props = defineProps<{
   masonry?: boolean;
   // Fill the parent cell (mosaic grid) instead of reserving the aspect ratio.
   fill?: boolean;
+  // Show the "Remix" quick action (hidden e.g. in the Studio grid).
+  showRemix?: boolean;
 }>();
 
 const imgLoaded = ref(false);
@@ -381,6 +383,7 @@ onMounted(() => {
 
     <!-- Remix (top-left, glass) -->
     <button
+      v-if="showRemix !== false"
       aria-label="Remix this image"
       title="Remix — start a new image from this prompt"
       class="absolute top-2 left-2 flex items-center gap-1.5 h-8 px-2.5 rounded-full bg-black/40 text-white backdrop-blur-md hover:bg-black/60 transition-all opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 text-xs font-medium"
