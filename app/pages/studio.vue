@@ -210,13 +210,80 @@ const composerRef = ref<{ addImage: (url: string) => void } | null>(null);
 
 function addToComposer(url: string) {
   composerRef.value?.addImage(url);
-  toast.add({ title: "Added to composer", color: "success" });
 }
 
 async function onVideoGenerated() {
   await fetchVideos();
   view.value = "generations";
   mediaFilter.value = "all";
+}
+
+// ─── Upload actions ─────────────────────────────────────────────────────────
+async function downloadUpload(asset: UploadAsset) {
+  try {
+    const res = await fetch(asset.url);
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = objectUrl;
+    a.download = asset.key.split("/").pop() || "image";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(objectUrl);
+  } catch {
+    toast.add({ title: "Download failed", color: "error" });
+  }
+}
+
+const showUploadDeleteModal = ref(false);
+const pendingDeleteAsset = ref<UploadAsset | null>(null);
+const isDeletingUpload = ref(false);
+
+function promptDeleteUpload(asset: UploadAsset) {
+  pendingDeleteAsset.value = asset;
+  showUploadDeleteModal.value = true;
+}
+
+async function confirmDeleteUpload() {
+  const asset = pendingDeleteAsset.value;
+  if (!asset) return;
+  isDeletingUpload.value = true;
+  try {
+    await $fetch("/api/assets/uploads", {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${session.value?.access_token ?? ""}`,
+      },
+      body: { key: asset.key },
+    });
+    uploads.value = uploads.value.filter((u) => u.key !== asset.key);
+    toast.add({ title: "Upload deleted", color: "success" });
+  } catch {
+    toast.add({ title: "Failed to delete upload", color: "error" });
+  } finally {
+    isDeletingUpload.value = false;
+    showUploadDeleteModal.value = false;
+    pendingDeleteAsset.value = null;
+  }
+}
+
+function uploadMenuItems(asset: UploadAsset) {
+  return [
+    [
+      {
+        label: "Download",
+        icon: "i-lucide-download",
+        onSelect: () => downloadUpload(asset),
+      },
+      {
+        label: "Delete",
+        icon: "i-lucide-trash-2",
+        color: "error" as const,
+        onSelect: () => promptDeleteUpload(asset),
+      },
+    ],
+  ];
 }
 
 // ─── New generation from the docked composer ─────────────────────────────────
@@ -417,6 +484,7 @@ useHead({ title: "Studio · Lumiar" });
               :show-author="false"
               :is-owner="true"
               :fill="true"
+              :show-remix="false"
               :initial-is-liked="likedIds.has((gen as any).id)"
               @deleted="handleDeleted"
               @share-toggled="handleShareToggled"
@@ -424,21 +492,34 @@ useHead({ title: "Studio · Lumiar" });
               @preview="openPreview"
             />
             <!-- Add-to-composer CTA (image generations only) -->
-            <div
-              v-if="(gen as any).media_type === 'image'"
-              class="pointer-events-none absolute inset-0 z-30 flex items-center justify-center opacity-0 group-hover/tile:opacity-100 transition-opacity duration-200"
-            >
+            <template v-if="(gen as any).media_type === 'image'">
+              <!-- Desktop: centered pill on hover -->
+              <div
+                class="pointer-events-none absolute inset-0 z-30 hidden sm:flex items-center justify-center opacity-0 group-hover/tile:opacity-100 transition-opacity duration-200"
+              >
+                <button
+                  type="button"
+                  class="pointer-events-auto flex items-center gap-1.5 h-8 px-3 rounded-full bg-white/90 dark:bg-zinc-900/90 text-zinc-800 dark:text-zinc-100 text-xs font-semibold backdrop-blur-md shadow-lg ring-1 ring-black/5 dark:ring-white/10 hover:!bg-gradient-brand hover:!text-white transition-all"
+                  @click.stop.prevent="
+                    addToComposer((gen as any).output_image_url)
+                  "
+                >
+                  <UIcon name="i-lucide-image-plus" class="size-3.5" />
+                  Add to composer
+                </button>
+              </div>
+              <!-- Mobile: compact icon beside the card's actions menu -->
               <button
                 type="button"
-                class="pointer-events-auto flex items-center gap-1.5 h-8 px-3 rounded-full bg-white/90 dark:bg-zinc-900/90 text-zinc-800 dark:text-zinc-100 text-xs font-semibold backdrop-blur-md shadow-lg ring-1 ring-black/5 dark:ring-white/10 hover:!bg-gradient-brand hover:!text-white transition-all"
+                aria-label="Add to composer"
+                class="sm:hidden absolute top-2 right-12 z-30 size-8 rounded-full flex items-center justify-center bg-black/45 text-white backdrop-blur-md"
                 @click.stop.prevent="
                   addToComposer((gen as any).output_image_url)
                 "
               >
-                <UIcon name="i-lucide-image-plus" class="size-3.5" />
-                Add to composer
+                <UIcon name="i-lucide-image-plus" class="size-4" />
               </button>
-            </div>
+            </template>
           </div>
         </div>
       </template>
@@ -465,12 +546,9 @@ useHead({ title: "Studio · Lumiar" });
           v-else
           class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3"
         >
-          <a
+          <div
             v-for="asset in uploads"
             :key="asset.key"
-            :href="asset.url"
-            target="_blank"
-            rel="noopener"
             class="group/tile relative aspect-square rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-800"
           >
             <img
@@ -479,9 +557,35 @@ useHead({ title: "Studio · Lumiar" });
               loading="lazy"
               class="w-full h-full object-cover transition-transform duration-500 group-hover/tile:scale-[1.04]"
             />
-            <!-- Add-to-composer CTA -->
+
+            <!-- 3-dot actions menu (top-right) -->
+            <UDropdownMenu
+              :items="uploadMenuItems(asset)"
+              :content="{ align: 'end' }"
+            >
+              <button
+                type="button"
+                aria-label="Asset actions"
+                class="absolute top-2 right-2 z-20 size-8 rounded-full flex items-center justify-center bg-black/45 text-white backdrop-blur-md hover:bg-black/65 transition-all opacity-100 sm:opacity-0 sm:group-hover/tile:opacity-100"
+                @click.stop.prevent
+              >
+                <UIcon name="i-lucide-more-horizontal" class="size-4" />
+              </button>
+            </UDropdownMenu>
+
+            <!-- Mobile: compact add-to-composer beside the 3-dot -->
+            <button
+              type="button"
+              aria-label="Add to composer"
+              class="sm:hidden absolute top-2 right-12 z-20 size-8 rounded-full flex items-center justify-center bg-black/45 text-white backdrop-blur-md"
+              @click.stop.prevent="addToComposer(asset.url)"
+            >
+              <UIcon name="i-lucide-image-plus" class="size-4" />
+            </button>
+
+            <!-- Desktop: centered add-to-composer pill on hover -->
             <div
-              class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-black/0 group-hover/tile:bg-black/20 opacity-0 group-hover/tile:opacity-100 transition-all duration-200"
+              class="pointer-events-none absolute inset-0 z-10 hidden sm:flex items-center justify-center transition-all duration-200 bg-black/0 opacity-0 group-hover/tile:bg-black/20 group-hover/tile:opacity-100"
             >
               <button
                 type="button"
@@ -492,7 +596,7 @@ useHead({ title: "Studio · Lumiar" });
                 Add to composer
               </button>
             </div>
-          </a>
+          </div>
         </div>
       </template>
 
@@ -621,6 +725,17 @@ useHead({ title: "Studio · Lumiar" });
         </div>
       </template>
     </UModal>
+
+    <ConfirmModal
+      v-model:open="showUploadDeleteModal"
+      title="Delete Upload"
+      description="Are you sure you want to delete this uploaded image? This action cannot be undone."
+      confirm-text="Delete"
+      confirm-color="error"
+      icon="i-lucide-trash-2"
+      :loading="isDeletingUpload"
+      @confirm="confirmDeleteUpload"
+    />
 
     <GenerationDetailModal
       v-model:open="showPreviewModal"
