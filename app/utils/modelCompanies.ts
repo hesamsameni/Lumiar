@@ -67,6 +67,11 @@ export const IMAGE_COMPANY_META: Record<string, CompanyMeta> = {
     subtitle: "Riverflow family",
     logo: "/ai-logos/sourceful.jpeg",
   },
+  krea: {
+    label: "Krea",
+    subtitle: "Krea 2 family",
+    logo: "/ai-logos/krea.svg",
+  },
 };
 
 export const IMAGE_COMPANY_ORDER = [
@@ -78,6 +83,7 @@ export const IMAGE_COMPANY_ORDER = [
   "bytedance",
   "x-ai",
   "sourceful",
+  "krea",
 ];
 
 const IMAGE_COMPANY_ID_MAP: Record<string, string> = {

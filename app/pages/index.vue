@@ -962,10 +962,6 @@ function getRatioStyle(value: string): Record<string, string> {
         <!-- Animated brand gradient wash -->
         <div class="absolute inset-0 bg-gradient-brand opacity-20 animate-gradient-pan" />
         <div class="absolute inset-0 bg-grain opacity-10 mix-blend-overlay" />
-        <!-- Shimmer sweep -->
-        <div
-          class="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/25 to-transparent"
-        />
         <!-- Center content -->
         <div
           class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center px-6"
