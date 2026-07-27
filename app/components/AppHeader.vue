@@ -3,7 +3,7 @@ import { useAuthService } from "~/services/auth.service";
 import { useProfile } from "~/composables/useProfile";
 
 const { profile } = useProfile();
-const { user, ready, isAuthenticated } = useAuthState();
+const { user, isAuthenticated } = useAuthState();
 const { balance } = useTokens();
 const colorMode = useColorMode();
 const router = useRouter();
@@ -156,7 +156,14 @@ async function handleSignOut() {
           @click="isDark = !isDark"
         />
 
-        <template v-if="isAuthenticated">
+        <ClientOnly>
+          <template #fallback>
+            <div
+              class="size-8 rounded-full bg-zinc-200/70 dark:bg-zinc-800/70 animate-pulse"
+            />
+          </template>
+
+          <template v-if="isAuthenticated">
           <UPopover
             v-model:open="menuOpen"
             :content="{ align: 'end', sideOffset: 10 }"
@@ -270,17 +277,18 @@ async function handleSignOut() {
           </UPopover>
         </template>
 
-        <template v-else-if="ready">
-          <UButton to="/auth/login" variant="ghost" size="sm" color="neutral"
-            >Sign in</UButton
-          >
-          <UButton
-            to="/auth/register"
-            size="sm"
-            class="hidden sm:inline-flex !bg-gradient-brand !text-white shadow-glow-brand hover:!brightness-110 transition-all"
-            >Get started</UButton
-          >
-        </template>
+          <template v-else>
+            <UButton to="/auth/login" variant="ghost" size="sm" color="neutral"
+              >Sign in</UButton
+            >
+            <UButton
+              to="/auth/register"
+              size="sm"
+              class="hidden sm:inline-flex !bg-gradient-brand !text-white shadow-glow-brand hover:!brightness-110 transition-all"
+              >Get started</UButton
+            >
+          </template>
+        </ClientOnly>
 
         <!-- Mobile hamburger -->
         <UButton
@@ -389,6 +397,7 @@ async function handleSignOut() {
         <div
           class="p-4 border-t border-zinc-200 dark:border-zinc-800 flex-shrink-0"
         >
+          <ClientOnly>
           <template v-if="isAuthenticated">
             <div class="flex items-center gap-3 mb-3 px-1">
               <span class="rounded-full p-px bg-conic-brand flex-shrink-0">
@@ -432,7 +441,7 @@ async function handleSignOut() {
             </div>
           </template>
 
-          <template v-else-if="ready">
+          <template v-else>
             <UButton
               to="/auth/login"
               variant="outline"
@@ -448,6 +457,7 @@ async function handleSignOut() {
               >Get started</UButton
             >
           </template>
+          </ClientOnly>
         </div>
       </div>
     </Transition>
