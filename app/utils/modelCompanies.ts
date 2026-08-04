@@ -158,6 +158,11 @@ export const VIDEO_COMPANY_META: Record<string, CompanyMeta> = {
     subtitle: "Hailuo family",
     logo: "/ai-logos/minimax.svg",
   },
+  runway: {
+    label: "Runway",
+    subtitle: "Gen · Aleph",
+    logo: "/ai-logos/runway.svg",
+  },
 };
 
 export const VIDEO_COMPANY_ORDER = [
@@ -168,6 +173,7 @@ export const VIDEO_COMPANY_ORDER = [
   "kuaishou",
   "black-forest-labs",
   "x-ai",
+  "runway",
 ];
 
 const SERVING_PREFIXES = new Set(["openrouter", "fal", "fal-ai", "replicate"]);

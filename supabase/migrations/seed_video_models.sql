@@ -138,6 +138,19 @@ insert into video_models (
     '{1,2,3,4,5,6,7,8,9,10,11,12,13,14,15}',
     '720p', true, '{"16:9","9:16","1:1","4:3","3:4","3:2","2:3"}',
     false, true, 17
+  ),
+  (
+    'runway/gen-4.5', 'Gen-4.5',
+    'Runway text/image-to-video — cinematic scenes with strong motion, fidelity and prompt adherence.',
+    'mid', 'openrouter', 145, '~$0.12/s', 5, '{2,3,4,5,6,7,8,9,10}',
+    '720p', true, '{"16:9","9:16"}', false, true, 18
+  ),
+  (
+    'runway/aleph-2', 'Aleph 2.0',
+    'Runway in-context video editing — restyle, replace or relight existing footage via text + keyframes. Requires a source video.',
+    'high', 'openrouter', 337, '~$0.28/s', 5, '{5}',
+    '720p', false, '{"16:9","4:3","3:2","1:1","2:3","3:4","9:16","21:9"}',
+    false, false, 19
   )
 on conflict (id) do update set
   name = excluded.name,
