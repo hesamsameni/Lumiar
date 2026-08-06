@@ -72,6 +72,11 @@ export const IMAGE_COMPANY_META: Record<string, CompanyMeta> = {
     subtitle: "Krea 2 family",
     logo: "/ai-logos/krea.svg",
   },
+  qwen: {
+    label: "Qwen",
+    subtitle: "Qwen Image family",
+    logo: "/ai-logos/qwen.svg",
+  },
 };
 
 export const IMAGE_COMPANY_ORDER = [
@@ -84,6 +89,7 @@ export const IMAGE_COMPANY_ORDER = [
   "x-ai",
   "sourceful",
   "krea",
+  "qwen",
 ];
 
 const IMAGE_COMPANY_ID_MAP: Record<string, string> = {
