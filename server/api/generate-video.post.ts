@@ -65,10 +65,10 @@ export default defineEventHandler(async (event) => {
   if (!trimmedPrompt) {
     throw createError({ statusCode: 400, message: "Prompt cannot be empty" });
   }
-  if (trimmedPrompt.length > 2000) {
+  if (trimmedPrompt.length > 5000) {
     throw createError({
       statusCode: 400,
-      message: "Prompt is too long (max 2000 characters)",
+      message: "Prompt is too long (max 5000 characters)",
     });
   }
   if (inputImageUrl != null && typeof inputImageUrl !== "string") {
@@ -119,8 +119,7 @@ export default defineEventHandler(async (event) => {
     modelRow.default_resolution,
     typeof requestedResolution === "string" ? requestedResolution : null,
   );
-  const resolution =
-    resolutionOpt?.value ?? modelRow.resolution ?? "720p";
+  const resolution = resolutionOpt?.value ?? modelRow.resolution ?? "720p";
   const resolutionMultiplier = resolutionOpt?.multiplier ?? 1;
 
   const cost = Math.max(
