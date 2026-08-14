@@ -126,53 +126,83 @@ const videoAspect = ref(VIDEO_ASPECT_RATIOS[0]!);
 const videoResolution = ref<string>("auto");
 
 // Video input sub-modes (matching the dedicated /video page).
-type ImageSlot = "first" | "last" | "reference";
-type VideoInputMode = "frame" | "reference" | "video" | "audio";
+type ImageSlot = "first" | "last";
+type VideoInputMode = "frame" | "reference" | "audio";
 const videoInputMode = ref<VideoInputMode>("frame");
-// Per-slot frame / reference state (video mode).
+// Per-slot frame state (video mode).
 const firstFrameFile = ref<File | null>(null);
 const firstFramePreview = ref<string | null>(null);
 const firstFrameUrl = ref<string | null>(null);
 const lastFrameFile = ref<File | null>(null);
 const lastFramePreview = ref<string | null>(null);
 const lastFrameUrl = ref<string | null>(null);
-const referenceFile = ref<File | null>(null);
-const referencePreview = ref<string | null>(null);
-const referenceUrl = ref<string | null>(null);
 const pickerSlot = ref<ImageSlot>("first");
-// Video / audio input state.
-const inputVideoFile = ref<File | null>(null);
-const inputVideoPreview = ref<string | null>(null);
+// Whether the asset picker is for frame slots or references.
+const pickerTarget = ref<"frame" | "reference">("frame");
+// Unified reference pool (images + videos merged).
+interface ReferenceSlot {
+  id: string;
+  file: File | null;
+  preview: string | null;
+  url: string | null;
+  mediaType: "image" | "video";
+}
+const referenceSlots = ref<ReferenceSlot[]>([]);
+const referenceFileInput = ref<HTMLInputElement | null>(null);
+let refIdCounter = 0;
+// Audio input state.
 const inputAudioFile = ref<File | null>(null);
 const inputAudioName = ref<string | null>(null);
 // Hidden file input refs.
 const firstFrameInput = ref<HTMLInputElement | null>(null);
 const lastFrameInput = ref<HTMLInputElement | null>(null);
-const referenceInput = ref<HTMLInputElement | null>(null);
-const videoFileInput = ref<HTMLInputElement | null>(null);
 const audioFileInput = ref<HTMLInputElement | null>(null);
 
 const supportsLastFrame = computed(
   () => videoModel.value?.supports_last_frame ?? false,
 );
+const supportsVideoInput = computed(
+  () => videoModel.value?.supports_video_input ?? false,
+);
+const maxReferences = computed(() => videoModel.value?.max_references ?? 1);
+const maxReferenceVideos = computed(
+  () => videoModel.value?.max_reference_videos ?? 0,
+);
+const videoRefCount = computed(
+  () => referenceSlots.value.filter((s) => s.mediaType === "video").length,
+);
+const canAddReference = computed(
+  () => referenceSlots.value.length < maxReferences.value,
+);
+const canAddVideo = computed(
+  () =>
+    supportsVideoInput.value && videoRefCount.value < maxReferenceVideos.value,
+);
+const acceptsVideoRefs = computed(
+  () => supportsVideoInput.value && maxReferenceVideos.value > 0,
+);
+const referenceAccept = computed(() =>
+  canAddVideo.value
+    ? "image/*,video/mp4,video/webm,video/quicktime"
+    : "image/*",
+);
 const supportsAnyVideoMedia = computed(
   () =>
     (videoModel.value?.supports_image_input ?? false) ||
-    (videoModel.value?.supports_video_input ?? false) ||
+    supportsVideoInput.value ||
     (videoModel.value?.supports_audio_input ?? false),
 );
 const videoInputModes = computed(() => {
   const modes: { value: VideoInputMode; label: string; icon: string }[] = [];
   if (videoModel.value?.supports_image_input) {
     modes.push({ value: "frame", label: "Frames", icon: "i-lucide-image" });
+  }
+  if (videoModel.value?.supports_image_input || supportsVideoInput.value) {
     modes.push({
       value: "reference",
-      label: "Reference",
+      label: `Reference${maxReferences.value > 1 ? "s" : ""}`,
       icon: "i-lucide-palette",
     });
-  }
-  if (videoModel.value?.supports_video_input) {
-    modes.push({ value: "video", label: "Video", icon: "i-lucide-film" });
   }
   if (videoModel.value?.supports_audio_input) {
     modes.push({ value: "audio", label: "Audio", icon: "i-lucide-music" });
@@ -371,9 +401,16 @@ async function handleGenerateVideo() {
     firstFrameUrl: im === "frame" ? firstFrameUrl.value : null,
     lastFrameFile: im === "frame" ? lastFrameFile.value : null,
     lastFrameUrl: im === "frame" ? lastFrameUrl.value : null,
-    referenceFile: im === "reference" ? referenceFile.value : null,
-    referenceUrl: im === "reference" ? referenceUrl.value : null,
-    inputVideoFile: im === "video" ? inputVideoFile.value : null,
+    referenceFiles:
+      im === "reference"
+        ? referenceSlots.value.filter((s) => s.file).map((s) => s.file!)
+        : [],
+    referenceUrls:
+      im === "reference"
+        ? referenceSlots.value
+            .filter((s) => s.url && !s.file)
+            .map((s) => s.url!)
+        : [],
     inputAudioFile: im === "audio" ? inputAudioFile.value : null,
     aspectRatio: videoAspect.value.value,
   });
@@ -387,25 +424,33 @@ async function handleGenerateVideo() {
 // ─── Attachments ────────────────────────────────────────────────────────────
 async function onAssetPickerConfirm(assets: PickedAsset[]) {
   if (mode.value === "video") {
-    // Per-slot single selection for video mode.
-    const asset = assets[0];
-    if (!asset) return;
-    const slot = pickerSlot.value;
-    if (asset.kind === "file") {
-      await handleSlotFile(slot, asset.file);
+    if (pickerTarget.value === "reference") {
+      // Reference picker: add all selected assets.
+      for (const asset of assets) {
+        if (!canAddReference.value) break;
+        if (asset.kind === "file") {
+          await addReferenceFile(asset.file);
+        } else {
+          addReferenceUrl(asset.url);
+        }
+      }
     } else {
-      if (slot === "first") {
-        firstFrameFile.value = null;
-        firstFrameUrl.value = asset.url;
-        firstFramePreview.value = asset.url;
-      } else if (slot === "last") {
-        lastFrameFile.value = null;
-        lastFrameUrl.value = asset.url;
-        lastFramePreview.value = asset.url;
+      // Frame slot single selection.
+      const asset = assets[0];
+      if (!asset) return;
+      const slot = pickerSlot.value;
+      if (asset.kind === "file") {
+        await handleSlotFile(slot, asset.file);
       } else {
-        referenceFile.value = null;
-        referenceUrl.value = asset.url;
-        referencePreview.value = asset.url;
+        if (slot === "first") {
+          firstFrameFile.value = null;
+          firstFrameUrl.value = asset.url;
+          firstFramePreview.value = asset.url;
+        } else {
+          lastFrameFile.value = null;
+          lastFrameUrl.value = asset.url;
+          lastFramePreview.value = asset.url;
+        }
       }
     }
     return;
@@ -463,17 +508,6 @@ function removeFile(index: number) {
   inputPreviewUrls.value = inputPreviewUrls.value.filter((_, i) => i !== index);
 }
 
-function onVideoFileChange(e: Event) {
-  const file = Array.from((e.target as HTMLInputElement).files ?? []).find(
-    (f) => f.type.startsWith("video/"),
-  );
-  if (file) {
-    inputVideoFile.value = file;
-    inputVideoPreview.value = URL.createObjectURL(file);
-  }
-  (e.target as HTMLInputElement).value = "";
-}
-
 function onAudioFileChange(e: Event) {
   const file = Array.from((e.target as HTMLInputElement).files ?? []).find(
     (f) => f.type.startsWith("audio/"),
@@ -483,12 +517,6 @@ function onAudioFileChange(e: Event) {
     inputAudioName.value = file.name;
   }
   (e.target as HTMLInputElement).value = "";
-}
-
-function removeVideoFile() {
-  if (inputVideoPreview.value) URL.revokeObjectURL(inputVideoPreview.value);
-  inputVideoFile.value = null;
-  inputVideoPreview.value = null;
 }
 
 function removeAudioFile() {
@@ -509,14 +537,10 @@ async function handleSlotFile(slot: ImageSlot, file: File) {
       firstFrameFile.value = file;
       firstFramePreview.value = url;
       firstFrameUrl.value = null;
-    } else if (slot === "last") {
+    } else {
       lastFrameFile.value = file;
       lastFramePreview.value = url;
       lastFrameUrl.value = null;
-    } else {
-      referenceFile.value = file;
-      referencePreview.value = url;
-      referenceUrl.value = null;
     }
   } finally {
     processingImageCount.value--;
@@ -536,27 +560,102 @@ function removeSlot(slot: ImageSlot) {
     firstFrameFile.value = null;
     firstFramePreview.value = null;
     firstFrameUrl.value = null;
-  } else if (slot === "last") {
+  } else {
     lastFrameFile.value = null;
     lastFramePreview.value = null;
     lastFrameUrl.value = null;
-  } else {
-    referenceFile.value = null;
-    referencePreview.value = null;
-    referenceUrl.value = null;
   }
 }
 
-function openSlotPicker(slot: ImageSlot) {
+function openFramePicker(slot: ImageSlot) {
   pickerSlot.value = slot;
+  pickerTarget.value = "frame";
+  showAssetPicker.value = true;
+}
+
+// ── Reference pool handlers ─────────────────────────────────────────────
+async function addReferenceFile(file: File) {
+  if (!canAddReference.value) return;
+  const isVideo = file.type.startsWith("video/");
+  if (isVideo && !canAddVideo.value) return;
+  processingImageCount.value++;
+  try {
+    let preview: string;
+    if (isVideo) {
+      preview = URL.createObjectURL(file);
+    } else {
+      const previewFile = await convertHeicToJpeg(file);
+      preview = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (ev) => resolve(ev.target?.result as string);
+        reader.readAsDataURL(previewFile);
+      });
+    }
+    referenceSlots.value = [
+      ...referenceSlots.value,
+      {
+        id: `ref-${++refIdCounter}`,
+        file,
+        preview,
+        url: null,
+        mediaType: isVideo ? "video" : "image",
+      },
+    ];
+  } finally {
+    processingImageCount.value--;
+  }
+}
+
+function addReferenceUrl(assetUrl: string) {
+  if (!canAddReference.value) return;
+  const isVideo = /\.(mp4|mov|webm|avi|mkv)(\?|$)/i.test(assetUrl);
+  if (isVideo && !canAddVideo.value) return;
+  referenceSlots.value = [
+    ...referenceSlots.value,
+    {
+      id: `ref-${++refIdCounter}`,
+      file: null,
+      preview: assetUrl,
+      url: assetUrl,
+      mediaType: isVideo ? "video" : "image",
+    },
+  ];
+}
+
+function removeReference(id: string) {
+  const slot = referenceSlots.value.find((s) => s.id === id);
+  if (slot?.preview && slot.mediaType === "video" && !slot.url) {
+    URL.revokeObjectURL(slot.preview);
+  }
+  referenceSlots.value = referenceSlots.value.filter((s) => s.id !== id);
+}
+
+function onReferenceFileChange(e: Event) {
+  const files = Array.from((e.target as HTMLInputElement).files ?? []);
+  for (const file of files) {
+    if (!canAddReference.value) break;
+    if (file.type.startsWith("video/") && !canAddVideo.value) continue;
+    if (file.type.startsWith("image/") || file.type.startsWith("video/")) {
+      addReferenceFile(file);
+    }
+  }
+  (e.target as HTMLInputElement).value = "";
+}
+
+function openReferencePicker() {
+  pickerTarget.value = "reference";
   showAssetPicker.value = true;
 }
 
 function clearVideoMedia() {
   removeSlot("first");
   removeSlot("last");
-  removeSlot("reference");
-  removeVideoFile();
+  for (const s of referenceSlots.value) {
+    if (s.preview && s.mediaType === "video" && !s.url) {
+      URL.revokeObjectURL(s.preview);
+    }
+  }
+  referenceSlots.value = [];
   removeAudioFile();
   videoInputMode.value = "frame";
 }
@@ -739,14 +838,19 @@ defineExpose({ addImage });
                   ? "Anchor the exact start frame and, optionally, the end frame."
                   : "The video will start from this exact frame."
               }}</template>
-              <template v-else-if="videoInputMode === 'reference'"
-                >The style &amp; content guide the video, not an exact
-                frame.</template
-              >
-              <template v-else-if="videoInputMode === 'video'"
-                >Use a source video as reference for style, motion, or
-                continuation.</template
-              >
+              <template v-else-if="videoInputMode === 'reference'">
+                {{
+                  acceptsVideoRefs
+                    ? "Add images or videos to guide the style &amp; content."
+                    : "Add images to guide the style &amp; content of the video."
+                }}
+                <span
+                  v-if="maxReferences > 1"
+                  class="text-zinc-400 dark:text-zinc-500"
+                >
+                  ({{ referenceSlots.length }}/{{ maxReferences }})
+                </span>
+              </template>
               <template v-else-if="videoInputMode === 'audio'"
                 >Upload audio for lip-sync or sound-driven generation.</template
               >
@@ -766,7 +870,7 @@ defineExpose({ addImage });
                     type="button"
                     :disabled="isProcessingImage"
                     class="size-16 rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-700 flex items-center justify-center text-zinc-400 hover:border-primary/50 hover:text-primary transition-colors"
-                    @click="openSlotPicker('first')"
+                    @click="openFramePicker('first')"
                   >
                     <UIcon name="i-lucide-plus" class="size-4" />
                   </button>
@@ -799,7 +903,7 @@ defineExpose({ addImage });
                     type="button"
                     :disabled="isProcessingImage"
                     class="size-16 rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-700 flex items-center justify-center text-zinc-400 hover:border-primary/50 hover:text-primary transition-colors"
-                    @click="openSlotPicker('last')"
+                    @click="openFramePicker('last')"
                   >
                     <UIcon name="i-lucide-plus" class="size-4" />
                   </button>
@@ -817,77 +921,74 @@ defineExpose({ addImage });
                 >
               </div>
             </div>
-            <!-- Reference mode -->
+            <!-- Reference mode: multi-slot grid -->
             <div
               v-else-if="videoInputMode === 'reference'"
               class="flex flex-wrap gap-3"
             >
-              <div class="flex flex-col items-center gap-1">
+              <div
+                v-for="slot in referenceSlots"
+                :key="slot.id"
+                class="flex flex-col items-center gap-1"
+              >
                 <div class="relative">
+                  <video
+                    v-if="slot.mediaType === 'video' && slot.preview"
+                    :src="slot.preview"
+                    class="size-16 object-cover rounded-lg border-2 border-primary/50"
+                    muted
+                    playsinline
+                    @mouseenter="($event.target as HTMLVideoElement).play()"
+                    @mouseleave="
+                      ($event.target as HTMLVideoElement).pause();
+                      ($event.target as HTMLVideoElement).currentTime = 0;
+                    "
+                  />
                   <img
-                    v-if="referencePreview"
-                    :src="referencePreview"
+                    v-else-if="slot.preview"
+                    :src="slot.preview"
                     alt="Reference"
                     class="size-16 object-cover rounded-lg border-2 border-primary/50"
                   />
                   <button
-                    v-else-if="isAuthenticated"
-                    type="button"
-                    :disabled="isProcessingImage"
-                    class="size-16 rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-700 flex items-center justify-center text-zinc-400 hover:border-primary/50 hover:text-primary transition-colors"
-                    @click="openSlotPicker('reference')"
-                  >
-                    <UIcon name="i-lucide-plus" class="size-4" />
-                  </button>
-                  <button
-                    v-if="referencePreview"
                     type="button"
                     class="absolute top-0.5 right-0.5 size-4 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors"
-                    @click="removeSlot('reference')"
+                    @click="removeReference(slot.id)"
                   >
                     <UIcon name="i-lucide-x" class="size-2.5" />
                   </button>
-                </div>
-                <span class="text-[10px] text-zinc-500 dark:text-zinc-400"
-                  >Reference</span
-                >
-              </div>
-            </div>
-            <!-- Video input mode -->
-            <div
-              v-else-if="videoInputMode === 'video'"
-              class="flex flex-wrap gap-3"
-            >
-              <div class="flex flex-col items-center gap-1">
-                <div class="relative">
-                  <video
-                    v-if="inputVideoPreview"
-                    :src="inputVideoPreview"
-                    class="size-16 object-cover rounded-lg border-2 border-primary/50"
-                    muted
-                    playsinline
-                  />
-                  <button
-                    v-else-if="isAuthenticated"
-                    type="button"
-                    class="size-16 rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-700 flex items-center justify-center text-zinc-400 hover:border-primary/50 hover:text-primary transition-colors"
-                    @click="videoFileInput?.click()"
+                  <span
+                    v-if="slot.mediaType === 'video'"
+                    class="absolute bottom-0.5 left-0.5 rounded bg-black/60 px-1 py-0.5 text-[7px] text-white leading-none"
                   >
-                    <UIcon name="i-lucide-film" class="size-4" />
-                  </button>
-                  <button
-                    v-if="inputVideoPreview"
-                    type="button"
-                    class="absolute top-0.5 right-0.5 size-4 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors"
-                    @click="removeVideoFile"
-                  >
-                    <UIcon name="i-lucide-x" class="size-2.5" />
-                  </button>
+                    <UIcon name="i-lucide-film" class="size-2" />
+                  </span>
                 </div>
-                <span class="text-[10px] text-zinc-500 dark:text-zinc-400"
-                  >Source video</span
-                >
               </div>
+              <div
+                v-if="canAddReference && isAuthenticated"
+                class="flex flex-col items-center gap-1"
+              >
+                <button
+                  type="button"
+                  :disabled="isProcessingImage"
+                  class="size-16 rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-700 flex items-center justify-center text-zinc-400 hover:border-primary/50 hover:text-primary transition-colors"
+                  @click="openReferencePicker()"
+                >
+                  <UIcon name="i-lucide-plus" class="size-4" />
+                </button>
+                <span class="text-[10px] text-zinc-500 dark:text-zinc-400">
+                  {{ acceptsVideoRefs ? "Image / Video" : "Image" }}
+                </span>
+              </div>
+              <input
+                ref="referenceFileInput"
+                type="file"
+                :accept="referenceAccept"
+                multiple
+                class="hidden"
+                @change="onReferenceFileChange($event)"
+              />
             </div>
             <!-- Audio input mode -->
             <div
@@ -1504,16 +1605,33 @@ defineExpose({ addImage });
 
     <AssetPickerModal
       v-model:open="showAssetPicker"
-      mode="multi"
-      :max-select="mode === 'video' ? 1 : remainingImageSlots"
+      :mode="
+        mode === 'video' && pickerTarget === 'reference' && maxReferences > 1
+          ? 'multi'
+          : mode === 'image'
+            ? 'multi'
+            : 'single'
+      "
+      :max-select="
+        mode === 'video'
+          ? pickerTarget === 'reference'
+            ? maxReferences - referenceSlots.length
+            : 1
+          : remainingImageSlots
+      "
       :title="
         mode === 'video'
-          ? pickerSlot === 'first'
-            ? 'Choose first frame'
-            : pickerSlot === 'last'
-              ? 'Choose last frame'
-              : 'Choose reference image'
+          ? pickerTarget === 'reference'
+            ? 'Choose references'
+            : pickerSlot === 'first'
+              ? 'Choose first frame'
+              : 'Choose last frame'
           : 'Add reference images'
+      "
+      :accept="
+        mode === 'video' && pickerTarget === 'reference'
+          ? referenceAccept
+          : 'image/*'
       "
       @confirm="onAssetPickerConfirm"
     />
@@ -1532,20 +1650,6 @@ defineExpose({ addImage });
       accept="image/*"
       class="hidden"
       @change="onSlotChange('last', $event)"
-    />
-    <input
-      ref="referenceInput"
-      type="file"
-      accept="image/*"
-      class="hidden"
-      @change="onSlotChange('reference', $event)"
-    />
-    <input
-      ref="videoFileInput"
-      type="file"
-      accept="video/mp4,video/webm,video/quicktime"
-      class="hidden"
-      @change="onVideoFileChange"
     />
     <input
       ref="audioFileInput"

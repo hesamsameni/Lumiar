@@ -16,6 +16,8 @@ interface VideoModelRow {
   supports_video_input: boolean;
   supports_audio_input: boolean;
   supports_audio_generation: boolean;
+  max_references: number;
+  max_reference_videos: number;
 }
 
 export default defineEventHandler(async (event) => {
@@ -30,12 +32,14 @@ export default defineEventHandler(async (event) => {
     durationSeconds,
     aspectRatio,
     resolution: requestedResolution,
-    // New explicit image slots.
+    // Explicit image slots.
     firstFrameUrl,
     lastFrameUrl,
-    referenceUrl,
-    // Video / audio input slots.
-    inputVideoUrl: rawInputVideoUrl,
+    // Unified reference pool (images + videos).
+    referenceUrls: rawReferenceUrls,
+    // Legacy single-reference field (mapped below for backward compat).
+    referenceUrl: legacySingleRef,
+    // Audio input slot.
     inputAudioUrl: rawInputAudioUrl,
     // Legacy single-image fields (mapped below for backward compat).
     inputImageUrl,
@@ -54,8 +58,18 @@ export default defineEventHandler(async (event) => {
   const rawFirstFrame =
     typeof firstFrameUrl === "string" ? firstFrameUrl : legacyFirst;
   const rawLastFrame = typeof lastFrameUrl === "string" ? lastFrameUrl : null;
-  const rawReference =
-    typeof referenceUrl === "string" ? referenceUrl : legacyReference;
+
+  // Build the reference URLs array (new array format or legacy single values).
+  let incomingRefs: string[] = [];
+  if (Array.isArray(rawReferenceUrls)) {
+    incomingRefs = rawReferenceUrls.filter(
+      (u: unknown): u is string => typeof u === "string" && u.length > 0,
+    );
+  } else if (typeof legacySingleRef === "string" && legacySingleRef) {
+    incomingRefs = [legacySingleRef];
+  } else if (legacyReference) {
+    incomingRefs = [legacyReference];
+  }
 
   if (
     typeof prompt !== "string" ||
@@ -100,7 +114,7 @@ export default defineEventHandler(async (event) => {
   const { data: modelRow } = (await (supabase as any)
     .from("video_models")
     .select(
-      "tokens_per_generation, duration_seconds, supported_durations, resolution, resolution_options, default_resolution, supports_image_input, supports_last_frame, supports_video_input, supports_audio_input, supports_audio_generation",
+      "tokens_per_generation, duration_seconds, supported_durations, resolution, resolution_options, default_resolution, supports_image_input, supports_last_frame, supports_video_input, supports_audio_input, supports_audio_generation, max_references, max_reference_videos",
     )
     .eq("id", modelId)
     .maybeSingle()) as { data: VideoModelRow | null };
@@ -158,24 +172,36 @@ export default defineEventHandler(async (event) => {
   const firstFrameImageUrl = modelRow.supports_image_input
     ? (rawFirstFrame ?? null)
     : null;
-  const referenceImageUrl = modelRow.supports_image_input
-    ? (rawReference ?? null)
-    : null;
   const lastFrameImageUrl = modelRow.supports_last_frame
     ? (rawLastFrame ?? null)
     : null;
-  // Gate video / audio input by model capabilities.
-  const inputVideoUrl =
-    modelRow.supports_video_input && typeof rawInputVideoUrl === "string"
-      ? rawInputVideoUrl
-      : null;
+  // Gate and cap the unified reference pool with separate video sub-limit.
+  const maxRefs = modelRow.max_references ?? 1;
+  const maxVideos = modelRow.max_reference_videos ?? 0;
+  const acceptsRefs =
+    modelRow.supports_image_input || modelRow.supports_video_input;
+  const gatedRefs: { url: string; mediaType: "image" | "video" }[] = [];
+  if (acceptsRefs && maxRefs > 0) {
+    let videoCount = 0;
+    for (const url of incomingRefs) {
+      if (gatedRefs.length >= maxRefs) break;
+      const isVideo = /\.(mp4|mov|webm|avi|mkv)(\?|$)/i.test(url);
+      if (isVideo) {
+        if (!modelRow.supports_video_input || videoCount >= maxVideos) continue;
+        videoCount++;
+      }
+      gatedRefs.push({ url, mediaType: isVideo ? "video" : "image" });
+    }
+  }
+  // Gate audio input by model capabilities.
   const inputAudioUrl =
     modelRow.supports_audio_input && typeof rawInputAudioUrl === "string"
       ? rawInputAudioUrl
       : null;
   const generateAudio = !!modelRow.supports_audio_generation;
   // Primary image stored in the dedicated column (for feed/detail display).
-  const primaryImageUrl = firstFrameImageUrl ?? referenceImageUrl ?? null;
+  const firstRefImage = gatedRefs.find((r) => r.mediaType === "image");
+  const primaryImageUrl = firstFrameImageUrl ?? firstRefImage?.url ?? null;
 
   // Placeholder clip used only in dev mode (public sample video).
   const DEV_SAMPLE_VIDEO =
@@ -195,8 +221,7 @@ export default defineEventHandler(async (event) => {
         aspectRatio: ratio,
         firstFrameImageUrl,
         lastFrameImageUrl,
-        referenceImageUrl,
-        inputVideoUrl,
+        references: gatedRefs,
         inputAudioUrl,
         generateAudio,
       });
@@ -226,7 +251,8 @@ export default defineEventHandler(async (event) => {
       status: isDevMode ? "completed" : "pending",
       output_video_url: isDevMode ? DEV_SAMPLE_VIDEO : null,
       input_image_url: primaryImageUrl,
-      input_video_url: inputVideoUrl,
+      input_video_url:
+        gatedRefs.find((r) => r.mediaType === "video")?.url ?? null,
       input_audio_url: inputAudioUrl,
       duration_seconds: duration,
       resolution,
@@ -236,8 +262,7 @@ export default defineEventHandler(async (event) => {
         tags: autoTags,
         ...(firstFrameImageUrl ? { first_frame_url: firstFrameImageUrl } : {}),
         ...(lastFrameImageUrl ? { last_frame_url: lastFrameImageUrl } : {}),
-        ...(referenceImageUrl ? { reference_url: referenceImageUrl } : {}),
-        ...(inputVideoUrl ? { input_video_url: inputVideoUrl } : {}),
+        ...(gatedRefs.length ? { references: gatedRefs } : {}),
         ...(inputAudioUrl ? { input_audio_url: inputAudioUrl } : {}),
         ...(generateAudio ? { generate_audio: true } : {}),
       },
@@ -303,8 +328,7 @@ export default defineEventHandler(async (event) => {
       aspect_ratio: ratio,
       has_input_image: !!primaryImageUrl,
       has_last_frame: !!lastFrameImageUrl,
-      has_reference: !!referenceImageUrl,
-      has_input_video: !!inputVideoUrl,
+      reference_count: gatedRefs.length,
       has_input_audio: !!inputAudioUrl,
       generate_audio: generateAudio,
       generation_id: generationId,

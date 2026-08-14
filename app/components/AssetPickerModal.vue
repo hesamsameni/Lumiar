@@ -11,11 +11,14 @@ const props = withDefaults(
     // Remaining slots available in multi mode. Ignored in single mode.
     maxSelect?: number;
     title?: string;
+    // File types accepted by the device-upload tab. Defaults to images only.
+    accept?: string;
   }>(),
   {
     mode: "single",
     maxSelect: 1,
     title: "Add an image",
+    accept: "image/*",
   },
 );
 
@@ -65,11 +68,16 @@ const fileInput = ref<HTMLInputElement | null>(null);
 const isDragging = ref(false);
 
 const isSingle = computed(() => props.mode === "single");
-const limit = computed(() => (isSingle.value ? 1 : Math.max(1, props.maxSelect)));
+const limit = computed(() =>
+  isSingle.value ? 1 : Math.max(1, props.maxSelect),
+);
 const selectedCount = computed(
   () => selectedUrls.value.length + pendingFiles.value.length,
 );
 const atLimit = computed(() => selectedCount.value >= limit.value);
+const allowsVideo = computed(() => props.accept.includes("video"));
+const fileNoun = computed(() => (allowsVideo.value ? "file" : "image"));
+const fileNounPlural = computed(() => (allowsVideo.value ? "files" : "images"));
 
 function isUrlSelected(url: string) {
   return selectedUrls.value.includes(url);
@@ -125,7 +133,9 @@ async function loadGenerated() {
     const { data } = await generationService.getGenerationsByUser(
       authUser.value.id,
     );
-    generated.value = ((data ?? []) as { id: string; output_image_url: string }[])
+    generated.value = (
+      (data ?? []) as { id: string; output_image_url: string }[]
+    )
       .filter((g) => !!g.output_image_url)
       .map((g) => ({ id: g.id, url: g.output_image_url }));
     generatedLoaded.value = true;
@@ -144,19 +154,21 @@ watch(activeTab, (tab) => {
 // Device tab -----------------------------------------------------------------
 
 function addFiles(files: File[]) {
-  const images = files.filter((f) => f.type.startsWith("image/"));
-  for (const file of images) {
+  const accepted = files.filter(
+    (f) =>
+      f.type.startsWith("image/") ||
+      (allowsVideo.value && f.type.startsWith("video/")),
+  );
+  for (const file of accepted) {
     if (isSingle.value) {
       clearPendingFiles();
       selectedUrls.value = [];
-      pendingFiles.value = [
-        { file, previewUrl: URL.createObjectURL(file) },
-      ];
+      pendingFiles.value = [{ file, previewUrl: URL.createObjectURL(file) }];
       break;
     }
     if (atLimit.value) {
       toast.add({
-        title: `You can select up to ${limit.value} image${limit.value > 1 ? "s" : ""}`,
+        title: `You can select up to ${limit.value} ${limit.value > 1 ? fileNounPlural.value : fileNoun.value}`,
         color: "warning",
       });
       break;
@@ -234,7 +246,9 @@ const tabs: { id: Tab; label: string; icon: string }[] = [
     <template #content>
       <div class="flex flex-col max-h-[80vh]">
         <!-- Header -->
-        <div class="relative px-4 py-4 flex items-center justify-between flex-shrink-0">
+        <div
+          class="relative px-4 py-4 flex items-center justify-between flex-shrink-0"
+        >
           <h3
             class="font-display text-base font-bold tracking-tight text-zinc-900 dark:text-white flex items-center gap-2.5"
           >
@@ -292,10 +306,7 @@ const tabs: { id: Tab; label: string; icon: string }[] = [
             >
               You haven't uploaded any images yet.
             </p>
-            <div
-              v-else
-              class="grid grid-cols-3 sm:grid-cols-4 gap-2"
-            >
+            <div v-else class="grid grid-cols-3 sm:grid-cols-4 gap-2">
               <button
                 v-for="asset in uploads"
                 :key="asset.key"
@@ -342,10 +353,7 @@ const tabs: { id: Tab; label: string; icon: string }[] = [
             >
               You don't have any generated images yet.
             </p>
-            <div
-              v-else
-              class="grid grid-cols-3 sm:grid-cols-4 gap-2"
-            >
+            <div v-else class="grid grid-cols-3 sm:grid-cols-4 gap-2">
               <button
                 v-for="asset in generated"
                 :key="asset.id"
@@ -393,20 +401,26 @@ const tabs: { id: Tab; label: string; icon: string }[] = [
               @drop.prevent="onDrop"
             >
               <UIcon
-                name="i-lucide-image-plus"
+                :name="
+                  allowsVideo ? 'i-lucide-file-plus' : 'i-lucide-image-plus'
+                "
                 class="size-10 mx-auto mb-3 text-zinc-400 dark:text-zinc-500"
               />
               <p class="text-sm font-medium text-zinc-600 dark:text-zinc-400">
-                Drop image{{ isSingle ? "" : "s" }} here or
+                Drop {{ isSingle ? fileNoun : fileNounPlural }} here or
                 <span class="text-primary">browse</span>
               </p>
               <p class="text-xs text-zinc-400 dark:text-zinc-500 mt-1">
-                PNG, JPG, WEBP up to 10MB
+                {{
+                  allowsVideo
+                    ? "PNG, JPG, WEBP, MP4, MOV up to 10MB"
+                    : "PNG, JPG, WEBP up to 10MB"
+                }}
               </p>
               <input
                 ref="fileInput"
                 type="file"
-                accept="image/*"
+                :accept="accept"
                 :multiple="!isSingle"
                 class="hidden"
                 @change="onFileChange"
@@ -422,7 +436,19 @@ const tabs: { id: Tab; label: string; icon: string }[] = [
                 :key="idx"
                 class="relative aspect-square rounded-lg overflow-hidden border-2 border-primary ring-2 ring-primary/30"
               >
-                <img :src="pf.previewUrl" alt="" class="w-full h-full object-cover" />
+                <video
+                  v-if="pf.file.type.startsWith('video/')"
+                  :src="pf.previewUrl"
+                  class="w-full h-full object-cover"
+                  muted
+                  playsinline
+                />
+                <img
+                  v-else
+                  :src="pf.previewUrl"
+                  alt=""
+                  class="w-full h-full object-cover"
+                />
                 <button
                   type="button"
                   class="absolute top-1 right-1 size-5 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80"
@@ -457,7 +483,7 @@ const tabs: { id: Tab; label: string; icon: string }[] = [
               @click="confirmSelection"
             >
               Add {{ selectedCount || "" }}
-              image{{ selectedCount === 1 ? "" : "s" }}
+              {{ selectedCount === 1 ? fileNoun : fileNounPlural }}
             </UButton>
           </div>
         </div>

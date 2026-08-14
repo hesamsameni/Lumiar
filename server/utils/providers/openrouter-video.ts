@@ -57,10 +57,9 @@ export interface SubmitVideoParams {
   // image-to-video (frames take precedence).
   firstFrameImageUrl?: string | null;
   lastFrameImageUrl?: string | null;
-  referenceImageUrl?: string | null;
-  // Public URL of an input video (video-to-video / continuation). Sent as an
-  // input_reference with type "video_url".
-  inputVideoUrl?: string | null;
+  // Unified reference pool: images and/or videos that guide the generation.
+  // Each item is sent as an input_reference with the appropriate type.
+  references?: { url: string; mediaType: "image" | "video" }[];
   // Public URL of an input audio track (lip-sync / audio-driven). Sent as an
   // input_reference with type "audio_url".
   inputAudioUrl?: string | null;
@@ -113,19 +112,22 @@ export async function submitVideoJob(
   }
   if (frameImages.length) body.frame_images = frameImages;
 
-  // Reference inputs: images, video, and/or audio that guide the generation.
+  // Reference inputs: images, videos, and/or audio that guide the generation.
   const inputRefs: Array<Record<string, unknown>> = [];
-  if (params.referenceImageUrl) {
-    inputRefs.push({
-      type: "image_url",
-      image_url: { url: params.referenceImageUrl },
-    });
-  }
-  if (params.inputVideoUrl) {
-    inputRefs.push({
-      type: "video_url",
-      video_url: { url: params.inputVideoUrl },
-    });
+  if (params.references?.length) {
+    for (const ref of params.references) {
+      if (ref.mediaType === "video") {
+        inputRefs.push({
+          type: "video_url",
+          video_url: { url: ref.url },
+        });
+      } else {
+        inputRefs.push({
+          type: "image_url",
+          image_url: { url: ref.url },
+        });
+      }
+    }
   }
   if (params.inputAudioUrl) {
     inputRefs.push({
