@@ -210,6 +210,10 @@ const videoInputModes = computed(() => {
   return modes;
 });
 const hasVideoInputModes = computed(() => videoInputModes.value.length > 1);
+const supportsAudioGeneration = computed(
+  () => videoModel.value?.supports_audio_generation ?? false,
+);
+const generateAudio = ref(true);
 
 const videoAvailableRatios = computed(() => {
   const supported = videoModel.value?.supported_aspect_ratios ?? [];
@@ -412,6 +416,7 @@ async function handleGenerateVideo() {
             .map((s) => s.url!)
         : [],
     inputAudioFile: im === "audio" ? inputAudioFile.value : null,
+    generateAudio: generateAudio.value,
     aspectRatio: videoAspect.value.value,
   });
 
@@ -1186,6 +1191,35 @@ defineExpose({ addImage });
               <span
                 class="text-xs font-medium text-zinc-700 dark:text-zinc-300"
                 >{{ currentVideoResolutionLabel }}</span
+              >
+            </button>
+            <!-- Audio generation toggle (video) -->
+            <button
+              v-if="mode === 'video' && supportsAudioGeneration"
+              type="button"
+              class="flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 border transition-colors"
+              :class="
+                generateAudio
+                  ? 'bg-primary/10 border-primary/30 dark:border-primary/40'
+                  : 'bg-zinc-50 dark:bg-zinc-800/60 border-zinc-200 dark:border-zinc-700'
+              "
+              @click="generateAudio = !generateAudio"
+            >
+              <UIcon
+                :name="
+                  generateAudio ? 'i-lucide-volume-2' : 'i-lucide-volume-x'
+                "
+                class="size-3.5"
+                :class="generateAudio ? 'text-primary' : 'text-zinc-400'"
+              />
+              <span
+                class="text-xs font-medium"
+                :class="
+                  generateAudio
+                    ? 'text-primary'
+                    : 'text-zinc-700 dark:text-zinc-300'
+                "
+                >Audio</span
               >
             </button>
 

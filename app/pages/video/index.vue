@@ -140,6 +140,11 @@ const availableInputModes = computed(() => {
   return modes;
 });
 
+const supportsAudioGeneration = computed(
+  () => selectedModel.value?.supports_audio_generation ?? false,
+);
+const generateAudio = ref(true);
+
 const showModelSelector = ref(false);
 const showRatioSelector = ref(false);
 const showDurationSelector = ref(false);
@@ -439,6 +444,7 @@ async function handleGenerate() {
     referenceFiles: refFiles,
     referenceUrls: refUrls,
     inputAudioFile: mode === "audio" ? inputAudioFile.value : null,
+    generateAudio: generateAudio.value,
     aspectRatio: selectedAspectRatio.value.value,
   });
 }
@@ -866,6 +872,34 @@ function getRatioStyle(value: string): Record<string, string> {
               <span
                 class="text-xs font-medium text-zinc-700 dark:text-zinc-300"
                 >{{ currentResolutionLabel }}</span
+              >
+            </button>
+            <button
+              v-if="supportsAudioGeneration"
+              type="button"
+              class="flex items-center gap-1.5 rounded-xl px-3 py-2 border flex-shrink-0 transition-colors"
+              :class="
+                generateAudio
+                  ? 'bg-primary/10 border-primary/30 dark:border-primary/40'
+                  : 'bg-zinc-50 dark:bg-zinc-800/60 border-zinc-200 dark:border-zinc-700'
+              "
+              @click="generateAudio = !generateAudio"
+            >
+              <UIcon
+                :name="
+                  generateAudio ? 'i-lucide-volume-2' : 'i-lucide-volume-x'
+                "
+                class="size-3.5"
+                :class="generateAudio ? 'text-primary' : 'text-zinc-400'"
+              />
+              <span
+                class="text-xs font-medium"
+                :class="
+                  generateAudio
+                    ? 'text-primary'
+                    : 'text-zinc-700 dark:text-zinc-300'
+                "
+                >Audio</span
               >
             </button>
           </div>

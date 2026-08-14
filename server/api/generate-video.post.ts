@@ -41,6 +41,8 @@ export default defineEventHandler(async (event) => {
     referenceUrl: legacySingleRef,
     // Audio input slot.
     inputAudioUrl: rawInputAudioUrl,
+    // Whether the user opted in to synchronized audio generation.
+    generateAudio: rawGenerateAudio,
     // Legacy single-image fields (mapped below for backward compat).
     inputImageUrl,
     imageMode,
@@ -198,7 +200,8 @@ export default defineEventHandler(async (event) => {
     modelRow.supports_audio_input && typeof rawInputAudioUrl === "string"
       ? rawInputAudioUrl
       : null;
-  const generateAudio = !!modelRow.supports_audio_generation;
+  const generateAudio =
+    !!modelRow.supports_audio_generation && rawGenerateAudio !== false;
   // Primary image stored in the dedicated column (for feed/detail display).
   const firstRefImage = gatedRefs.find((r) => r.mediaType === "image");
   const primaryImageUrl = firstFrameImageUrl ?? firstRefImage?.url ?? null;

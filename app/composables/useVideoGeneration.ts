@@ -45,6 +45,9 @@ export function useVideoGeneration() {
     referenceUrls?: string[];
     // Audio input file (uploaded raw, no compression).
     inputAudioFile?: File | null;
+    // Whether to generate synchronized audio (when the model supports it).
+    // Defaults to true so existing callers don't break.
+    generateAudio?: boolean;
     aspectRatio?: string;
   }) {
     if (!profile.value?.id) {
@@ -167,6 +170,7 @@ export function useVideoGeneration() {
           lastFrameUrl,
           referenceUrls,
           inputAudioUrl,
+          generateAudio: opts.generateAudio ?? true,
         },
       });
 
