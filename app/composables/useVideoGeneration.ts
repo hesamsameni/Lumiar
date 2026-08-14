@@ -36,13 +36,14 @@ export function useVideoGeneration() {
     resolution?: string | null;
     firstFrameFile?: File | null;
     lastFrameFile?: File | null;
-    referenceFile?: File | null;
     // Already-hosted images picked from the bucket / past generations.
     firstFrameUrl?: string | null;
     lastFrameUrl?: string | null;
-    referenceUrl?: string | null;
-    // Video / audio input files (uploaded raw, no compression).
-    inputVideoFile?: File | null;
+    // Unified reference pool (images + videos). Each entry is either a
+    // device file to upload or an already-hosted URL.
+    referenceFiles?: File[];
+    referenceUrls?: string[];
+    // Audio input file (uploaded raw, no compression).
     inputAudioFile?: File | null;
     aspectRatio?: string;
   }) {
@@ -79,12 +80,13 @@ export function useVideoGeneration() {
       has_input_images: !!(
         opts.firstFrameFile ||
         opts.lastFrameFile ||
-        opts.referenceFile ||
         opts.firstFrameUrl ||
         opts.lastFrameUrl ||
-        opts.referenceUrl
+        (opts.referenceFiles?.length ?? 0) > 0 ||
+        (opts.referenceUrls?.length ?? 0) > 0
       ),
-      has_input_video: !!opts.inputVideoFile,
+      reference_count:
+        (opts.referenceFiles?.length ?? 0) + (opts.referenceUrls?.length ?? 0),
       has_input_audio: !!opts.inputAudioFile,
       aspect_ratio: opts.aspectRatio ?? "16:9",
     });
@@ -126,19 +128,26 @@ export function useVideoGeneration() {
         return uploadRes.url;
       }
 
-      const [
-        firstFrameUrl,
-        lastFrameUrl,
-        referenceUrl,
-        inputVideoUrl,
-        inputAudioUrl,
-      ] = await Promise.all([
+      // Resolve frame anchors + audio in parallel.
+      const [firstFrameUrl, lastFrameUrl, inputAudioUrl] = await Promise.all([
         resolveSlot(opts.firstFrameFile, opts.firstFrameUrl),
         resolveSlot(opts.lastFrameFile, opts.lastFrameUrl),
-        resolveSlot(opts.referenceFile, opts.referenceUrl),
-        uploadRawFile(opts.inputVideoFile, "tmp-video"),
         uploadRawFile(opts.inputAudioFile, "tmp-audio"),
       ]);
+
+      // Resolve unified reference pool (files → upload, URLs → pass through).
+      const refFileUploads = (opts.referenceFiles ?? []).map(async (file) => {
+        const isVideo = file.type.startsWith("video/");
+        if (isVideo) {
+          return uploadRawFile(file, "tmp-video");
+        }
+        return resolveSlot(file, null);
+      });
+      const uploadedRefUrls = await Promise.all(refFileUploads);
+      const referenceUrls: string[] = [
+        ...uploadedRefUrls.filter((u): u is string => !!u),
+        ...(opts.referenceUrls ?? []),
+      ];
 
       const submit = await $fetch<{
         generationId: string;
@@ -156,8 +165,7 @@ export function useVideoGeneration() {
           aspectRatio: opts.aspectRatio ?? "16:9",
           firstFrameUrl,
           lastFrameUrl,
-          referenceUrl,
-          inputVideoUrl,
+          referenceUrls,
           inputAudioUrl,
         },
       });

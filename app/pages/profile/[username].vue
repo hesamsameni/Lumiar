@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { MasonryWall } from "@yeger/vue-masonry-wall";
 import { useGenerationService } from "~/services/generation.service";
 import { useVideoGenerationService } from "~/services/videoGeneration.service";
 import { useProfileService } from "~/services/profile.service";
@@ -85,7 +86,11 @@ const viewChips = computed(() => {
         icon: "i-lucide-folder-minus",
       });
     }
-    chips.push({ value: "collections", label: "Collections", icon: "i-lucide-folder" });
+    chips.push({
+      value: "collections",
+      label: "Collections",
+      icon: "i-lucide-folder",
+    });
   }
   return chips;
 });
@@ -511,7 +516,9 @@ const firstSelectedImageUrl = computed(() => {
           >
             <UAvatar
               :src="(profile.avatar_url as string | null) || undefined"
-              :fallback="(profile.username as string)?.slice(0, 1).toUpperCase()"
+              :fallback="
+                (profile.username as string)?.slice(0, 1).toUpperCase()
+              "
               size="3xl"
               class="size-24 sm:size-32 text-4xl ring-4 ring-white dark:ring-zinc-950"
             />
@@ -523,7 +530,10 @@ const firstSelectedImageUrl = computed(() => {
             >
               {{ profile.username }}
             </h1>
-            <p v-if="profile.full_name" class="text-zinc-500 dark:text-zinc-400">
+            <p
+              v-if="profile.full_name"
+              class="text-zinc-500 dark:text-zinc-400"
+            >
               {{ profile.full_name }}
             </p>
             <p
@@ -537,9 +547,10 @@ const firstSelectedImageUrl = computed(() => {
               <div
                 class="flex items-baseline gap-1.5 rounded-full border border-zinc-200/70 dark:border-zinc-800/70 bg-white/60 dark:bg-zinc-900/50 backdrop-blur px-3 py-1"
               >
-                <span class="font-display font-bold text-zinc-900 dark:text-white">{{
-                  generations.length
-                }}</span>
+                <span
+                  class="font-display font-bold text-zinc-900 dark:text-white"
+                  >{{ generations.length }}</span
+                >
                 <span class="text-xs text-zinc-500 dark:text-zinc-400">{{
                   isOwnProfile ? "creations" : "shared"
                 }}</span>
@@ -547,9 +558,10 @@ const firstSelectedImageUrl = computed(() => {
               <div
                 class="flex items-baseline gap-1.5 rounded-full border border-zinc-200/70 dark:border-zinc-800/70 bg-white/60 dark:bg-zinc-900/50 backdrop-blur px-3 py-1"
               >
-                <span class="font-display font-bold text-zinc-900 dark:text-white">{{
-                  followersCount
-                }}</span>
+                <span
+                  class="font-display font-bold text-zinc-900 dark:text-white"
+                  >{{ followersCount }}</span
+                >
                 <span class="text-xs text-zinc-500 dark:text-zinc-400"
                   >followers</span
                 >
@@ -557,9 +569,10 @@ const firstSelectedImageUrl = computed(() => {
               <div
                 class="flex items-baseline gap-1.5 rounded-full border border-zinc-200/70 dark:border-zinc-800/70 bg-white/60 dark:bg-zinc-900/50 backdrop-blur px-3 py-1"
               >
-                <span class="font-display font-bold text-zinc-900 dark:text-white">{{
-                  followingCount
-                }}</span>
+                <span
+                  class="font-display font-bold text-zinc-900 dark:text-white"
+                  >{{ followingCount }}</span
+                >
                 <span class="text-xs text-zinc-500 dark:text-zinc-400"
                   >following</span
                 >
@@ -707,86 +720,91 @@ const firstSelectedImageUrl = computed(() => {
             >
               {{ group.label }}
             </p>
-            <div
-              class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 grid-flow-row-dense auto-rows-[168px] sm:auto-rows-[190px] lg:auto-rows-[210px]"
+            <MasonryWall
+              :items="group.items"
+              :ssr-columns="2"
+              :column-width="240"
+              :gap="12"
+              :key-mapper="
+                (_item: any, _col: number, _row: number, idx: number) =>
+                  (group.items[idx] as any)?.id ?? idx
+              "
             >
-              <div
-                v-for="(gen, gidx) in group.items"
-                :key="(gen as any).id"
-                class="relative group/tile"
-                :class="mosaicSpan(gidx)"
-              >
-                <!-- Selection overlay -->
-                <template v-if="isSelectMode">
-                  <button
-                    class="block w-full h-full rounded-2xl overflow-hidden focus:outline-none"
-                    @click="toggleSelect((gen as any).id)"
-                  >
-                    <img
-                      :src="(gen as any).output_image_url"
-                      :alt="(gen as any).prompt"
-                      class="w-full h-full object-cover transition-opacity duration-150"
-                      :class="
-                        selectedIds.has((gen as any).id)
-                          ? 'opacity-70'
-                          : 'opacity-100'
-                      "
-                    />
-                  </button>
-                  <!-- Checkbox indicator -->
-                  <div class="absolute top-2 right-2 pointer-events-none">
-                    <div
-                      class="size-6 rounded-full border-2 flex items-center justify-center transition-all duration-150"
-                      :class="
-                        selectedIds.has((gen as any).id)
-                          ? 'bg-primary border-primary'
-                          : 'bg-black/30 border-white/80 backdrop-blur-sm'
-                      "
+              <template #default="{ item: gen }: { item: MediaItem }">
+                <div class="relative group/tile">
+                  <!-- Selection overlay -->
+                  <template v-if="isSelectMode">
+                    <button
+                      class="block w-full rounded-2xl overflow-hidden focus:outline-none"
+                      @click="toggleSelect((gen as any).id)"
                     >
-                      <UIcon
-                        v-if="selectedIds.has((gen as any).id)"
-                        name="i-lucide-check"
-                        class="size-3.5 text-white"
+                      <img
+                        :src="(gen as any).output_image_url"
+                        :alt="(gen as any).prompt"
+                        class="w-full object-cover transition-opacity duration-150"
+                        :class="
+                          selectedIds.has((gen as any).id)
+                            ? 'opacity-70'
+                            : 'opacity-100'
+                        "
                       />
-                    </div>
-                  </div>
-                </template>
-
-                <template v-else>
-                  <MediaCard
-                    :item="gen"
-                    :show-author="false"
-                    :is-owner="isOwnProfile"
-                    :fill="true"
-                    :initial-is-liked="likedIds.has(gen.id)"
-                    @deleted="handleDeleted"
-                    @share-toggled="handleShareToggled"
-                    @removed-from-collection="handleDeleted"
-                    @preview="openPreview"
-                  />
-                  <div
-                    v-if="
-                      isOwnProfile && generationCollections.has((gen as any).id)
-                    "
-                    class="absolute top-2 left-2 pointer-events-none max-w-[calc(100%-1rem)] transition-opacity duration-200 opacity-0 sm:opacity-100 sm:group-hover/tile:opacity-0"
-                  >
-                    <div
-                      class="bg-black/50 backdrop-blur-sm rounded px-1.5 py-0.5 flex items-center gap-1"
-                    >
-                      <UIcon
-                        name="i-lucide-folder"
-                        class="size-2.5 text-white flex-shrink-0"
-                      />
-                      <span
-                        class="text-white text-[10px] leading-tight truncate"
+                    </button>
+                    <!-- Checkbox indicator -->
+                    <div class="absolute top-2 right-2 pointer-events-none">
+                      <div
+                        class="size-6 rounded-full border-2 flex items-center justify-center transition-all duration-150"
+                        :class="
+                          selectedIds.has((gen as any).id)
+                            ? 'bg-primary border-primary'
+                            : 'bg-black/30 border-white/80 backdrop-blur-sm'
+                        "
                       >
-                        {{ generationCollectionLabel((gen as any).id) }}
-                      </span>
+                        <UIcon
+                          v-if="selectedIds.has((gen as any).id)"
+                          name="i-lucide-check"
+                          class="size-3.5 text-white"
+                        />
+                      </div>
                     </div>
-                  </div>
-                </template>
-              </div>
-            </div>
+                  </template>
+
+                  <template v-else>
+                    <MediaCard
+                      :item="gen"
+                      :show-author="false"
+                      :is-owner="isOwnProfile"
+                      :masonry="true"
+                      :initial-is-liked="likedIds.has(gen.id)"
+                      @deleted="handleDeleted"
+                      @share-toggled="handleShareToggled"
+                      @removed-from-collection="handleDeleted"
+                      @preview="openPreview"
+                    />
+                    <div
+                      v-if="
+                        isOwnProfile &&
+                        generationCollections.has((gen as any).id)
+                      "
+                      class="absolute top-2 left-2 pointer-events-none max-w-[calc(100%-1rem)] transition-opacity duration-200 opacity-0 sm:opacity-100 sm:group-hover/tile:opacity-0"
+                    >
+                      <div
+                        class="bg-black/50 backdrop-blur-sm rounded px-1.5 py-0.5 flex items-center gap-1"
+                      >
+                        <UIcon
+                          name="i-lucide-folder"
+                          class="size-2.5 text-white flex-shrink-0"
+                        />
+                        <span
+                          class="text-white text-[10px] leading-tight truncate"
+                        >
+                          {{ generationCollectionLabel((gen as any).id) }}
+                        </span>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </template>
+            </MasonryWall>
           </div>
         </template>
       </template>

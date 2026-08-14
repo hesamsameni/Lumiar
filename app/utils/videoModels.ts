@@ -40,6 +40,10 @@ export interface VideoModel {
   supports_audio_input?: boolean;
   // Whether the model can generate synchronized audio alongside the video.
   supports_audio_generation?: boolean;
+  // Max combined reference images + videos the model accepts (0 = none, 1 = single, >1 = multi).
+  max_references?: number;
+  // Of those, how many may be videos (0 = images only).
+  max_reference_videos?: number;
   supported_aspect_ratios: string[];
   recommended?: boolean;
   is_active: boolean;

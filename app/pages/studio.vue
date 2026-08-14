@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { MasonryWall } from "@yeger/vue-masonry-wall";
 import { useGenerationService } from "~/services/generation.service";
 import { useVideoGenerationService } from "~/services/videoGeneration.service";
 import { useCollectionService } from "~/services/collection.service";
@@ -150,15 +151,16 @@ watch(view, (v) => {
 });
 
 // ─── Mixed media feed ─────────────────────────────────────────────────────
-const videoFeed = computed<MediaItem[]>(() =>
-  videos.value.map((v) => ({
-    ...(v as Record<string, unknown>),
-    media_type: "video" as const,
-    profiles: {
-      username: (profile.value?.username as string) ?? "",
-      avatar_url: (profile.value?.avatar_url as string | null) ?? null,
-    },
-  })) as MediaItem[],
+const videoFeed = computed<MediaItem[]>(
+  () =>
+    videos.value.map((v) => ({
+      ...(v as Record<string, unknown>),
+      media_type: "video" as const,
+      profiles: {
+        username: (profile.value?.username as string) ?? "",
+        avatar_url: (profile.value?.avatar_url as string | null) ?? null,
+      },
+    })) as MediaItem[],
 );
 
 const mediaFeed = computed<MediaItem[]>(() => {
@@ -433,7 +435,7 @@ useHead({ title: "Studio · Lumiar" });
         class="flex items-center gap-1 p-1 rounded-full bg-zinc-100/70 dark:bg-zinc-900/60 border border-zinc-200/60 dark:border-zinc-800/60 flex-shrink-0"
       >
         <button
-          v-for="f in (['all', 'image', 'video'] as const)"
+          v-for="f in ['all', 'image', 'video'] as const"
           :key="f"
           type="button"
           class="px-2.5 py-1 rounded-full text-xs font-medium capitalize transition-all"
@@ -469,64 +471,71 @@ useHead({ title: "Studio · Lumiar" });
             Nothing yet — use the composer below to create your first image.
           </p>
         </div>
-        <div
+        <MasonryWall
           v-else
-          class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 grid-flow-row-dense auto-rows-[168px] sm:auto-rows-[190px] lg:auto-rows-[210px]"
+          :items="mediaFeed"
+          :ssr-columns="2"
+          :column-width="240"
+          :gap="12"
+          :key-mapper="
+            (_item: any, _col: number, _row: number, idx: number) =>
+              (mediaFeed[idx] as any)?.id ?? idx
+          "
         >
-          <div
-            v-for="(gen, gidx) in mediaFeed"
-            :key="(gen as any).id"
-            class="relative group/tile"
-            :class="mosaicSpan(gidx)"
-          >
-            <MediaCard
-              :item="gen"
-              :show-author="false"
-              :is-owner="true"
-              :fill="true"
-              :show-remix="false"
-              :initial-is-liked="likedIds.has((gen as any).id)"
-              @deleted="handleDeleted"
-              @share-toggled="handleShareToggled"
-              @removed-from-collection="handleDeleted"
-              @preview="openPreview"
-            />
-            <!-- Add-to-composer CTA (image generations only) -->
-            <template v-if="(gen as any).media_type === 'image'">
-              <!-- Desktop: centered pill on hover -->
-              <div
-                class="pointer-events-none absolute inset-0 z-30 hidden sm:flex items-center justify-center opacity-0 group-hover/tile:opacity-100 transition-opacity duration-200"
-              >
+          <template #default="{ item: gen }: { item: MediaItem }">
+            <div class="relative group/tile">
+              <MediaCard
+                :item="gen"
+                :show-author="false"
+                :is-owner="true"
+                :masonry="true"
+                :show-remix="false"
+                :initial-is-liked="likedIds.has((gen as any).id)"
+                @deleted="handleDeleted"
+                @share-toggled="handleShareToggled"
+                @removed-from-collection="handleDeleted"
+                @preview="openPreview"
+              />
+              <!-- Add-to-composer CTA (image generations only) -->
+              <template v-if="(gen as any).media_type === 'image'">
+                <!-- Desktop: centered pill on hover -->
+                <div
+                  class="pointer-events-none absolute inset-0 z-30 hidden sm:flex items-center justify-center opacity-0 group-hover/tile:opacity-100 transition-opacity duration-200"
+                >
+                  <button
+                    type="button"
+                    class="pointer-events-auto flex items-center gap-1.5 h-8 px-3 rounded-full bg-white/90 dark:bg-zinc-900/90 text-zinc-800 dark:text-zinc-100 text-xs font-semibold backdrop-blur-md shadow-lg ring-1 ring-black/5 dark:ring-white/10 hover:!bg-gradient-brand hover:!text-white transition-all"
+                    @click.stop.prevent="
+                      addToComposer((gen as any).output_image_url)
+                    "
+                  >
+                    <UIcon name="i-lucide-image-plus" class="size-3.5" />
+                    Add to composer
+                  </button>
+                </div>
+                <!-- Mobile: compact icon beside the card's actions menu -->
                 <button
                   type="button"
-                  class="pointer-events-auto flex items-center gap-1.5 h-8 px-3 rounded-full bg-white/90 dark:bg-zinc-900/90 text-zinc-800 dark:text-zinc-100 text-xs font-semibold backdrop-blur-md shadow-lg ring-1 ring-black/5 dark:ring-white/10 hover:!bg-gradient-brand hover:!text-white transition-all"
+                  aria-label="Add to composer"
+                  class="sm:hidden absolute top-2 right-12 z-30 size-8 rounded-full flex items-center justify-center bg-black/45 text-white backdrop-blur-md"
                   @click.stop.prevent="
                     addToComposer((gen as any).output_image_url)
                   "
                 >
-                  <UIcon name="i-lucide-image-plus" class="size-3.5" />
-                  Add to composer
+                  <UIcon name="i-lucide-image-plus" class="size-4" />
                 </button>
-              </div>
-              <!-- Mobile: compact icon beside the card's actions menu -->
-              <button
-                type="button"
-                aria-label="Add to composer"
-                class="sm:hidden absolute top-2 right-12 z-30 size-8 rounded-full flex items-center justify-center bg-black/45 text-white backdrop-blur-md"
-                @click.stop.prevent="
-                  addToComposer((gen as any).output_image_url)
-                "
-              >
-                <UIcon name="i-lucide-image-plus" class="size-4" />
-              </button>
-            </template>
-          </div>
-        </div>
+              </template>
+            </div>
+          </template>
+        </MasonryWall>
       </template>
 
       <!-- Uploads -->
       <template v-else-if="view === 'uploads'">
-        <div v-if="uploadsLoading" class="flex items-center justify-center py-24">
+        <div
+          v-if="uploadsLoading"
+          class="flex items-center justify-center py-24"
+        >
           <UIcon
             name="i-lucide-loader-circle"
             class="size-8 animate-spin text-primary"

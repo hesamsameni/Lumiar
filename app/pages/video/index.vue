@@ -41,31 +41,37 @@ const selectedAspectRatio = ref(VIDEO_ASPECT_RATIOS[0]!);
 const selectedResolution = ref<string>("auto");
 // Image inputs: "frame" mode uses first (+ optional last) frame anchors;
 // "reference" mode uses a style/content reference image.
-type ImageSlot = "first" | "last" | "reference";
-type InputMode = "frame" | "reference" | "video" | "audio";
+type ImageSlot = "first" | "last";
+type InputMode = "frame" | "reference" | "audio";
 const imageMode = ref<InputMode>("frame");
 const firstFrameFile = ref<File | null>(null);
 const firstFramePreview = ref<string | null>(null);
 const lastFrameFile = ref<File | null>(null);
 const lastFramePreview = ref<string | null>(null);
-const referenceFile = ref<File | null>(null);
-const referencePreview = ref<string | null>(null);
 const firstFrameInput = ref<HTMLInputElement | null>(null);
 const lastFrameInput = ref<HTMLInputElement | null>(null);
-const referenceInput = ref<HTMLInputElement | null>(null);
-// Already-hosted image picked per slot (bucket / past generation). When set,
-// the slot uses this URL directly instead of uploading a device file.
+// Already-hosted image picked per slot (bucket / past generation).
 const firstFrameUrl = ref<string | null>(null);
 const lastFrameUrl = ref<string | null>(null);
-const referenceUrl = ref<string | null>(null);
-// Asset picker state (per-slot, single selection).
+// Asset picker state.
 const showAssetPicker = ref(false);
 const pickerSlot = ref<ImageSlot>("first");
+// Whether the asset picker is for frame slots or references.
+const pickerTarget = ref<"frame" | "reference">("frame");
 
-// Video / audio input state.
-const inputVideoFile = ref<File | null>(null);
-const inputVideoPreview = ref<string | null>(null);
-const inputVideoInput = ref<HTMLInputElement | null>(null);
+// Unified reference pool (images + videos merged).
+interface ReferenceSlot {
+  id: string;
+  file: File | null;
+  preview: string | null;
+  url: string | null;
+  mediaType: "image" | "video";
+}
+const referenceSlots = ref<ReferenceSlot[]>([]);
+const referenceFileInput = ref<HTMLInputElement | null>(null);
+let refIdCounter = 0;
+
+// Audio input state.
 const inputAudioFile = ref<File | null>(null);
 const inputAudioName = ref<string | null>(null);
 const inputAudioInput = ref<HTMLInputElement | null>(null);
@@ -82,6 +88,28 @@ const supportsVideoInput = computed(
 const supportsAudioInput = computed(
   () => selectedModel.value?.supports_audio_input ?? false,
 );
+const maxReferences = computed(() => selectedModel.value?.max_references ?? 1);
+const maxReferenceVideos = computed(
+  () => selectedModel.value?.max_reference_videos ?? 0,
+);
+const videoRefCount = computed(
+  () => referenceSlots.value.filter((s) => s.mediaType === "video").length,
+);
+const canAddReference = computed(
+  () => referenceSlots.value.length < maxReferences.value,
+);
+const canAddVideo = computed(
+  () =>
+    supportsVideoInput.value && videoRefCount.value < maxReferenceVideos.value,
+);
+const acceptsVideoRefs = computed(
+  () => supportsVideoInput.value && maxReferenceVideos.value > 0,
+);
+const referenceAccept = computed(() =>
+  canAddVideo.value
+    ? "image/*,video/mp4,video/webm,video/quicktime"
+    : "image/*",
+);
 // Show the media inputs section if the model supports any media input type.
 const supportsAnyMedia = computed(
   () =>
@@ -94,17 +122,12 @@ const availableInputModes = computed(() => {
   const modes: { value: InputMode; label: string; icon: string }[] = [];
   if (supportsImages.value) {
     modes.push({ value: "frame", label: "Frames", icon: "i-lucide-image" });
+  }
+  if (supportsImages.value || supportsVideoInput.value) {
     modes.push({
       value: "reference",
-      label: "Reference",
+      label: `Reference${maxReferences.value > 1 ? "s" : ""}`,
       icon: "i-lucide-palette",
-    });
-  }
-  if (supportsVideoInput.value) {
-    modes.push({
-      value: "video",
-      label: "Video",
-      icon: "i-lucide-film",
     });
   }
   if (supportsAudioInput.value) {
@@ -162,7 +185,11 @@ watch(selectedModel, (model) => {
   // Resolution tiers differ per model — reset to Auto.
   selectedResolution.value = "auto";
   // Input capabilities differ per model — clear any staged media and reset mode.
-  clearImages();
+  clearMedia();
+  // Trim references if new model has a lower cap.
+  if (referenceSlots.value.length > maxReferences.value) {
+    referenceSlots.value = referenceSlots.value.slice(0, maxReferences.value);
+  }
   // Pick the first valid input mode for the new model.
   const modes = availableInputModes.value;
   if (modes.length && !modes.some((m) => m.value === imageMode.value)) {
@@ -202,7 +229,7 @@ const generatingAspect = computed(() => {
   return v.replace(":", " / ");
 });
 
-async function handleSlotFile(slot: ImageSlot, file: File) {
+async function handleFrameFile(slot: ImageSlot, file: File) {
   isProcessingImage.value = true;
   try {
     const previewFile = await convertHeicToJpeg(file);
@@ -215,93 +242,150 @@ async function handleSlotFile(slot: ImageSlot, file: File) {
       firstFrameFile.value = file;
       firstFramePreview.value = url;
       firstFrameUrl.value = null;
-    } else if (slot === "last") {
+    } else {
       lastFrameFile.value = file;
       lastFramePreview.value = url;
       lastFrameUrl.value = null;
-    } else {
-      referenceFile.value = file;
-      referencePreview.value = url;
-      referenceUrl.value = null;
     }
   } finally {
     isProcessingImage.value = false;
   }
 }
 
-function onSlotChange(slot: ImageSlot, e: Event) {
+function onFrameChange(slot: ImageSlot, e: Event) {
   const selected = Array.from((e.target as HTMLInputElement).files ?? []).find(
     (f) => f.type.startsWith("image/"),
   );
-  if (selected) handleSlotFile(slot, selected);
+  if (selected) handleFrameFile(slot, selected);
   (e.target as HTMLInputElement).value = "";
 }
 
-function removeSlot(slot: ImageSlot) {
+function removeFrame(slot: ImageSlot) {
   if (slot === "first") {
     firstFrameFile.value = null;
     firstFramePreview.value = null;
     firstFrameUrl.value = null;
-  } else if (slot === "last") {
+  } else {
     lastFrameFile.value = null;
     lastFramePreview.value = null;
     lastFrameUrl.value = null;
-  } else {
-    referenceFile.value = null;
-    referencePreview.value = null;
-    referenceUrl.value = null;
   }
 }
 
-function openSlotPicker(slot: ImageSlot) {
+function openFramePicker(slot: ImageSlot) {
   pickerSlot.value = slot;
+  pickerTarget.value = "frame";
   showAssetPicker.value = true;
 }
 
-async function onSlotPickerConfirm(assets: PickedAsset[]) {
-  const asset = assets[0];
-  if (!asset) return;
-  const slot = pickerSlot.value;
-  if (asset.kind === "file") {
-    await handleSlotFile(slot, asset.file);
-    return;
-  }
-  // Existing hosted image — use its URL directly for the slot.
-  if (slot === "first") {
-    firstFrameFile.value = null;
-    firstFrameUrl.value = asset.url;
-    firstFramePreview.value = asset.url;
-  } else if (slot === "last") {
-    lastFrameFile.value = null;
-    lastFrameUrl.value = asset.url;
-    lastFramePreview.value = asset.url;
-  } else {
-    referenceFile.value = null;
-    referenceUrl.value = asset.url;
-    referencePreview.value = asset.url;
+// ── Reference pool handlers ─────────────────────────────────────────────
+async function addReferenceFile(file: File) {
+  if (!canAddReference.value) return;
+  const isVideo = file.type.startsWith("video/");
+  if (isVideo && !canAddVideo.value) return;
+  isProcessingImage.value = true;
+  try {
+    let preview: string;
+    if (isVideo) {
+      preview = URL.createObjectURL(file);
+    } else {
+      const previewFile = await convertHeicToJpeg(file);
+      preview = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (ev) => resolve(ev.target?.result as string);
+        reader.readAsDataURL(previewFile);
+      });
+    }
+    referenceSlots.value = [
+      ...referenceSlots.value,
+      {
+        id: `ref-${++refIdCounter}`,
+        file,
+        preview,
+        url: null,
+        mediaType: isVideo ? "video" : "image",
+      },
+    ];
+  } finally {
+    isProcessingImage.value = false;
   }
 }
 
-function removeVideoInput() {
-  if (inputVideoPreview.value) URL.revokeObjectURL(inputVideoPreview.value);
-  inputVideoFile.value = null;
-  inputVideoPreview.value = null;
+function addReferenceUrl(assetUrl: string) {
+  if (!canAddReference.value) return;
+  const isVideo = /\.(mp4|mov|webm|avi|mkv)(\?|$)/i.test(assetUrl);
+  if (isVideo && !canAddVideo.value) return;
+  referenceSlots.value = [
+    ...referenceSlots.value,
+    {
+      id: `ref-${++refIdCounter}`,
+      file: null,
+      preview: assetUrl,
+      url: assetUrl,
+      mediaType: isVideo ? "video" : "image",
+    },
+  ];
+}
+
+function removeReference(id: string) {
+  const slot = referenceSlots.value.find((s) => s.id === id);
+  if (slot?.preview && slot.mediaType === "video" && !slot.url) {
+    URL.revokeObjectURL(slot.preview);
+  }
+  referenceSlots.value = referenceSlots.value.filter((s) => s.id !== id);
+}
+
+function onReferenceFileChange(e: Event) {
+  const files = Array.from((e.target as HTMLInputElement).files ?? []);
+  for (const file of files) {
+    if (!canAddReference.value) break;
+    if (file.type.startsWith("video/") && !canAddVideo.value) continue;
+    if (file.type.startsWith("image/") || file.type.startsWith("video/")) {
+      addReferenceFile(file);
+    }
+  }
+  (e.target as HTMLInputElement).value = "";
+}
+
+function openReferencePicker() {
+  pickerTarget.value = "reference";
+  showAssetPicker.value = true;
+}
+
+async function onPickerConfirm(assets: PickedAsset[]) {
+  if (pickerTarget.value === "frame") {
+    const asset = assets[0];
+    if (!asset) return;
+    const slot = pickerSlot.value;
+    if (asset.kind === "file") {
+      await handleFrameFile(slot, asset.file);
+    } else {
+      if (slot === "first") {
+        firstFrameFile.value = null;
+        firstFrameUrl.value = asset.url;
+        firstFramePreview.value = asset.url;
+      } else {
+        lastFrameFile.value = null;
+        lastFrameUrl.value = asset.url;
+        lastFramePreview.value = asset.url;
+      }
+    }
+    return;
+  }
+  // Reference picker: add all selected assets.
+  for (const asset of assets) {
+    if (!canAddReference.value) break;
+    if (asset.kind === "file") {
+      await addReferenceFile(asset.file);
+    } else {
+      addReferenceUrl(asset.url);
+    }
+  }
 }
 
 function removeAudioInput() {
   inputAudioFile.value = null;
   inputAudioName.value = null;
-}
-
-function onVideoChange(e: Event) {
-  const file = Array.from((e.target as HTMLInputElement).files ?? []).find(
-    (f) => f.type.startsWith("video/"),
-  );
-  if (file) {
-    inputVideoFile.value = file;
-    inputVideoPreview.value = URL.createObjectURL(file);
-  }
-  (e.target as HTMLInputElement).value = "";
 }
 
 function onAudioChange(e: Event) {
@@ -315,11 +399,15 @@ function onAudioChange(e: Event) {
   (e.target as HTMLInputElement).value = "";
 }
 
-function clearImages() {
-  removeSlot("first");
-  removeSlot("last");
-  removeSlot("reference");
-  removeVideoInput();
+function clearMedia() {
+  removeFrame("first");
+  removeFrame("last");
+  for (const s of referenceSlots.value) {
+    if (s.preview && s.mediaType === "video" && !s.url) {
+      URL.revokeObjectURL(s.preview);
+    }
+  }
+  referenceSlots.value = [];
   removeAudioInput();
   imageMode.value = "frame";
 }
@@ -333,6 +421,12 @@ async function handleGenerate() {
   const mode = imageMode.value;
   const useFrames = mode === "frame";
   const useRef = mode === "reference";
+  const refFiles = useRef
+    ? referenceSlots.value.filter((s) => s.file).map((s) => s.file!)
+    : [];
+  const refUrls = useRef
+    ? referenceSlots.value.filter((s) => s.url && !s.file).map((s) => s.url!)
+    : [];
   await generate({
     prompt: prompt.value,
     model: selectedModel.value,
@@ -340,11 +434,10 @@ async function handleGenerate() {
     resolution: selectedResolution.value,
     firstFrameFile: useFrames ? firstFrameFile.value : null,
     lastFrameFile: useFrames ? lastFrameFile.value : null,
-    referenceFile: useRef ? referenceFile.value : null,
     firstFrameUrl: useFrames ? firstFrameUrl.value : null,
     lastFrameUrl: useFrames ? lastFrameUrl.value : null,
-    referenceUrl: useRef ? referenceUrl.value : null,
-    inputVideoFile: mode === "video" ? inputVideoFile.value : null,
+    referenceFiles: refFiles,
+    referenceUrls: refUrls,
     inputAudioFile: mode === "audio" ? inputAudioFile.value : null,
     aspectRatio: selectedAspectRatio.value.value,
   });
@@ -392,7 +485,7 @@ async function polishPrompt() {
 
 function handleStartOver() {
   prompt.value = "";
-  clearImages();
+  clearMedia();
   result.value = null;
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -487,11 +580,17 @@ function getRatioStyle(value: string): Record<string, string> {
               }}
             </template>
             <template v-else-if="imageMode === 'reference'">
-              The style &amp; content guide the video, not an exact frame.
-            </template>
-            <template v-else-if="imageMode === 'video'">
-              Use a source video as reference for style, motion, or
-              continuation.
+              {{
+                acceptsVideoRefs
+                  ? "Add images or videos to guide the style &amp; content."
+                  : "Add images to guide the style &amp; content of the video."
+              }}
+              <span
+                v-if="maxReferences > 1"
+                class="text-zinc-400 dark:text-zinc-500"
+              >
+                ({{ referenceSlots.length }}/{{ maxReferences }})
+              </span>
             </template>
             <template v-else-if="imageMode === 'audio'">
               Upload audio for lip-sync or sound-driven generation.
@@ -513,7 +612,7 @@ function getRatioStyle(value: string): Record<string, string> {
                   type="button"
                   :disabled="isProcessingImage"
                   class="size-20 rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-700 flex items-center justify-center text-zinc-400 hover:border-primary/50 hover:text-primary transition-colors"
-                  @click="openSlotPicker('first')"
+                  @click="openFramePicker('first')"
                 >
                   <UIcon name="i-lucide-plus" class="size-5" />
                 </button>
@@ -521,7 +620,7 @@ function getRatioStyle(value: string): Record<string, string> {
                   v-if="firstFramePreview"
                   type="button"
                   class="absolute top-1 right-1 size-4 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors"
-                  @click="removeSlot('first')"
+                  @click="removeFrame('first')"
                 >
                   <UIcon name="i-lucide-x" class="size-2.5" />
                 </button>
@@ -534,7 +633,7 @@ function getRatioStyle(value: string): Record<string, string> {
                 type="file"
                 accept="image/*"
                 class="hidden"
-                @change="onSlotChange('first', $event)"
+                @change="onFrameChange('first', $event)"
               />
             </div>
 
@@ -554,7 +653,7 @@ function getRatioStyle(value: string): Record<string, string> {
                   type="button"
                   :disabled="isProcessingImage"
                   class="size-20 rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-700 flex items-center justify-center text-zinc-400 hover:border-primary/50 hover:text-primary transition-colors"
-                  @click="openSlotPicker('last')"
+                  @click="openFramePicker('last')"
                 >
                   <UIcon name="i-lucide-plus" class="size-5" />
                 </button>
@@ -562,7 +661,7 @@ function getRatioStyle(value: string): Record<string, string> {
                   v-if="lastFramePreview"
                   type="button"
                   class="absolute top-1 right-1 size-4 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors"
-                  @click="removeSlot('last')"
+                  @click="removeFrame('last')"
                 >
                   <UIcon name="i-lucide-x" class="size-2.5" />
                 </button>
@@ -575,62 +674,25 @@ function getRatioStyle(value: string): Record<string, string> {
                 type="file"
                 accept="image/*"
                 class="hidden"
-                @change="onSlotChange('last', $event)"
+                @change="onFrameChange('last', $event)"
               />
             </div>
           </div>
 
-          <!-- Reference mode -->
+          <!-- Reference mode: multi-slot grid for images + videos -->
           <div
             v-else-if="imageMode === 'reference'"
-            class="flex flex-wrap gap-4"
+            class="flex flex-wrap gap-3"
           >
-            <div class="flex flex-col items-center gap-1.5">
-              <div class="relative">
-                <img
-                  v-if="referencePreview"
-                  :src="referencePreview"
-                  alt="Reference"
-                  class="size-20 object-cover rounded-lg border-2 border-primary/50"
-                />
-                <button
-                  v-else-if="isAuthenticated"
-                  type="button"
-                  :disabled="isProcessingImage"
-                  class="size-20 rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-700 flex items-center justify-center text-zinc-400 hover:border-primary/50 hover:text-primary transition-colors"
-                  @click="openSlotPicker('reference')"
-                >
-                  <UIcon name="i-lucide-plus" class="size-5" />
-                </button>
-                <button
-                  v-if="referencePreview"
-                  type="button"
-                  class="absolute top-1 right-1 size-4 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors"
-                  @click="removeSlot('reference')"
-                >
-                  <UIcon name="i-lucide-x" class="size-2.5" />
-                </button>
-              </div>
-              <span class="text-[11px] text-zinc-500 dark:text-zinc-400"
-                >Reference</span
-              >
-              <input
-                ref="referenceInput"
-                type="file"
-                accept="image/*"
-                class="hidden"
-                @change="onSlotChange('reference', $event)"
-              />
-            </div>
-          </div>
-
-          <!-- Video input mode -->
-          <div v-else-if="imageMode === 'video'" class="flex flex-wrap gap-4">
-            <div class="flex flex-col items-center gap-1.5">
+            <div
+              v-for="slot in referenceSlots"
+              :key="slot.id"
+              class="flex flex-col items-center gap-1.5"
+            >
               <div class="relative">
                 <video
-                  v-if="inputVideoPreview"
-                  :src="inputVideoPreview"
+                  v-if="slot.mediaType === 'video' && slot.preview"
+                  :src="slot.preview"
                   class="size-20 object-cover rounded-lg border-2 border-primary/50"
                   muted
                   playsinline
@@ -640,34 +702,51 @@ function getRatioStyle(value: string): Record<string, string> {
                     ($event.target as HTMLVideoElement).currentTime = 0;
                   "
                 />
+                <img
+                  v-else-if="slot.preview"
+                  :src="slot.preview"
+                  alt="Reference"
+                  class="size-20 object-cover rounded-lg border-2 border-primary/50"
+                />
                 <button
-                  v-else-if="isAuthenticated"
-                  type="button"
-                  class="size-20 rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-700 flex items-center justify-center text-zinc-400 hover:border-primary/50 hover:text-primary transition-colors"
-                  @click="inputVideoInput?.click()"
-                >
-                  <UIcon name="i-lucide-film" class="size-5" />
-                </button>
-                <button
-                  v-if="inputVideoPreview"
                   type="button"
                   class="absolute top-1 right-1 size-4 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors"
-                  @click="removeVideoInput()"
+                  @click="removeReference(slot.id)"
                 >
                   <UIcon name="i-lucide-x" class="size-2.5" />
                 </button>
+                <span
+                  v-if="slot.mediaType === 'video'"
+                  class="absolute bottom-1 left-1 rounded bg-black/60 px-1 py-0.5 text-[8px] text-white leading-none"
+                >
+                  <UIcon name="i-lucide-film" class="size-2.5" />
+                </span>
               </div>
-              <span class="text-[11px] text-zinc-500 dark:text-zinc-400"
-                >Source video</span
-              >
-              <input
-                ref="inputVideoInput"
-                type="file"
-                accept="video/mp4,video/webm,video/quicktime"
-                class="hidden"
-                @change="onVideoChange($event)"
-              />
             </div>
+            <div
+              v-if="canAddReference && isAuthenticated"
+              class="flex flex-col items-center gap-1.5"
+            >
+              <button
+                type="button"
+                :disabled="isProcessingImage"
+                class="size-20 rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-700 flex items-center justify-center text-zinc-400 hover:border-primary/50 hover:text-primary transition-colors"
+                @click="openReferencePicker()"
+              >
+                <UIcon name="i-lucide-plus" class="size-5" />
+              </button>
+              <span class="text-[11px] text-zinc-500 dark:text-zinc-400">
+                {{ acceptsVideoRefs ? "Image / Video" : "Image" }}
+              </span>
+            </div>
+            <input
+              ref="referenceFileInput"
+              type="file"
+              :accept="referenceAccept"
+              multiple
+              class="hidden"
+              @change="onReferenceFileChange($event)"
+            />
           </div>
 
           <!-- Audio input mode -->
@@ -1118,9 +1197,17 @@ function getRatioStyle(value: string): Record<string, string> {
 
     <AssetPickerModal
       v-model:open="showAssetPicker"
-      mode="single"
-      title="Choose an image"
-      @confirm="onSlotPickerConfirm"
+      :mode="
+        pickerTarget === 'reference' && maxReferences > 1 ? 'multi' : 'single'
+      "
+      :max-select="
+        pickerTarget === 'reference' ? maxReferences - referenceSlots.length : 1
+      "
+      :title="
+        pickerTarget === 'reference' ? 'Choose references' : 'Choose an image'
+      "
+      :accept="pickerTarget === 'reference' ? referenceAccept : 'image/*'"
+      @confirm="onPickerConfirm"
     />
 
     <!-- Generating state (matches image generation style) -->
