@@ -41,6 +41,9 @@ export function useVideoGeneration() {
     firstFrameUrl?: string | null;
     lastFrameUrl?: string | null;
     referenceUrl?: string | null;
+    // Video / audio input files (uploaded raw, no compression).
+    inputVideoFile?: File | null;
+    inputAudioFile?: File | null;
     aspectRatio?: string;
   }) {
     if (!profile.value?.id) {
@@ -81,6 +84,8 @@ export function useVideoGeneration() {
         opts.lastFrameUrl ||
         opts.referenceUrl
       ),
+      has_input_video: !!opts.inputVideoFile,
+      has_input_audio: !!opts.inputAudioFile,
       aspect_ratio: opts.aspectRatio ?? "16:9",
     });
 
@@ -106,10 +111,33 @@ export function useVideoGeneration() {
         return uploadRes.url;
       }
 
-      const [firstFrameUrl, lastFrameUrl, referenceUrl] = await Promise.all([
+      // Upload raw video/audio files (no compression) to temporary R2 folders.
+      async function uploadRawFile(
+        file: File | null | undefined,
+        folder: string,
+      ): Promise<string | null> {
+        if (!file) return null;
+        const fd = new FormData();
+        fd.append("file", file);
+        const uploadRes = await $fetch<{ url: string }>(
+          `/api/upload?folder=${folder}`,
+          { method: "POST", body: fd, headers },
+        );
+        return uploadRes.url;
+      }
+
+      const [
+        firstFrameUrl,
+        lastFrameUrl,
+        referenceUrl,
+        inputVideoUrl,
+        inputAudioUrl,
+      ] = await Promise.all([
         resolveSlot(opts.firstFrameFile, opts.firstFrameUrl),
         resolveSlot(opts.lastFrameFile, opts.lastFrameUrl),
         resolveSlot(opts.referenceFile, opts.referenceUrl),
+        uploadRawFile(opts.inputVideoFile, "tmp-video"),
+        uploadRawFile(opts.inputAudioFile, "tmp-audio"),
       ]);
 
       const submit = await $fetch<{
@@ -129,6 +157,8 @@ export function useVideoGeneration() {
           firstFrameUrl,
           lastFrameUrl,
           referenceUrl,
+          inputVideoUrl,
+          inputAudioUrl,
         },
       });
 

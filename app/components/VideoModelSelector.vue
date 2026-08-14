@@ -69,9 +69,10 @@ const tierLabel = TIER_LABEL;
           class="size-4 shrink-0 text-zinc-400"
         />
         <div class="flex-1 min-w-0">
-          <span class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{{
-            group.label
-          }}</span>
+          <span
+            class="text-sm font-semibold text-zinc-900 dark:text-zinc-100"
+            >{{ group.label }}</span
+          >
           <span
             v-if="group.subtitle"
             class="text-xs text-zinc-400 dark:text-zinc-500 ml-2"
@@ -167,6 +168,27 @@ const tierLabel = TIER_LABEL;
               >
                 <UIcon name="i-lucide-image" class="size-3" />
                 Img input
+              </span>
+              <span
+                v-if="model.supports_video_input"
+                class="flex items-center gap-1 text-[11px] text-indigo-500 dark:text-indigo-400"
+              >
+                <UIcon name="i-lucide-film" class="size-3" />
+                Video input
+              </span>
+              <span
+                v-if="model.supports_audio_input"
+                class="flex items-center gap-1 text-[11px] text-violet-500 dark:text-violet-400"
+              >
+                <UIcon name="i-lucide-music" class="size-3" />
+                Audio input
+              </span>
+              <span
+                v-if="model.supports_audio_generation"
+                class="flex items-center gap-1 text-[11px] text-emerald-500 dark:text-emerald-400"
+              >
+                <UIcon name="i-lucide-volume-2" class="size-3" />
+                Audio gen
               </span>
             </div>
           </div>

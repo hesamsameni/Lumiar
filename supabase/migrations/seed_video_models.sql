@@ -151,6 +151,38 @@ insert into video_models (
     'high', 'openrouter', 337, '~$0.28/s', 5, '{5}',
     '720p', false, '{"16:9","4:3","3:2","1:1","2:3","3:4","9:16","21:9"}',
     false, false, 19
+  ),
+  (
+    'bytedance/seedance-2.5', 'Seedance 2.5',
+    'ByteDance latest — long-form storytelling up to 30s with multimodal references, video editing, and extension.',
+    'high', 'openrouter', 290, '~$0.23/s', 5,
+    '{4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30}',
+    '720p', true, '{"16:9","4:3","1:1","3:4","9:16","21:9"}',
+    false, true, 20
+  ),
+  (
+    'bytedance/seedance-2.0-mini', 'Seedance 2.0 Mini',
+    'Budget-friendly Seedance 2.0 variant — same multimodal capabilities at lower cost.',
+    'low', 'openrouter', 95, '~$0.08/s', 5,
+    '{4,5,6,7,8,9,10,11,12,13,14,15}',
+    '720p', true, '{"16:9","9:16","1:1","4:3","3:4","21:9","9:21"}',
+    false, true, 21
+  ),
+  (
+    'black-forest-labs/flux-3-video', 'FLUX.3 Video',
+    'Black Forest Labs video model — text/image-to-video with keyframe control and video continuation up to 20s.',
+    'mid', 'openrouter', 210, '~$0.17/s', 5,
+    '{5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20}',
+    '1080p', true, '{"21:9","16:9","4:3","1:1","3:4","9:16"}',
+    false, true, 22
+  ),
+  (
+    'minimax/hailuo-3', 'Hailuo 3 (H3)',
+    'MiniMax H3 — 2K output with multimodal editing, text rendering, and brand-accurate content generation.',
+    'mid', 'openrouter', 160, '~$0.13/s', 5,
+    '{5,6,7,8,9,10,11,12,13,14,15}',
+    '2K', true, '{"21:9","16:9","4:3","1:1","3:4","9:16"}',
+    false, true, 23
   )
 on conflict (id) do update set
   name = excluded.name,
@@ -175,13 +207,58 @@ where id in (
   'google/veo-3.1',
   'google/veo-3.1-fast',
   'google/veo-3.1-lite',
+  'bytedance/seedance-2.5',
   'bytedance/seedance-2.0',
   'bytedance/seedance-2.0-fast',
+  'bytedance/seedance-2.0-mini',
   'bytedance/seedance-1-5-pro',
+  'black-forest-labs/flux-3-video',
+  'minimax/hailuo-3',
   'kwaivgi/kling-v3.0-pro',
   'kwaivgi/kling-v3.0-std',
   'kwaivgi/kling-video-o1',
   'alibaba/wan-2.7',
   'alibaba/wan-2.6',
   'minimax/hailuo-2.3'
+);
+
+-- Models that accept a source video as reference/continuation.
+-- Only BytePlus Seedance 2.0+ honours video/audio input_references via OpenRouter.
+update video_models set supports_video_input = true
+where id in (
+  'bytedance/seedance-2.5',
+  'bytedance/seedance-2.0',
+  'bytedance/seedance-2.0-fast',
+  'bytedance/seedance-2.0-mini',
+  'black-forest-labs/flux-3-video'
+);
+
+-- Models that accept an audio track (lip-sync / audio-driven).
+update video_models set supports_audio_input = true
+where id in (
+  'bytedance/seedance-2.5',
+  'bytedance/seedance-2.0',
+  'bytedance/seedance-2.0-fast',
+  'bytedance/seedance-2.0-mini'
+);
+
+-- Models that can generate synchronized audio alongside the video.
+update video_models set supports_audio_generation = true
+where id in (
+  'google/veo-3.1',
+  'google/veo-3.1-fast',
+  'google/veo-3.1-lite',
+  'bytedance/seedance-2.5',
+  'bytedance/seedance-2.0',
+  'bytedance/seedance-2.0-fast',
+  'bytedance/seedance-2.0-mini',
+  'bytedance/seedance-1-5-pro',
+  'black-forest-labs/flux-3-video',
+  'minimax/hailuo-3',
+  'kwaivgi/kling-v3.0-pro',
+  'kwaivgi/kling-v3.0-std',
+  'kwaivgi/kling-video-o1',
+  'alibaba/wan-2.6',
+  'alibaba/wan-2.7',
+  'openai/sora-2-pro'
 );

@@ -5,16 +5,42 @@ import {
   uploadToR2,
 } from "../utils/r2";
 
-const ALLOWED_MIME_TYPES: Record<string, string> = {
+const IMAGE_MIME_TYPES: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
   "image/webp": "webp",
 };
 
-const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const VIDEO_MIME_TYPES: Record<string, string> = {
+  "video/mp4": "mp4",
+  "video/webm": "webm",
+  "video/quicktime": "mov",
+};
+
+const AUDIO_MIME_TYPES: Record<string, string> = {
+  "audio/mpeg": "mp3",
+  "audio/wav": "wav",
+  "audio/x-wav": "wav",
+  "audio/mp4": "m4a",
+  "audio/x-m4a": "m4a",
+  "audio/ogg": "ogg",
+};
+
+const ALL_MIME_TYPES: Record<string, string> = {
+  ...IMAGE_MIME_TYPES,
+  ...VIDEO_MIME_TYPES,
+  ...AUDIO_MIME_TYPES,
+};
+
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB
+const MAX_VIDEO_BYTES = 100 * 1024 * 1024; // 100 MB
+const MAX_AUDIO_BYTES = 20 * 1024 * 1024; // 20 MB
+
 const FOLDER_MAP: Record<string, string> = {
   generations: "lumiar-original-images",
   "profile-pictures": "lumiar-profile-pics",
+  "tmp-video": "tmp-video",
+  "tmp-audio": "tmp-audio",
 };
 const ALLOWED_FOLDERS = Object.keys(FOLDER_MAP) as string[];
 
@@ -38,17 +64,27 @@ export default defineEventHandler(async (event) => {
   if (!(file instanceof File)) {
     throw createError({ statusCode: 400, message: "No file provided" });
   }
-  if (!(file.type in ALLOWED_MIME_TYPES)) {
+  if (!(file.type in ALL_MIME_TYPES)) {
     throw createError({ statusCode: 400, message: "Unsupported file type" });
   }
-  if (file.size > MAX_FILE_BYTES) {
+
+  // Determine media category and enforce per-category size limits.
+  const isVideo = file.type in VIDEO_MIME_TYPES;
+  const isAudio = file.type in AUDIO_MIME_TYPES;
+  const maxBytes = isVideo
+    ? MAX_VIDEO_BYTES
+    : isAudio
+      ? MAX_AUDIO_BYTES
+      : MAX_IMAGE_BYTES;
+  const maxLabel = isVideo ? "100MB" : isAudio ? "20MB" : "10MB";
+  if (file.size > maxBytes) {
     throw createError({
       statusCode: 400,
-      message: "File too large (max 10MB)",
+      message: `File too large (max ${maxLabel})`,
     });
   }
 
-  const ext = ALLOWED_MIME_TYPES[file.type] ?? "png";
+  const ext = ALL_MIME_TYPES[file.type] ?? "bin";
   const path = `${folder}/${user.id}/${generateStorageFilename(ext)}`;
 
   const buffer = Buffer.from(await file.arrayBuffer());
