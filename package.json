@@ -21,6 +21,7 @@
     "@posthog/nuxt": "^1.7.32",
     "@traceloop/instrumentation-google-generativeai": "^0.26.0",
     "@vueuse/core": "^14.3.0",
+    "@yeger/vue-masonry-wall": "^6.1.4",
     "heic-to": "^1.4.2",
     "nuxt": "^4.4.5",
     "openai": "^6.37.0",

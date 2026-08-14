@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { MasonryWall } from "@yeger/vue-masonry-wall";
 import { GENERATION_TAGS } from "~/utils/constants";
 import { watchDebounced } from "@vueuse/core";
 import { useGenerationService } from "~/services/generation.service";
@@ -255,11 +256,7 @@ const feedItems = computed<MediaItem[]>(() => {
       v-if="loading && !generations.length"
       class="columns-2 sm:columns-3 lg:columns-4 xl:columns-5 gap-3"
     >
-      <div
-        v-for="i in 15"
-        :key="i"
-        class="mb-3 break-inside-avoid"
-      >
+      <div v-for="i in 15" :key="i" class="mb-3 break-inside-avoid">
         <div
           class="relative overflow-hidden rounded-2xl bg-zinc-100 dark:bg-zinc-800"
           :style="{ height: `${[200, 260, 220, 320, 240, 280][i % 6]}px` }"
@@ -280,22 +277,30 @@ const feedItems = computed<MediaItem[]>(() => {
     </div>
 
     <div v-else>
-      <div
-        class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 grid-flow-row-dense auto-rows-[168px] sm:auto-rows-[190px] lg:auto-rows-[210px]"
+      <MasonryWall
+        :items="feedItems"
+        :ssr-columns="2"
+        :column-width="240"
+        :gap="12"
+        :key-mapper="
+          (_item: any, _col: number, _row: number, idx: number) =>
+            feedItems[idx]?.id ?? idx
+        "
       >
-        <MediaCard
-          v-for="(item, idx) in feedItems"
-          :key="item.id"
-          :item="item"
-          :show-author="true"
-          :fill="true"
-          :initial-is-liked="likedIds.has(item.id)"
-          class="animate-fade-up"
-          :class="mosaicSpan(idx)"
-          :style="{ animationDelay: `${(idx % 12) * 40}ms` }"
-          @preview="openPreview"
-        />
-      </div>
+        <template
+          #default="{ item, index }: { item: MediaItem; index: number }"
+        >
+          <MediaCard
+            :item="item"
+            :show-author="true"
+            :masonry="true"
+            :initial-is-liked="likedIds.has(item.id)"
+            class="animate-fade-up"
+            :style="{ animationDelay: `${(index % 12) * 40}ms` }"
+            @preview="openPreview"
+          />
+        </template>
+      </MasonryWall>
 
       <div v-if="hasMore && mediaFilter !== 'video'" class="text-center mt-8">
         <UButton

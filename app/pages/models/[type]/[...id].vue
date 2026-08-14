@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { mosaicSpan } from "~/utils/mosaic";
+import { MasonryWall } from "@yeger/vue-masonry-wall";
 import {
   IMAGE_COMPANY_META,
   VIDEO_COMPANY_META,
@@ -496,33 +496,40 @@ const showShowcase = computed(
 
       <div
         v-if="loading && !items.length"
-        class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 grid-flow-row-dense auto-rows-[168px] sm:auto-rows-[190px] lg:auto-rows-[210px]"
+        class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3"
       >
         <div
           v-for="i in 10"
           :key="i"
-          class="rounded-2xl bg-zinc-100 dark:bg-zinc-800 animate-pulse"
-          :class="mosaicSpan(i)"
+          class="rounded-2xl bg-zinc-100 dark:bg-zinc-800 animate-pulse aspect-square"
         />
       </div>
 
       <div v-else-if="items.length">
-        <div
-          class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 grid-flow-row-dense auto-rows-[168px] sm:auto-rows-[190px] lg:auto-rows-[210px]"
+        <MasonryWall
+          :items="items"
+          :ssr-columns="2"
+          :column-width="240"
+          :gap="12"
+          :key-mapper="
+            (_item: any, _col: number, _row: number, idx: number) =>
+              items[idx]?.id ?? idx
+          "
         >
-          <MediaCard
-            v-for="(item, idx) in items"
-            :key="item.id"
-            :item="item"
-            :show-author="true"
-            :fill="true"
-            :initial-is-liked="likedIds.has(item.id)"
-            class="animate-fade-up"
-            :class="mosaicSpan(idx)"
-            :style="{ animationDelay: `${(idx % 12) * 40}ms` }"
-            @preview="openPreview"
-          />
-        </div>
+          <template
+            #default="{ item, index }: { item: MediaItem; index: number }"
+          >
+            <MediaCard
+              :item="item"
+              :show-author="true"
+              :masonry="true"
+              :initial-is-liked="likedIds.has(item.id)"
+              class="animate-fade-up"
+              :style="{ animationDelay: `${(index % 12) * 40}ms` }"
+              @preview="openPreview"
+            />
+          </template>
+        </MasonryWall>
 
         <div v-if="hasMore" class="text-center mt-8">
           <UButton
