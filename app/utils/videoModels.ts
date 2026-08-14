@@ -34,6 +34,12 @@ export interface VideoModel {
   supports_image_input: boolean;
   // Whether the model accepts a last-frame image (frame interpolation).
   supports_last_frame?: boolean;
+  // Whether the model accepts a reference / source video (video-to-video).
+  supports_video_input?: boolean;
+  // Whether the model accepts an audio track (lip-sync, sound-driven generation).
+  supports_audio_input?: boolean;
+  // Whether the model can generate synchronized audio alongside the video.
+  supports_audio_generation?: boolean;
   supported_aspect_ratios: string[];
   recommended?: boolean;
   is_active: boolean;

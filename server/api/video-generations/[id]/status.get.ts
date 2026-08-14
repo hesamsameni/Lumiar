@@ -6,6 +6,7 @@ import {
 } from "../../../utils/providers/openrouter-video";
 import {
   buildCdnUrl,
+  deleteFromR2,
   generateStorageFilename,
   uploadToR2,
   type R2Config,
@@ -17,6 +18,8 @@ interface VideoRow {
   job_id: string | null;
   status: string;
   output_video_url: string | null;
+  input_video_url: string | null;
+  input_audio_url: string | null;
   tokens_used: number;
   model_name: string;
   error: string | null;
@@ -36,7 +39,7 @@ export default defineEventHandler(async (event) => {
   const { data: rowRaw } = (await (supabase as any)
     .from("video_generations")
     .select(
-      "id, user_id, job_id, status, output_video_url, tokens_used, model_name, error",
+      "id, user_id, job_id, status, output_video_url, input_video_url, input_audio_url, tokens_used, model_name, error",
     )
     .eq("id", id)
     .maybeSingle()) as { data: VideoRow | null };
@@ -63,6 +66,13 @@ export default defineEventHandler(async (event) => {
   }
 
   const openrouterKey = config.openrouterApiKey as string;
+  const r2Config: R2Config = {
+    cdnUrl: String(config.public.r2PublicUrl),
+    accountId: String(config.r2AccountId),
+    accessKeyId: String(config.r2AccessKeyId),
+    secretAccessKey: String(config.r2SecretAccessKey),
+    bucketName: String(config.r2BucketName),
+  };
 
   let poll;
   try {
@@ -74,14 +84,6 @@ export default defineEventHandler(async (event) => {
 
   // --- Completed: download and store to R2, then finalize the row ---
   if (poll.status === "completed" && poll.unsigned_urls?.length) {
-    const r2Config: R2Config = {
-      cdnUrl: String(config.public.r2PublicUrl),
-      accountId: String(config.r2AccountId),
-      accessKeyId: String(config.r2AccessKeyId),
-      secretAccessKey: String(config.r2SecretAccessKey),
-      bucketName: String(config.r2BucketName),
-    };
-
     try {
       const buffer = await downloadVideo(openrouterKey, poll.unsigned_urls[0]!);
       const path = `lumiar-videos/${user.id}/${generateStorageFilename("mp4")}`;
@@ -102,6 +104,9 @@ export default defineEventHandler(async (event) => {
           updateErr,
         );
       }
+
+      // Clean up temp input video/audio from R2 (best-effort, non-blocking).
+      cleanupTempInputs(r2Config, row);
 
       return { status: "completed", videoUrl, generationId: row.id };
     } catch (err) {
@@ -140,6 +145,9 @@ export default defineEventHandler(async (event) => {
       })
       .eq("id", row.id);
 
+    // Clean up temp input video/audio from R2 (best-effort, non-blocking).
+    cleanupTempInputs(r2Config, row);
+
     return { status: "failed", error: errMsg, generationId: row.id };
   }
 
@@ -152,3 +160,22 @@ export default defineEventHandler(async (event) => {
   }
   return { status: "processing", generationId: row.id };
 });
+
+// Delete temporary input video/audio files from R2 once the generation is done.
+// These live under `tmp-video/` or `tmp-audio/` prefixes and are only needed
+// while OpenRouter fetches them during generation.
+function cleanupTempInputs(r2Config: R2Config, row: VideoRow) {
+  const cdnBase = buildCdnUrl(r2Config.cdnUrl, "");
+  for (const url of [row.input_video_url, row.input_audio_url]) {
+    if (!url || !url.startsWith(cdnBase)) continue;
+    const path = url.slice(cdnBase.length);
+    if (path.startsWith("tmp-video/") || path.startsWith("tmp-audio/")) {
+      deleteFromR2(r2Config, path).catch((err) =>
+        console.error(
+          "[video-status] Temp input cleanup failed (non-fatal):",
+          err,
+        ),
+      );
+    }
+  }
+}

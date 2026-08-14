@@ -42,7 +42,8 @@ const selectedResolution = ref<string>("auto");
 // Image inputs: "frame" mode uses first (+ optional last) frame anchors;
 // "reference" mode uses a style/content reference image.
 type ImageSlot = "first" | "last" | "reference";
-const imageMode = ref<"frame" | "reference">("frame");
+type InputMode = "frame" | "reference" | "video" | "audio";
+const imageMode = ref<InputMode>("frame");
 const firstFrameFile = ref<File | null>(null);
 const firstFramePreview = ref<string | null>(null);
 const lastFrameFile = ref<File | null>(null);
@@ -61,12 +62,60 @@ const referenceUrl = ref<string | null>(null);
 const showAssetPicker = ref(false);
 const pickerSlot = ref<ImageSlot>("first");
 
+// Video / audio input state.
+const inputVideoFile = ref<File | null>(null);
+const inputVideoPreview = ref<string | null>(null);
+const inputVideoInput = ref<HTMLInputElement | null>(null);
+const inputAudioFile = ref<File | null>(null);
+const inputAudioName = ref<string | null>(null);
+const inputAudioInput = ref<HTMLInputElement | null>(null);
+
 const supportsImages = computed(
   () => selectedModel.value?.supports_image_input ?? false,
 );
 const supportsLastFrame = computed(
   () => selectedModel.value?.supports_last_frame ?? false,
 );
+const supportsVideoInput = computed(
+  () => selectedModel.value?.supports_video_input ?? false,
+);
+const supportsAudioInput = computed(
+  () => selectedModel.value?.supports_audio_input ?? false,
+);
+// Show the media inputs section if the model supports any media input type.
+const supportsAnyMedia = computed(
+  () =>
+    supportsImages.value ||
+    supportsVideoInput.value ||
+    supportsAudioInput.value,
+);
+// Available input mode tabs for the current model.
+const availableInputModes = computed(() => {
+  const modes: { value: InputMode; label: string; icon: string }[] = [];
+  if (supportsImages.value) {
+    modes.push({ value: "frame", label: "Frames", icon: "i-lucide-image" });
+    modes.push({
+      value: "reference",
+      label: "Reference",
+      icon: "i-lucide-palette",
+    });
+  }
+  if (supportsVideoInput.value) {
+    modes.push({
+      value: "video",
+      label: "Video",
+      icon: "i-lucide-film",
+    });
+  }
+  if (supportsAudioInput.value) {
+    modes.push({
+      value: "audio",
+      label: "Audio",
+      icon: "i-lucide-music",
+    });
+  }
+  return modes;
+});
 
 const showModelSelector = ref(false);
 const showRatioSelector = ref(false);
@@ -112,8 +161,13 @@ watch(selectedModel, (model) => {
   }
   // Resolution tiers differ per model — reset to Auto.
   selectedResolution.value = "auto";
-  // Image-input capabilities differ per model — clear any staged images.
+  // Input capabilities differ per model — clear any staged media and reset mode.
   clearImages();
+  // Pick the first valid input mode for the new model.
+  const modes = availableInputModes.value;
+  if (modes.length && !modes.some((m) => m.value === imageMode.value)) {
+    imageMode.value = modes[0]!.value;
+  }
 });
 
 // Resolution tiers offered by the model (empty -> hide the control). Credits in
@@ -228,10 +282,45 @@ async function onSlotPickerConfirm(assets: PickedAsset[]) {
   }
 }
 
+function removeVideoInput() {
+  if (inputVideoPreview.value) URL.revokeObjectURL(inputVideoPreview.value);
+  inputVideoFile.value = null;
+  inputVideoPreview.value = null;
+}
+
+function removeAudioInput() {
+  inputAudioFile.value = null;
+  inputAudioName.value = null;
+}
+
+function onVideoChange(e: Event) {
+  const file = Array.from((e.target as HTMLInputElement).files ?? []).find(
+    (f) => f.type.startsWith("video/"),
+  );
+  if (file) {
+    inputVideoFile.value = file;
+    inputVideoPreview.value = URL.createObjectURL(file);
+  }
+  (e.target as HTMLInputElement).value = "";
+}
+
+function onAudioChange(e: Event) {
+  const file = Array.from((e.target as HTMLInputElement).files ?? []).find(
+    (f) => f.type.startsWith("audio/"),
+  );
+  if (file) {
+    inputAudioFile.value = file;
+    inputAudioName.value = file.name;
+  }
+  (e.target as HTMLInputElement).value = "";
+}
+
 function clearImages() {
   removeSlot("first");
   removeSlot("last");
   removeSlot("reference");
+  removeVideoInput();
+  removeAudioInput();
   imageMode.value = "frame";
 }
 
@@ -241,7 +330,9 @@ async function handleGenerate() {
     return;
   }
 
-  const useFrames = imageMode.value === "frame";
+  const mode = imageMode.value;
+  const useFrames = mode === "frame";
+  const useRef = mode === "reference";
   await generate({
     prompt: prompt.value,
     model: selectedModel.value,
@@ -249,10 +340,12 @@ async function handleGenerate() {
     resolution: selectedResolution.value,
     firstFrameFile: useFrames ? firstFrameFile.value : null,
     lastFrameFile: useFrames ? lastFrameFile.value : null,
-    referenceFile: useFrames ? null : referenceFile.value,
+    referenceFile: useRef ? referenceFile.value : null,
     firstFrameUrl: useFrames ? firstFrameUrl.value : null,
     lastFrameUrl: useFrames ? lastFrameUrl.value : null,
-    referenceUrl: useFrames ? null : referenceUrl.value,
+    referenceUrl: useRef ? referenceUrl.value : null,
+    inputVideoFile: mode === "video" ? inputVideoFile.value : null,
+    inputAudioFile: mode === "audio" ? inputAudioFile.value : null,
     aspectRatio: selectedAspectRatio.value.value,
   });
 }
@@ -360,24 +453,17 @@ function getRatioStyle(value: string): Record<string, string> {
       <div
         class="rounded-panel bg-white dark:bg-zinc-900 transition-all duration-200"
       >
-        <!-- Image inputs (frames / reference) -->
+        <!-- Media inputs (frames / reference / video / audio) -->
         <div
-          v-if="supportsImages"
+          v-if="supportsAnyMedia"
           class="border-b border-zinc-100 dark:border-zinc-800 p-3 space-y-3"
         >
-          <!-- Mode: exact frames vs style reference -->
+          <!-- Mode tabs -->
           <div
             class="inline-flex items-center gap-0.5 p-0.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700"
           >
             <button
-              v-for="opt in [
-                { value: 'frame', label: 'Frames', icon: 'i-lucide-image' },
-                {
-                  value: 'reference',
-                  label: 'Reference',
-                  icon: 'i-lucide-palette',
-                },
-              ]"
+              v-for="opt in availableInputModes"
               :key="opt.value"
               type="button"
               class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all"
@@ -386,20 +472,30 @@ function getRatioStyle(value: string): Record<string, string> {
                   ? 'bg-white dark:bg-zinc-900 text-primary shadow-sm ring-1 ring-zinc-200/70 dark:ring-zinc-700/60'
                   : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
               "
-              @click="imageMode = opt.value as 'frame' | 'reference'"
+              @click="imageMode = opt.value"
             >
               <UIcon :name="opt.icon" class="size-3.5" />
               {{ opt.label }}
             </button>
           </div>
           <p class="text-[11px] text-zinc-400 dark:text-zinc-500 leading-snug">
-            {{
-              imageMode === "frame"
-                ? supportsLastFrame
+            <template v-if="imageMode === 'frame'">
+              {{
+                supportsLastFrame
                   ? "Anchor the exact start frame and, optionally, the end frame."
                   : "The video will start from this exact frame."
-                : "The style & content guide the video, not an exact frame."
-            }}
+              }}
+            </template>
+            <template v-else-if="imageMode === 'reference'">
+              The style &amp; content guide the video, not an exact frame.
+            </template>
+            <template v-else-if="imageMode === 'video'">
+              Use a source video as reference for style, motion, or
+              continuation.
+            </template>
+            <template v-else-if="imageMode === 'audio'">
+              Upload audio for lip-sync or sound-driven generation.
+            </template>
           </p>
 
           <!-- Frames mode: first (+ optional last) frame -->
@@ -485,7 +581,10 @@ function getRatioStyle(value: string): Record<string, string> {
           </div>
 
           <!-- Reference mode -->
-          <div v-else class="flex flex-wrap gap-4">
+          <div
+            v-else-if="imageMode === 'reference'"
+            class="flex flex-wrap gap-4"
+          >
             <div class="flex flex-col items-center gap-1.5">
               <div class="relative">
                 <img
@@ -521,6 +620,96 @@ function getRatioStyle(value: string): Record<string, string> {
                 accept="image/*"
                 class="hidden"
                 @change="onSlotChange('reference', $event)"
+              />
+            </div>
+          </div>
+
+          <!-- Video input mode -->
+          <div v-else-if="imageMode === 'video'" class="flex flex-wrap gap-4">
+            <div class="flex flex-col items-center gap-1.5">
+              <div class="relative">
+                <video
+                  v-if="inputVideoPreview"
+                  :src="inputVideoPreview"
+                  class="size-20 object-cover rounded-lg border-2 border-primary/50"
+                  muted
+                  playsinline
+                  @mouseenter="($event.target as HTMLVideoElement).play()"
+                  @mouseleave="
+                    ($event.target as HTMLVideoElement).pause();
+                    ($event.target as HTMLVideoElement).currentTime = 0;
+                  "
+                />
+                <button
+                  v-else-if="isAuthenticated"
+                  type="button"
+                  class="size-20 rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-700 flex items-center justify-center text-zinc-400 hover:border-primary/50 hover:text-primary transition-colors"
+                  @click="inputVideoInput?.click()"
+                >
+                  <UIcon name="i-lucide-film" class="size-5" />
+                </button>
+                <button
+                  v-if="inputVideoPreview"
+                  type="button"
+                  class="absolute top-1 right-1 size-4 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors"
+                  @click="removeVideoInput()"
+                >
+                  <UIcon name="i-lucide-x" class="size-2.5" />
+                </button>
+              </div>
+              <span class="text-[11px] text-zinc-500 dark:text-zinc-400"
+                >Source video</span
+              >
+              <input
+                ref="inputVideoInput"
+                type="file"
+                accept="video/mp4,video/webm,video/quicktime"
+                class="hidden"
+                @change="onVideoChange($event)"
+              />
+            </div>
+          </div>
+
+          <!-- Audio input mode -->
+          <div v-else-if="imageMode === 'audio'" class="flex flex-wrap gap-4">
+            <div class="flex flex-col items-center gap-1.5">
+              <div class="relative">
+                <div
+                  v-if="inputAudioName"
+                  class="size-20 rounded-lg border-2 border-primary/50 bg-primary/5 flex flex-col items-center justify-center gap-1 px-1"
+                >
+                  <UIcon name="i-lucide-music" class="size-5 text-primary" />
+                  <span
+                    class="text-[9px] text-zinc-600 dark:text-zinc-300 truncate w-full text-center"
+                    >{{ inputAudioName }}</span
+                  >
+                </div>
+                <button
+                  v-else-if="isAuthenticated"
+                  type="button"
+                  class="size-20 rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-700 flex items-center justify-center text-zinc-400 hover:border-primary/50 hover:text-primary transition-colors"
+                  @click="inputAudioInput?.click()"
+                >
+                  <UIcon name="i-lucide-music" class="size-5" />
+                </button>
+                <button
+                  v-if="inputAudioName"
+                  type="button"
+                  class="absolute top-1 right-1 size-4 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors"
+                  @click="removeAudioInput()"
+                >
+                  <UIcon name="i-lucide-x" class="size-2.5" />
+                </button>
+              </div>
+              <span class="text-[11px] text-zinc-500 dark:text-zinc-400"
+                >Audio track</span
+              >
+              <input
+                ref="inputAudioInput"
+                type="file"
+                accept="audio/mpeg,audio/wav,audio/mp4,audio/ogg"
+                class="hidden"
+                @change="onAudioChange($event)"
               />
             </div>
           </div>
@@ -792,9 +981,7 @@ function getRatioStyle(value: string): Record<string, string> {
                   {{ d }} seconds
                 </p>
                 <p class="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
-                  {{
-                    videoCredits(selectedModel, d, selectedResolution)
-                  }}
+                  {{ videoCredits(selectedModel, d, selectedResolution) }}
                   credits
                 </p>
               </div>
@@ -936,7 +1123,7 @@ function getRatioStyle(value: string): Record<string, string> {
       @confirm="onSlotPickerConfirm"
     />
 
-    <!-- Generating state -->
+    <!-- Generating state (matches image generation style) -->
     <div v-if="isGenerating" class="mt-12">
       <div class="flex items-center gap-3 mb-5">
         <div class="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
@@ -952,13 +1139,12 @@ function getRatioStyle(value: string): Record<string, string> {
         class="relative rounded-3xl overflow-hidden border border-zinc-200 dark:border-zinc-800"
         :style="{ aspectRatio: generatingAspect }"
       >
+        <!-- Animated brand gradient wash -->
         <div
           class="absolute inset-0 bg-gradient-brand opacity-20 animate-gradient-pan"
         />
         <div class="absolute inset-0 bg-grain opacity-10 mix-blend-overlay" />
-        <div
-          class="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/25 to-transparent"
-        />
+        <!-- Center content -->
         <div
           class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center px-6"
         >
@@ -966,7 +1152,7 @@ function getRatioStyle(value: string): Record<string, string> {
             class="flex size-12 items-center justify-center rounded-2xl bg-white/80 dark:bg-zinc-900/80 backdrop-blur shadow-glow-brand"
           >
             <UIcon
-              name="i-lucide-clapperboard"
+              name="i-lucide-sparkles"
               class="size-6 text-primary animate-pulse"
             />
           </span>
@@ -976,6 +1162,8 @@ function getRatioStyle(value: string): Record<string, string> {
           <p
             v-if="prompt.trim()"
             class="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2 max-w-xs"
+            :style="rtlStyle(prompt)"
+            :dir="hasRtlChars(prompt) ? 'rtl' : 'ltr'"
           >
             "{{ prompt }}"
           </p>

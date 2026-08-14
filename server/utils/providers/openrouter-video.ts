@@ -18,6 +18,33 @@ export type VideoJobStatus =
 
 export type VideoImageMode = "frame" | "reference";
 
+// Maps model-ID prefixes to the provider slug used in `provider.options`.
+// Only models whose providers expose useful passthrough parameters need entries.
+const PROVIDER_SLUG_MAP: Record<string, string> = {
+  "google/": "google-vertex",
+  "alibaba/": "atlas-cloud",
+  // Note: ByteDance/Seedance models only expose "watermark" and "req_key" as
+  // passthrough params. Real-person detection is a hard block with no toggle.
+};
+
+function providerSlugForModel(modelId: string): string | null {
+  for (const [prefix, slug] of Object.entries(PROVIDER_SLUG_MAP)) {
+    if (modelId.startsWith(prefix)) return slug;
+  }
+  return null;
+}
+
+// Default provider-specific parameters sent automatically for every job.
+// These let us e.g. unlock person generation on Google Vertex without the user
+// having to toggle anything.
+const DEFAULT_PROVIDER_OPTIONS: Record<string, Record<string, unknown>> = {
+  "google-vertex": {
+    parameters: {
+      personGeneration: "allow_all",
+    },
+  },
+};
+
 export interface SubmitVideoParams {
   model: string;
   prompt: string;
@@ -31,6 +58,14 @@ export interface SubmitVideoParams {
   firstFrameImageUrl?: string | null;
   lastFrameImageUrl?: string | null;
   referenceImageUrl?: string | null;
+  // Public URL of an input video (video-to-video / continuation). Sent as an
+  // input_reference with type "video_url".
+  inputVideoUrl?: string | null;
+  // Public URL of an input audio track (lip-sync / audio-driven). Sent as an
+  // input_reference with type "audio_url".
+  inputAudioUrl?: string | null;
+  // Whether to enable synchronized audio generation (when the model supports it).
+  generateAudio?: boolean;
 }
 
 export interface SubmitVideoResult {
@@ -78,11 +113,39 @@ export async function submitVideoJob(
   }
   if (frameImages.length) body.frame_images = frameImages;
 
-  // Reference-to-video: style/content guidance (not an exact frame).
+  // Reference inputs: images, video, and/or audio that guide the generation.
+  const inputRefs: Array<Record<string, unknown>> = [];
   if (params.referenceImageUrl) {
-    body.input_references = [
-      { type: "image_url", image_url: { url: params.referenceImageUrl } },
-    ];
+    inputRefs.push({
+      type: "image_url",
+      image_url: { url: params.referenceImageUrl },
+    });
+  }
+  if (params.inputVideoUrl) {
+    inputRefs.push({
+      type: "video_url",
+      video_url: { url: params.inputVideoUrl },
+    });
+  }
+  if (params.inputAudioUrl) {
+    inputRefs.push({
+      type: "audio_url",
+      audio_url: { url: params.inputAudioUrl },
+    });
+  }
+  if (inputRefs.length) body.input_references = inputRefs;
+
+  // Synchronized audio generation.
+  if (params.generateAudio) body.generate_audio = true;
+
+  // Provider-specific passthrough options (e.g. personGeneration for Google).
+  const slug = providerSlugForModel(params.model);
+  if (slug && DEFAULT_PROVIDER_OPTIONS[slug]) {
+    body.provider = {
+      options: {
+        [slug]: DEFAULT_PROVIDER_OPTIONS[slug],
+      },
+    };
   }
 
   const res = await fetch(`${OPENROUTER_BASE}/videos`, {

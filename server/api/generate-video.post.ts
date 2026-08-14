@@ -13,6 +13,9 @@ interface VideoModelRow {
   default_resolution: string | null;
   supports_image_input: boolean;
   supports_last_frame: boolean;
+  supports_video_input: boolean;
+  supports_audio_input: boolean;
+  supports_audio_generation: boolean;
 }
 
 export default defineEventHandler(async (event) => {
@@ -31,6 +34,9 @@ export default defineEventHandler(async (event) => {
     firstFrameUrl,
     lastFrameUrl,
     referenceUrl,
+    // Video / audio input slots.
+    inputVideoUrl: rawInputVideoUrl,
+    inputAudioUrl: rawInputAudioUrl,
     // Legacy single-image fields (mapped below for backward compat).
     inputImageUrl,
     imageMode,
@@ -94,7 +100,7 @@ export default defineEventHandler(async (event) => {
   const { data: modelRow } = (await (supabase as any)
     .from("video_models")
     .select(
-      "tokens_per_generation, duration_seconds, supported_durations, resolution, resolution_options, default_resolution, supports_image_input, supports_last_frame",
+      "tokens_per_generation, duration_seconds, supported_durations, resolution, resolution_options, default_resolution, supports_image_input, supports_last_frame, supports_video_input, supports_audio_input, supports_audio_generation",
     )
     .eq("id", modelId)
     .maybeSingle()) as { data: VideoModelRow | null };
@@ -158,6 +164,16 @@ export default defineEventHandler(async (event) => {
   const lastFrameImageUrl = modelRow.supports_last_frame
     ? (rawLastFrame ?? null)
     : null;
+  // Gate video / audio input by model capabilities.
+  const inputVideoUrl =
+    modelRow.supports_video_input && typeof rawInputVideoUrl === "string"
+      ? rawInputVideoUrl
+      : null;
+  const inputAudioUrl =
+    modelRow.supports_audio_input && typeof rawInputAudioUrl === "string"
+      ? rawInputAudioUrl
+      : null;
+  const generateAudio = !!modelRow.supports_audio_generation;
   // Primary image stored in the dedicated column (for feed/detail display).
   const primaryImageUrl = firstFrameImageUrl ?? referenceImageUrl ?? null;
 
@@ -180,10 +196,15 @@ export default defineEventHandler(async (event) => {
         firstFrameImageUrl,
         lastFrameImageUrl,
         referenceImageUrl,
+        inputVideoUrl,
+        inputAudioUrl,
+        generateAudio,
       });
     } catch (err: unknown) {
-      const msg =
+      const raw =
         err instanceof Error ? err.message : "Failed to submit video job";
+      // Surface a user-friendly message for known provider moderation errors.
+      const msg = friendlyVideoError(raw);
       throw createError({ statusCode: 502, message: msg });
     }
     jobId = job.id;
@@ -205,6 +226,8 @@ export default defineEventHandler(async (event) => {
       status: isDevMode ? "completed" : "pending",
       output_video_url: isDevMode ? DEV_SAMPLE_VIDEO : null,
       input_image_url: primaryImageUrl,
+      input_video_url: inputVideoUrl,
+      input_audio_url: inputAudioUrl,
       duration_seconds: duration,
       resolution,
       aspect_ratio: ratio,
@@ -214,6 +237,9 @@ export default defineEventHandler(async (event) => {
         ...(firstFrameImageUrl ? { first_frame_url: firstFrameImageUrl } : {}),
         ...(lastFrameImageUrl ? { last_frame_url: lastFrameImageUrl } : {}),
         ...(referenceImageUrl ? { reference_url: referenceImageUrl } : {}),
+        ...(inputVideoUrl ? { input_video_url: inputVideoUrl } : {}),
+        ...(inputAudioUrl ? { input_audio_url: inputAudioUrl } : {}),
+        ...(generateAudio ? { generate_audio: true } : {}),
       },
     } as never)
     .select("id")
@@ -278,9 +304,49 @@ export default defineEventHandler(async (event) => {
       has_input_image: !!primaryImageUrl,
       has_last_frame: !!lastFrameImageUrl,
       has_reference: !!referenceImageUrl,
+      has_input_video: !!inputVideoUrl,
+      has_input_audio: !!inputAudioUrl,
+      generate_audio: generateAudio,
       generation_id: generationId,
     },
   });
 
   return { generationId, status: "pending", tokensUsed: cost };
 });
+
+// Map common provider error codes to user-friendly messages.
+function friendlyVideoError(raw: string): string {
+  if (
+    raw.includes("SensitiveContentDetected") ||
+    raw.includes("PrivacyInformation")
+  ) {
+    return "The input was rejected because it may contain a real person. Some video models do not allow real-person imagery — try a different model or use an illustrated/animated input.";
+  }
+  if (
+    raw.includes("ContentPolicyViolation") ||
+    raw.includes("content_policy")
+  ) {
+    return "The request was rejected by the provider's content policy. Try adjusting your prompt or input media.";
+  }
+  if (raw.includes("SAFETY")) {
+    return "The request was blocked by the provider's safety filter. Try a different prompt or input.";
+  }
+  // Fall back to the raw error but try to extract a readable message.
+  // The raw string may contain nested JSON with escaped quotes, e.g.
+  // `OpenRouter video submit failed (400): {"error":{"message":"model \"x\" not found"}}`
+  // so we try to parse the JSON body first.
+  try {
+    const jsonStart = raw.indexOf("{");
+    if (jsonStart !== -1) {
+      const parsed = JSON.parse(raw.slice(jsonStart));
+      const msg =
+        parsed?.error?.message ??
+        parsed?.message ??
+        parsed?.error?.error?.message;
+      if (typeof msg === "string" && msg.length > 0) return msg;
+    }
+  } catch {
+    // JSON parse failed — fall through to raw.
+  }
+  return raw;
+}
