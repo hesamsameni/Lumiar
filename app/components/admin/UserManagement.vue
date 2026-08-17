@@ -13,6 +13,7 @@ interface AdminUser {
   avatar_url: string | null;
   token_balance: number;
   is_admin: boolean;
+  is_partner: boolean;
   generation_count: number;
   created_at: string;
 }
@@ -87,6 +88,23 @@ async function confirmAddCredits() {
     });
   } finally {
     saving.value = false;
+  }
+}
+
+async function togglePartner(user: AdminUser) {
+  try {
+    await $fetch(`/api/admin/users/${user.id}`, {
+      method: "PATCH",
+      headers: authHeaders.value,
+      body: { is_partner: !user.is_partner },
+    });
+    toast.add({
+      title: `${user.username} is ${!user.is_partner ? "now" : "no longer"} a partner`,
+      color: "success",
+    });
+    await fetchUsers();
+  } catch {
+    toast.add({ title: "Failed to update partner status", color: "error" });
   }
 }
 
@@ -216,21 +234,47 @@ await fetchUsers();
 
               <!-- Role -->
               <td class="px-4 py-3 hidden lg:table-cell text-center">
-                <span
-                  v-if="user.is_admin"
-                  class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border border-primary/20 bg-gradient-to-r from-indigo-500/10 via-violet-500/10 to-fuchsia-500/10 text-primary"
-                >
-                  <UIcon name="i-lucide-shield" class="size-3" />
-                  Admin
-                </span>
-                <span v-else class="text-xs text-zinc-400 dark:text-zinc-500">
-                  User
-                </span>
+                <div class="flex flex-col items-center gap-1">
+                  <span
+                    v-if="user.is_admin"
+                    class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border border-primary/20 bg-gradient-to-r from-indigo-500/10 via-violet-500/10 to-fuchsia-500/10 text-primary"
+                  >
+                    <UIcon name="i-lucide-shield" class="size-3" />
+                    Admin
+                  </span>
+                  <span
+                    v-if="user.is_partner"
+                    class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border border-amber-300/30 dark:border-amber-700/30 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400"
+                  >
+                    <UIcon name="i-lucide-handshake" class="size-3" />
+                    Partner
+                  </span>
+                  <span
+                    v-if="!user.is_admin && !user.is_partner"
+                    class="text-xs text-zinc-400 dark:text-zinc-500"
+                  >
+                    User
+                  </span>
+                </div>
               </td>
 
               <!-- Actions -->
               <td class="px-4 py-3">
-                <div class="flex items-center justify-end">
+                <div class="flex items-center justify-end gap-1">
+                  <UButton
+                    :icon="
+                      user.is_partner
+                        ? 'i-lucide-handshake'
+                        : 'i-lucide-handshake'
+                    "
+                    variant="ghost"
+                    :color="user.is_partner ? 'warning' : 'neutral'"
+                    size="xs"
+                    :title="user.is_partner ? 'Remove partner' : 'Make partner'"
+                    @click="togglePartner(user)"
+                  >
+                    {{ user.is_partner ? "Unpartner" : "Partner" }}
+                  </UButton>
                   <UButton
                     icon="i-lucide-plus-circle"
                     variant="ghost"

@@ -90,13 +90,17 @@ export default defineEventHandler(async (event) => {
       await uploadToR2(r2Config, path, buffer, "video/mp4");
       const videoUrl = buildCdnUrl(r2Config.cdnUrl, path);
 
+      const updatePayload: Record<string, unknown> = {
+        status: "completed",
+        output_video_url: videoUrl,
+        updated_at: new Date().toISOString(),
+      };
+      if (typeof poll.usage?.cost === "number") {
+        updatePayload.provider_cost = poll.usage.cost;
+      }
       const { error: updateErr } = await (supabase as any)
         .from("video_generations")
-        .update({
-          status: "completed",
-          output_video_url: videoUrl,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updatePayload)
         .eq("id", row.id);
       if (updateErr) {
         console.error(

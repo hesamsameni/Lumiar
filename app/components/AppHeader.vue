@@ -164,118 +164,133 @@ async function handleSignOut() {
           </template>
 
           <template v-if="isAuthenticated">
-          <UPopover
-            v-model:open="menuOpen"
-            :content="{ align: 'end', sideOffset: 10 }"
-            :ui="{ content: 'rounded-2xl' }"
-          >
-            <button
-              type="button"
-              aria-label="Open account menu"
-              class="rounded-full p-px bg-conic-brand hover:shadow-glow-brand transition-all"
+            <UPopover
+              v-model:open="menuOpen"
+              :content="{ align: 'end', sideOffset: 10 }"
+              :ui="{ content: 'rounded-2xl' }"
             >
-              <UAvatar
-                :src="avatarSrc"
-                :alt="avatarLabel"
-                :fallback="avatarLabel"
-                size="sm"
-                class="ring-2 ring-white dark:ring-zinc-950"
-              />
-            </button>
+              <button
+                type="button"
+                aria-label="Open account menu"
+                class="rounded-full p-px bg-conic-brand hover:shadow-glow-brand transition-all"
+              >
+                <UAvatar
+                  :src="avatarSrc"
+                  :alt="avatarLabel"
+                  :fallback="avatarLabel"
+                  size="sm"
+                  class="ring-2 ring-white dark:ring-zinc-950"
+                />
+              </button>
 
-            <template #content>
-              <div class="w-72 p-2">
-                <!-- Account header: avatar + name + credits button -->
-                <div class="flex items-center gap-3 px-1.5 py-1.5">
-                  <span
-                    class="rounded-full p-px bg-conic-brand flex-shrink-0"
-                  >
-                    <UAvatar
-                      :src="avatarSrc"
-                      :fallback="avatarLabel"
-                      size="sm"
-                      class="ring-2 ring-white dark:ring-zinc-950"
-                    />
-                  </span>
-                  <div class="flex-1 min-w-0">
-                    <p
-                      class="text-sm font-semibold text-zinc-900 dark:text-white truncate"
-                    >
-                      {{ accountName }}
-                    </p>
-                    <p class="text-xs text-zinc-500 dark:text-zinc-400 truncate">
-                      {{ profile?.username ? user?.email : "Signed in" }}
-                    </p>
-                  </div>
-                </div>
-
-                <!-- Credits button -->
-                <NuxtLink
-                  to="/credits"
-                  class="group mt-1 block rounded-xl p-px bg-gradient-brand hover:shadow-glow-brand transition-all"
-                  @click="menuOpen = false"
-                >
-                  <span
-                    class="flex items-center gap-2 px-3 py-2 rounded-[11px] bg-white dark:bg-zinc-950 transition-colors group-hover:bg-zinc-50 dark:group-hover:bg-zinc-900"
-                  >
-                    <UIcon name="i-lucide-zap" class="size-4 text-amber-500" />
+              <template #content>
+                <div class="w-72 p-2">
+                  <!-- Account header: avatar + name + credits button -->
+                  <div class="flex items-center gap-3 px-1.5 py-1.5">
                     <span
-                      class="text-sm font-semibold text-zinc-900 dark:text-white tabular-nums"
-                      >{{ balance ?? "—" }}</span
+                      class="rounded-full p-px bg-conic-brand flex-shrink-0"
                     >
-                    <span class="text-xs text-zinc-500 dark:text-zinc-400"
-                      >credits</span
-                    >
-                    <span
-                      class="ml-auto flex items-center gap-0.5 text-xs font-semibold text-gradient-brand"
-                    >
-                      Buy
-                      <UIcon
-                        name="i-lucide-chevron-right"
-                        class="size-3.5 text-primary"
+                      <UAvatar
+                        :src="avatarSrc"
+                        :fallback="avatarLabel"
+                        size="sm"
+                        class="ring-2 ring-white dark:ring-zinc-950"
                       />
                     </span>
-                  </span>
-                </NuxtLink>
+                    <div class="flex-1 min-w-0">
+                      <p
+                        class="text-sm font-semibold text-zinc-900 dark:text-white truncate"
+                      >
+                        {{ accountName }}
+                      </p>
+                      <p
+                        class="text-xs text-zinc-500 dark:text-zinc-400 truncate"
+                      >
+                        {{ profile?.username ? user?.email : "Signed in" }}
+                      </p>
+                    </div>
+                  </div>
 
-                <div
-                  class="my-1.5 h-px bg-zinc-100 dark:bg-zinc-800"
-                />
+                  <!-- Credits button -->
+                  <NuxtLink
+                    to="/credits"
+                    class="group mt-1 block rounded-xl p-px bg-gradient-brand hover:shadow-glow-brand transition-all"
+                    @click="menuOpen = false"
+                  >
+                    <span
+                      class="flex items-center gap-2 px-3 py-2 rounded-[11px] bg-white dark:bg-zinc-950 transition-colors group-hover:bg-zinc-50 dark:group-hover:bg-zinc-900"
+                    >
+                      <UIcon
+                        name="i-lucide-zap"
+                        class="size-4 text-amber-500"
+                      />
+                      <span
+                        class="text-sm font-semibold text-zinc-900 dark:text-white tabular-nums"
+                        >{{ balance ?? "—" }}</span
+                      >
+                      <span class="text-xs text-zinc-500 dark:text-zinc-400"
+                        >credits</span
+                      >
+                      <span
+                        class="ml-auto flex items-center gap-0.5 text-xs font-semibold text-gradient-brand"
+                      >
+                        Buy
+                        <UIcon
+                          name="i-lucide-chevron-right"
+                          class="size-3.5 text-primary"
+                        />
+                      </span>
+                    </span>
+                  </NuxtLink>
 
-                <!-- Links -->
-                <button
-                  type="button"
-                  class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-colors"
-                  @click="go('/profile')"
-                >
-                  <UIcon name="i-lucide-user" class="size-4 text-zinc-400" />
-                  My Profile
-                </button>
-                <button
-                  type="button"
-                  class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-colors"
-                  @click="go('/profile/edit')"
-                >
-                  <UIcon name="i-lucide-pencil" class="size-4 text-zinc-400" />
-                  Edit Profile
-                </button>
+                  <div class="my-1.5 h-px bg-zinc-100 dark:bg-zinc-800" />
 
-                <div
-                  class="my-1.5 h-px bg-zinc-100 dark:bg-zinc-800"
-                />
+                  <!-- Links -->
+                  <button
+                    type="button"
+                    class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-colors"
+                    @click="go('/profile')"
+                  >
+                    <UIcon name="i-lucide-user" class="size-4 text-zinc-400" />
+                    My Profile
+                  </button>
+                  <button
+                    type="button"
+                    class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-colors"
+                    @click="go('/profile/edit')"
+                  >
+                    <UIcon
+                      name="i-lucide-pencil"
+                      class="size-4 text-zinc-400"
+                    />
+                    Edit Profile
+                  </button>
+                  <button
+                    type="button"
+                    class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-colors"
+                    @click="go('/usage')"
+                  >
+                    <UIcon
+                      name="i-lucide-bar-chart-3"
+                      class="size-4 text-zinc-400"
+                    />
+                    Usage
+                  </button>
 
-                <button
-                  type="button"
-                  class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
-                  @click="signOutFromMenu"
-                >
-                  <UIcon name="i-lucide-log-out" class="size-4" />
-                  Sign out
-                </button>
-              </div>
-            </template>
-          </UPopover>
-        </template>
+                  <div class="my-1.5 h-px bg-zinc-100 dark:bg-zinc-800" />
+
+                  <button
+                    type="button"
+                    class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+                    @click="signOutFromMenu"
+                  >
+                    <UIcon name="i-lucide-log-out" class="size-4" />
+                    Sign out
+                  </button>
+                </div>
+              </template>
+            </UPopover>
+          </template>
 
           <template v-else>
             <UButton to="/auth/login" variant="ghost" size="sm" color="neutral"
@@ -398,65 +413,71 @@ async function handleSignOut() {
           class="p-4 border-t border-zinc-200 dark:border-zinc-800 flex-shrink-0"
         >
           <ClientOnly>
-          <template v-if="isAuthenticated">
-            <div class="flex items-center gap-3 mb-3 px-1">
-              <span class="rounded-full p-px bg-conic-brand flex-shrink-0">
-                <UAvatar
-                  :src="
-                    profile?.avatar_url ||
-                    (user?.user_metadata?.avatar_url as string | undefined) ||
-                    undefined
-                  "
-                  :fallback="avatarLabel"
-                  size="sm"
-                  class="ring-2 ring-white dark:ring-zinc-950"
-                />
-              </span>
-              <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium truncate">
-                  {{ profile?.username ?? user?.email }}
-                </p>
+            <template v-if="isAuthenticated">
+              <div class="flex items-center gap-3 mb-3 px-1">
+                <span class="rounded-full p-px bg-conic-brand flex-shrink-0">
+                  <UAvatar
+                    :src="
+                      profile?.avatar_url ||
+                      (user?.user_metadata?.avatar_url as string | undefined) ||
+                      undefined
+                    "
+                    :fallback="avatarLabel"
+                    size="sm"
+                    class="ring-2 ring-white dark:ring-zinc-950"
+                  />
+                </span>
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-medium truncate">
+                    {{ profile?.username ?? user?.email }}
+                  </p>
+                </div>
+                <TokenBadge />
               </div>
-              <TokenBadge />
-            </div>
-            <div class="space-y-1">
-              <NuxtLink
-                to="/profile"
-                class="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-colors"
-              >
-                <UIcon name="i-lucide-user" class="size-4" /> My Profile
-              </NuxtLink>
-              <NuxtLink
-                to="/profile/edit"
-                class="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-colors"
-              >
-                <UIcon name="i-lucide-pencil" class="size-4" /> Edit Profile
-              </NuxtLink>
-              <button
-                class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
-                @click="handleSignOut"
-              >
-                <UIcon name="i-lucide-log-out" class="size-4" /> Sign out
-              </button>
-            </div>
-          </template>
+              <div class="space-y-1">
+                <NuxtLink
+                  to="/profile"
+                  class="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-colors"
+                >
+                  <UIcon name="i-lucide-user" class="size-4" /> My Profile
+                </NuxtLink>
+                <NuxtLink
+                  to="/profile/edit"
+                  class="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-colors"
+                >
+                  <UIcon name="i-lucide-pencil" class="size-4" /> Edit Profile
+                </NuxtLink>
+                <NuxtLink
+                  to="/usage"
+                  class="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-colors"
+                >
+                  <UIcon name="i-lucide-bar-chart-3" class="size-4" /> Usage
+                </NuxtLink>
+                <button
+                  class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+                  @click="handleSignOut"
+                >
+                  <UIcon name="i-lucide-log-out" class="size-4" /> Sign out
+                </button>
+              </div>
+            </template>
 
-          <template v-else>
-            <UButton
-              to="/auth/login"
-              variant="outline"
-              color="neutral"
-              block
-              class="mb-2"
-              >Sign in</UButton
-            >
-            <UButton
-              to="/auth/register"
-              block
-              class="!bg-gradient-brand !text-white shadow-glow-brand hover:!brightness-110 transition-all"
-              >Get started</UButton
-            >
-          </template>
+            <template v-else>
+              <UButton
+                to="/auth/login"
+                variant="outline"
+                color="neutral"
+                block
+                class="mb-2"
+                >Sign in</UButton
+              >
+              <UButton
+                to="/auth/register"
+                block
+                class="!bg-gradient-brand !text-white shadow-glow-brand hover:!brightness-110 transition-all"
+                >Get started</UButton
+              >
+            </template>
           </ClientOnly>
         </div>
       </div>
