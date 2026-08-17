@@ -40,6 +40,8 @@ const error = ref<string | null>(null);
 const data = ref<UsageResponse | null>(null);
 const typeFilter = ref<TypeFilter>("all");
 const selectedUserId = ref<string | null>(null);
+const dateFrom = ref<string>("");
+const dateTo = ref<string>("");
 
 async function fetchUsage(userId?: string | null) {
   if (!isAuthenticated.value) {
@@ -51,7 +53,14 @@ async function fetchUsage(userId?: string | null) {
   try {
     const accessToken = session.value?.access_token;
     const params: Record<string, string> = {};
-    if (userId) params.userId = userId;
+    const uid = userId !== undefined ? userId : selectedUserId.value;
+    if (uid) params.userId = uid;
+    if (dateFrom.value) params.from = new Date(dateFrom.value).toISOString();
+    if (dateTo.value) {
+      const end = new Date(dateTo.value);
+      end.setHours(23, 59, 59, 999);
+      params.to = end.toISOString();
+    }
     data.value = await $fetch<UsageResponse>("/api/usage", {
       headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
       params,
@@ -67,6 +76,16 @@ async function fetchUsage(userId?: string | null) {
 function onUserChange(userId: string | null) {
   selectedUserId.value = userId;
   fetchUsage(userId);
+}
+
+function onDateChange() {
+  fetchUsage();
+}
+
+function clearDateRange() {
+  dateFrom.value = "";
+  dateTo.value = "";
+  fetchUsage();
 }
 
 onMounted(fetchUsage);
@@ -264,8 +283,8 @@ function formatDate(iso: string): string {
         </div>
       </div>
 
-      <!-- Filter tabs -->
-      <div class="flex items-center gap-2 mb-4">
+      <!-- Filters -->
+      <div class="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
         <div
           class="inline-flex items-center gap-0.5 p-0.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700"
         >
@@ -289,9 +308,41 @@ function formatDate(iso: string): string {
             {{ opt.label }}
           </button>
         </div>
-        <span
-          class="ml-auto text-xs text-zinc-400 dark:text-zinc-500 tabular-nums"
-        >
+
+        <div class="flex items-center gap-2 sm:ml-auto">
+          <div class="flex items-center gap-1.5">
+            <UIcon
+              name="i-lucide-calendar"
+              class="size-3.5 text-zinc-400 flex-shrink-0"
+            />
+            <input
+              v-model="dateFrom"
+              type="date"
+              class="rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1 text-xs text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-2 focus:ring-primary/50 w-[130px]"
+              @change="onDateChange"
+            />
+            <span class="text-xs text-zinc-400">–</span>
+            <input
+              v-model="dateTo"
+              type="date"
+              class="rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1 text-xs text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-2 focus:ring-primary/50 w-[130px]"
+              @change="onDateChange"
+            />
+          </div>
+          <button
+            v-if="dateFrom || dateTo"
+            type="button"
+            class="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+            title="Clear date range"
+            @click="clearDateRange"
+          >
+            <UIcon name="i-lucide-x" class="size-3.5" />
+          </button>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end mb-2">
+        <span class="text-xs text-zinc-400 dark:text-zinc-500 tabular-nums">
           {{ filteredCount.toLocaleString() }} generation{{
             filteredCount === 1 ? "" : "s"
           }}

@@ -36,6 +36,10 @@ export default defineEventHandler(async (event) => {
   }
   const targetUserId = requestedUserId || user.id;
 
+  // Optional date range filter.
+  const fromDate = typeof query.from === "string" ? query.from : null;
+  const toDate = typeof query.to === "string" ? query.to : null;
+
   // When admin, use service-role client to bypass RLS.
   let db: any = supabase;
   if (isAdmin) {
@@ -68,11 +72,15 @@ export default defineEventHandler(async (event) => {
   }
 
   // Aggregate image generations by model.
-  const { data: imageRows } = (await db
+  let imgQuery = db
     .from("generations")
     .select("model_id, model_name, tokens_used, provider_cost, created_at")
-    .eq("user_id", targetUserId)
-    .order("created_at", { ascending: true })) as {
+    .eq("user_id", targetUserId);
+  if (fromDate) imgQuery = imgQuery.gte("created_at", fromDate);
+  if (toDate) imgQuery = imgQuery.lte("created_at", toDate);
+  const { data: imageRows } = (await imgQuery.order("created_at", {
+    ascending: true,
+  })) as {
     data:
       | {
           model_id: string;
@@ -85,14 +93,18 @@ export default defineEventHandler(async (event) => {
   };
 
   // Aggregate video generations by model (only completed ones).
-  const { data: videoRows } = (await db
+  let vidQuery = db
     .from("video_generations")
     .select(
       "model_id, model_name, tokens_used, provider_cost, created_at, status",
     )
     .eq("user_id", targetUserId)
-    .neq("status", "failed")
-    .order("created_at", { ascending: true })) as {
+    .neq("status", "failed");
+  if (fromDate) vidQuery = vidQuery.gte("created_at", fromDate);
+  if (toDate) vidQuery = vidQuery.lte("created_at", toDate);
+  const { data: videoRows } = (await vidQuery.order("created_at", {
+    ascending: true,
+  })) as {
     data:
       | {
           model_id: string;
@@ -158,9 +170,9 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  // Sort by total credits descending.
+  // Sort by last_used descending (most recent first).
   const models = [...groups.values()].sort(
-    (a, b) => b.total_credits - a.total_credits,
+    (a, b) => new Date(b.last_used).getTime() - new Date(a.last_used).getTime(),
   );
 
   // Totals.
