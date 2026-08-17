@@ -21,7 +21,7 @@ export default defineEventHandler(async (event) => {
     (supabase as any)
       .from("profiles")
       .select(
-        "id, username, full_name, avatar_url, token_balance, is_admin, created_at",
+        "id, username, full_name, avatar_url, token_balance, is_admin, is_partner, created_at",
       )
       .order("created_at", { ascending: false }),
     (supabase as any)
@@ -61,6 +61,7 @@ export default defineEventHandler(async (event) => {
     avatar_url: p.avatar_url as string | null,
     token_balance: p.token_balance as number,
     is_admin: p.is_admin as boolean,
+    is_partner: p.is_partner as boolean,
     generation_count: generationCounts[p.id] ?? 0,
     created_at: p.created_at as string,
   }));
