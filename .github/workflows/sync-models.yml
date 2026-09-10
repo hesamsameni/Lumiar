@@ -1,0 +1,25 @@
+name: Sync Models from OpenRouter
+
+on:
+  schedule:
+    # Every day at 07:00 UTC
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+    # Allow manual trigger from GitHub Actions UI
+
+jobs:
+  sync:
+    name: Detect and import new models
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Trigger model sync endpoint
+        run: |
+          response=$(curl --silent --show-error --fail-with-body \
+            --max-time 120 \
+            -X POST \
+            -H "Authorization: Bearer ${{ secrets.MODEL_SYNC_SECRET }}" \
+            -H "Content-Type: application/json" \
+            "${{ secrets.SITE_URL }}/api/admin/sync-models")
+          echo "$response"
